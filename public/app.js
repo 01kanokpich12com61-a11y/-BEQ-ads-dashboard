@@ -537,9 +537,9 @@
     const data = d.data;
     const customDays = d.from && d.to ? Math.round((Date.parse(d.to) - Date.parse(d.from)) / 864e5) + 1 : 30;
     const days = d.range === 'custom' ? Math.max(1, customDays) : ({ '7d': 7, '30d': 30, '90d': 90 }[d.range] || 30);
-    const live = S.me.mode === 'meta';
+    const live = S.me.mode === 'meta' || S.me.mode === 'live';
     return `<div class="page-head"><div>
-        <h1>Dashboard ${live ? '<span class="badge-demo" style="background:var(--mint);color:var(--brand-deep)">Live · Meta</span>' : `<span class="badge-demo">${icon('spark')}Demo data</span>`}</h1>
+        <h1>Dashboard ${live ? '<span class="badge-demo" style="background:var(--mint);color:var(--brand-deep)">Live · ข้อมูลจริง</span>' : `<span class="badge-demo">${icon('spark')}Demo data</span>`}</h1>
         <div class="meta-line" id="dash-meta"></div></div>
       <button class="btn" data-act="refresh">${icon('refresh')}Refresh</button></div>
 
@@ -1278,10 +1278,11 @@
     const verNum = parseInt(String(m.apiVersion || '').replace(/^v/, ''), 10);
     box.innerHTML = `${flash()}${verNum && verNum < 25 ? `<div class="notice warn" style="margin-bottom:16px;max-width:900px">Graph API เวอร์ชัน <b>${esc(m.apiVersion)}</b> ค่อนข้างเก่า — Meta กำหนดอายุของ Marketing API สั้นกว่า Graph API ทั่วไป และเก่ากว่านี้อาจถูกอัปเกรดอัตโนมัติ แนะนำเปลี่ยนเป็น <b>v25.0</b> ขึ้นไป แล้วกด “บันทึกและทดสอบ”</div>` : ''}<div class="stack" style="max-width:900px">
       <section class="card panel"><h3>แหล่งข้อมูล</h3>
-        <p class="sub">ตอนนี้แสดงข้อมูล: <b>${s.mode === 'meta' ? 'Meta (ข้อมูลจริง)' : 'Demo (ข้อมูลตัวอย่าง)'}</b>${connected ? ` · เชื่อมกับบัญชี <b>${esc(m.accountName)}</b>${m.currency ? ' (' + esc(m.currency) + ')' : ''}` : ' · ยังไม่ได้เชื่อม Meta'}</p>
+        <p class="sub">ตอนนี้แสดงข้อมูล: <b>${s.mode === 'meta' ? 'Meta API (ข้อมูลสดจาก Meta)' : s.mode === 'demo' ? 'Demo (ข้อมูลตัวอย่าง)' : 'ข้อมูลจริง (ว่างพร้อมรับข้อมูลใหม่และนำเข้า)'}</b>${connected ? ` · เชื่อมกับบัญชี <b>${esc(m.accountName)}</b>${m.currency ? ' (' + esc(m.currency) + ')' : ''}` : ''}</p>
         <div class="row-actions">
+          <button class="btn ${s.mode === 'live' ? 'primary' : ''}" data-act="mode" data-mode="live">ใช้ข้อมูลจริง (เคลียร์เดโม)</button>
           <button class="btn ${s.mode === 'demo' ? 'primary' : ''}" data-act="mode" data-mode="demo">ใช้ข้อมูลเดโม</button>
-          <button class="btn ${s.mode === 'meta' ? 'primary' : ''}" data-act="mode" data-mode="meta" ${connected ? '' : 'disabled'}>ใช้ข้อมูล Meta</button></div></section>
+          <button class="btn ${s.mode === 'meta' ? 'primary' : ''}" data-act="mode" data-mode="meta" ${connected ? '' : 'disabled'}>ใช้ข้อมูล Meta API</button></div></section>
 
       <section class="card panel"><h3>เชื่อมต่อ Meta Marketing API</h3>
         <p class="sub">ข้อมูลลับถูกเก็บฝั่งเซิร์ฟเวอร์เท่านั้น และจะไม่ถูกส่งกลับมาแสดงที่หน้าเว็บ</p>

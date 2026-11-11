@@ -414,8 +414,9 @@ async function api(req, res, url, session) {
     const b = await readJson(req);
     const m = meta.getSettings().meta || {};
     if (b.mode === 'meta' && !m.connectedAt) return send(res, 400, { error: 'ต้องทดสอบการเชื่อมต่อ Meta ให้สำเร็จก่อน' });
-    meta.saveSettings({ mode: b.mode === 'meta' ? 'meta' : 'demo' });
-    audit.log(session.user.username, 'mode_change', `เปลี่ยนเป็นโหมด ${b.mode === 'meta' ? 'Meta' : 'เดโม'}`, clientIp(req));
+    const targetMode = b.mode === 'meta' ? 'meta' : b.mode === 'demo' ? 'demo' : 'live';
+    meta.saveSettings({ mode: targetMode });
+    audit.log(session.user.username, 'mode_change', `เปลี่ยนเป็นโหมด ${targetMode === 'meta' ? 'Meta' : targetMode === 'demo' ? 'เดโม' : 'ข้อมูลจริง (Live)'}`, clientIp(req));
     return send(res, 200, publicSettings());
   }
 
