@@ -1080,8 +1080,71 @@
   }
 
   function leadCard(l) {
-    return `<div class="lead" data-act="open-chat" data-id="${esc(l.id)}"><b>${esc(l.name)}</b>${chanHtml(l.channel)}<small>${esc(l.ad)}</small>
+    return `<div class="lead" draggable="true" data-lead-id="${esc(l.id)}" data-lead-status="${esc(l.status)}" data-act="open-chat" data-id="${esc(l.id)}">
+      <b>${esc(l.name)}</b>${chanHtml(l.channel)}<small>${esc(l.ad)}</small>
       <small>เริ่มคุย ${esc(l.date)}${l.rep ? ' · ' + esc(l.rep) : ''}${l.value ? ' · ' + baht(l.value) : ''}</small>${l.reason ? `<small>${esc(l.reason)}</small>` : ''}</div>`;
+  }
+
+  let draggedLeadId = null;
+  function initBoardDragDrop(box) {
+    const leads = box.querySelectorAll('.lead[draggable="true"]');
+    leads.forEach((el) => {
+      el.addEventListener('dragstart', (ev) => {
+        draggedLeadId = el.dataset.leadId;
+        el.classList.add('dragging');
+        ev.dataTransfer.setData('text/plain', el.dataset.leadId);
+        ev.dataTransfer.effectAllowed = 'move';
+      });
+      el.addEventListener('dragend', () => {
+        draggedLeadId = null;
+        el.classList.remove('dragging');
+        box.querySelectorAll('.col').forEach((c) => c.classList.remove('drag-over'));
+      });
+    });
+
+    const cols = box.querySelectorAll('.col[data-col-status]');
+    cols.forEach((col) => {
+      col.addEventListener('dragover', (ev) => {
+        ev.preventDefault();
+        ev.dataTransfer.dropEffect = 'move';
+        col.classList.add('drag-over');
+      });
+      col.addEventListener('dragleave', (ev) => {
+        if (!col.contains(ev.relatedTarget)) col.classList.remove('drag-over');
+      });
+      col.addEventListener('drop', async (ev) => {
+        ev.preventDefault();
+        col.classList.remove('drag-over');
+        const id = ev.dataTransfer.getData('text/plain') || draggedLeadId;
+        const targetStatus = col.dataset.colStatus;
+        if (!id || !targetStatus) return;
+
+        // อัปเดตหน้าจอทันที (Optimistic UI) ไม่ต้องรอเซิร์ฟเวอร์
+        if (S.board.data) {
+          let foundCard = null;
+          for (const c of S.board.data.columns) {
+            const idx = c.cards.findIndex((k) => k.id === id);
+            if (idx !== -1) {
+              [foundCard] = c.cards.splice(idx, 1);
+              c.total = Math.max(0, c.total - 1);
+              break;
+            }
+          }
+          if (foundCard) {
+            foundCard.status = targetStatus;
+            const targetCol = S.board.data.columns.find((c) => c.status === targetStatus);
+            if (targetCol) {
+              targetCol.cards.unshift(foundCard);
+              targetCol.total += 1;
+            }
+            renderBoardBody();
+          }
+        }
+
+        // ส่งบันทึกสถานะไปยังเซิร์ฟเวอร์
+        await changeStatus(targetStatus, id);
+      });
+    });
   }
 
   function renderBoardBody() {
@@ -1089,10 +1152,12 @@
     if (s.err) { box.innerHTML = `<div class="notice err">${esc(s.err)}</div>`; return; }
     if (!s.data) return;
     const d = s.data;
-    box.innerHTML = `<div class="meta-line" style="margin:0 0 12px 4px"><span>${num(d.total)} แชท · ${esc(d.range.from)} → ${esc(d.range.to)}</span></div>
-      <div class="kanban">${d.columns.map((c) => `<section class="col"><h4><span><i class="col-dot" style="background:${STATUS_COLOR[c.status]}"></i>${STATUS_TH[c.status]}</span><span>${num(c.total)}</span></h4>
+    box.innerHTML = `<div class="meta-line" style="margin:0 0 12px 4px"><span>${num(d.total)} แชท · ${esc(d.range.from)} → ${esc(d.range.to)} · 💡 ลากการ์ดสีขาวไปวางที่กล่องสถานะที่ต้องการได้เลย</span></div>
+      <div class="kanban">${d.columns.map((c) => `<section class="col" data-col-status="${c.status}">
+        <h4><span><i class="col-dot" style="background:${STATUS_COLOR[c.status]}"></i>${STATUS_TH[c.status]}</span><span>${num(c.total)}</span></h4>
         ${c.cards.map(leadCard).join('') || '<div class="empty" style="padding:20px">ไม่มีแชท</div>'}
-        ${c.total > c.cards.length ? `<div class="ad-sub" style="text-align:center">แสดง ${c.cards.length} จาก ${num(c.total)}</div>` : ''}</section>`).join('')}</div>`;
+        ${c.total > c.cards.length ? `<div class="ad-sub" style="text-align:center;padding:8px 0">แสดง ${c.cards.length} จาก ${num(c.total)}</div>` : ''}</section>`).join('')}</div>`;
+    initBoardDragDrop(box);
   }
 
   /* ---------------- follow-up / review / audit ---------------- */
@@ -1220,16 +1285,17 @@
     const ta = document.querySelector('.reply-form textarea'); if (ta) ta.focus();
   }
 
-  async function changeStatus(status) {
-    const c = S.chat; const id = c.id; if (!id) return;
+  async function changeStatus(status, leadId) {
+    const id = leadId || (S.chat && S.chat.id);
+    if (!id) return;
     try {
       await api('/api/lead/status', { method: 'POST', body: { id, status } });
-      if (c.data && c.data.lead) c.data.lead.status = status;
+      if (S.chat.data && S.chat.data.lead && S.chat.id === id) S.chat.data.lead.status = status;
       const row = S.inbox.data && S.inbox.data.rows.find((x) => x.id === id); if (row) row.status = status;
-      c.msg = { type: 'ok', text: 'เปลี่ยนความคืบหน้าแล้ว' };
-    } catch (e) { c.msg = { type: 'err', text: e.message }; }
+      S.chat.msg = { type: 'ok', text: 'เปลี่ยนความคืบหน้าแล้ว' };
+    } catch (e) { S.chat.msg = { type: 'err', text: e.message }; }
     renderChatViews(); if (S.route === 'inbox') { renderInboxTools(); renderInboxList(); }
-    if (S.route === 'board') loadBoard(); if (S.route === 'followup') loadFollowups();
+    if (S.route === 'followup') loadFollowups();
   }
 
   /* ---------------- settings ---------------- */
