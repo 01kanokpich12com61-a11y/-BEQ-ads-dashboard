@@ -385,7 +385,6 @@
       return obj;
     }).filter((r) => r.name || r.date || r.adId || r.campaign || r.adName || r.spend || r.impressions || r.status || r.channel || r.phone || r.email);
   }
-  }
 
   async function doUploadData() {
     const u = S.upload;
