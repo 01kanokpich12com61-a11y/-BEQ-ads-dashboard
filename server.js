@@ -353,33 +353,7 @@ async function api(req, res, url, session) {
       return tdy;
     }
 
-    function normalizeStatus(st) {
-      if (!st) return 'talked';
-      const s = String(st).trim().toLowerCase();
-      // 1. สร้างคอนเวอร์ชั่นแล้ว (conv_created)
-      if (['สร้างคอนเวอร์ชั่น', 'conversion created', 'conversion_created', 'conv_created', 'conv created'].some((k) => s.includes(k))) return 'conv_created';
-      // 2. Converted / ปิดการขาย (converted)
-      if (['converted', 'convert', 'ปิดการขาย', 'โอนแล้ว', 'มัดจำ', 'closed won', 'closed', 'paid', 'won', 'ซื้อแล้ว', 'สำเร็จ'].some((k) => s.includes(k))) return 'converted';
-      // 3. นัดแล้ว (appointment)
-      if (['นัดแล้ว', 'นัดหมาย', 'นัดพบแพทย์', 'นัดตรวจ', 'นัดปรึกษา', 'appointment', 'booked', 'booking'].some((k) => s.includes(k))) return 'appointment';
-      // 4. Qualifile (qualifile) & มีคุณสมบัติ (qualified)
-      if (['qualifile'].some((k) => s.includes(k))) return 'qualifile';
-      if (['มีคุณสมบัติ', 'คุณสมบัติผ่าน', 'ผ่านเกณฑ์', 'qualified', 'qualify'].some((k) => s.includes(k))) return 'qualified';
-      // 5. In-take (intake)
-      if (['in-take', 'intake', 'in take', 'คัดกรอง', 'รับเคส', 'ซักประวัติ'].some((k) => s.includes(k))) return 'intake';
-      // 6. In-progress (inprogress) & กำลังดำเนินการ (in_progress)
-      if (['in-progress', 'in progress', 'inprogress', 'progress'].some((k) => s.includes(k))) return 'inprogress';
-      if (['กำลังดำเนินการ', 'ดำเนินการ', 'กำลังคุย', 'ติดตาม', 'followup', 'follow up', 'pending'].some((k) => s.includes(k))) return 'in_progress';
-      // 7. มาใหม่ (new)
-      if (['มาใหม่', 'ลูกค้าใหม่', 'fresh', 'new lead', 'new customer', 'raw', 'ลูกค้ารายใหม่'].some((k) => s.includes(k)) || s === 'new') return 'new';
-      // 8. ไม่ตอบ (no_reply)
-      if (['no_reply', 'no reply', 'uncontacted', 'unanswered', 'unread', 'ยังไม่ตอบ', 'ไม่ตอบ', 'ไม่ตอบกลับ', 'ติดต่อไม่ได้', 'ไม่รับสาย'].some((k) => s.includes(k))) return 'no_reply';
-      // 9. แย่มาก / หลุด (very_poor)
-      if (['very_poor', 'very poor', 'poor', 'bad', 'junk', 'spam', 'lost', 'unqualified', 'not interested', 'หลุด', 'แย่', 'ไม่สนใจ', 'ผิดกลุ่ม', 'ยกเลิก', 'ปฏิเสธ'].some((k) => s.includes(k))) return 'very_poor';
-      // 10. พอได้คุย (talked)
-      if (['พอได้คุย', 'talked', 'contacted', 'คุยแล้ว', 'ตอบแล้ว'].some((k) => s.includes(k))) return 'talked';
-      return 'talked';
-    }
+    const normalizeStatus = (st, fallback = '') => ops.normalizeStatus(st, fallback);
 
     for (const [i, r] of rows.entries()) {
       let name = clean(r.name || r.fullname || r.fullName || r.full_name || r.customer, 100);
@@ -395,9 +369,9 @@ async function api(req, res, url, session) {
       const adId = clean(r.adId || r.form || r.form_name || r.adid || r.ad_id || r.adName || r.ad_name || r.campaign || r.campaign_name || r.source, 80) || 'Direct';
       const date = normalizeDate(r.date || r.created);
       const rep = clean(r.repId || r.rep || r.sales || r.owner, 30) || '';
-      const status = normalizeStatus(r.status || r.stage || r.lead_status);
-      const value = Math.max(0, parseFloat(String(r.value || r.amount || r.price || 0).replace(/[^0-9.]/g, '')) || 0);
       const dropReason = clean(r.dropReason || r.labels || r.reason || r.note, 100) || null;
+      const status = normalizeStatus(r.status || r.stage || r.lead_status, dropReason || '');
+      const value = Math.max(0, parseFloat(String(r.value || r.amount || r.price || 0).replace(/[^0-9.]/g, '')) || 0);
       const phone = clean(r.phone || r.phone_number || r.telephone, 40) || '';
       const email = clean(r.email || r.email_address, 80) || '';
 
