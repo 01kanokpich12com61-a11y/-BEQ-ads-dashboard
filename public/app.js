@@ -208,7 +208,11 @@
         });
         S.flash = { type: 'ok', text: `อัปโหลดรูปให้โฆษณา "${res.adName || adName}" สำเร็จแล้ว!` };
         S.dash.data = null; // รีเฟรชข้อมูล Dashboard เพื่อให้รูปโชว์
-        await loadUpload();
+        if (S.route === 'dashboard') {
+          await loadDash(true);
+        } else {
+          await loadUpload();
+        }
       } catch (err) {
         alert('อัปโหลดรูปไม่สำเร็จ: ' + err.message);
       }
@@ -279,10 +283,9 @@
         'reach': 'reach', 'การเข้าถึง': 'reach',
         // Clicks
         'clicks (all)': 'clicks', 'link clicks': 'clicks', 'clicks': 'clicks', 'คลิก': 'clicks', 'คลิก (ทั้งหมด)': 'clicks',
-        // วันที่ — ใช้ "Reporting starts" เป็นวันเริ่มต้น ไม่นับ "Reporting ends" (จะทับข้อมูล)
-        'reporting starts': 'date', 'day': 'date', 'date': 'date', 'วันที่': 'date', 'start date': 'date',
-        // "Reporting ends" → เก็บแยก (ไม่ทับ date)
-        'reporting ends': '_dateEnd',
+        // วันที่ — ใช้ "Reporting starts" เป็นวันเริ่มต้น และ "Reporting ends" เป็นวันสิ้นสุด
+        'reporting starts': 'date', 'reporting_starts': 'date', 'day': 'date', 'date': 'date', 'วันที่': 'date', 'start date': 'date',
+        'reporting ends': 'dateEnd', 'reporting_ends': 'dateEnd', 'end date': 'dateEnd',
         // ผลลัพธ์โฆษณา (Results) — มักเป็น Messaging conversations สำหรับแคมเปญ Message objective
         'results': 'messages', 'messaging conversations started': 'messages', 'messages': 'messages',
         'การเริ่มสนทนาทางข้อความ': 'messages', 'messaging conversations': 'messages',
@@ -886,7 +889,15 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
       <div class="tscroll"><table><thead><tr>${COLS.map(([k, l]) => `<th data-act="sort" data-key="${k}" class="${k === 'creative' ? 'nosort' : ''}">${l}${d.sort === k ? (d.dir === 'asc' ? ' ▲' : ' ▼') : ''}</th>`).join('')}</tr></thead>
       <tbody>${slice.length ? slice.map((r) => `<tr>
         <td><div class="ad-name" title="${esc(r.name)}">${esc(r.name)}</div><div class="ad-sub">${esc(r.campaign)}${r.adset ? ' – ' + esc(r.adset) : ''} · ${esc(r.id)}</div></td>
-        <td><div class="creative">${r.thumb ? `<img class="thumb" src="${esc(r.thumb)}" alt="" referrerpolicy="no-referrer" loading="lazy">` : `<span class="thumb ct-${esc(String(r.creative).toLowerCase())}">${icon('c_' + String(r.creative).toLowerCase())}</span>`}${esc(cap(String(r.creative).toLowerCase()))}</div></td>
+        <td><div class="creative">
+          <label class="dash-thumb-wrap" title="${r.thumb ? 'คลิกเพื่อเปลี่ยนรูปภาพ' : 'คลิกเพื่อใส่รูปโฆษณา'}">
+            ${r.thumb
+              ? `<img class="thumb" src="${esc(r.thumb)}" alt="" referrerpolicy="no-referrer" loading="lazy"><span class="thumb-badge">📷</span>`
+              : `<span class="thumb ct-${esc(String(r.creative).toLowerCase())}" style="border:1.5px dashed var(--brand);color:var(--brand);font-size:11px;font-weight:600;background:#f5f7f2">+ รูป</span>`}
+            <input type="file" accept="image/*" style="display:none" data-act="dash-ad-img" data-ad-id="${esc(r.id)}" data-ad-name="${esc(r.name)}">
+          </label>
+          <span class="creative-lbl">${esc(cap(String(r.creative || 'IMAGE').toLowerCase()))}</span>
+        </div></td>
         <td>${num(r.reach)}</td><td>${num(r.impressions)}</td><td>${baht(r.cpm)}</td><td>${pct(r.ctr)}</td><td>${baht(r.costMessage)}</td>
         <td>${r.cqc === null ? '—' : baht(r.cqc)}</td><td>${num(r.purchases)}</td><td class="spend">${baht(r.spend)}</td><td>${baht(r.cpc)}</td>
         <td><div class="q-cell">${sparkSvg(r.spark, r.qualityLabel)}<span class="q-badge q-${r.qualityLabel}">${r.qualityScore === null ? 'No chats' : `${QLABEL[r.qualityLabel]} · ${r.qualityScore}%`}</span></div></td></tr>`).join('')
@@ -1696,7 +1707,7 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
   });
 
   document.addEventListener('change', (ev) => {
-    if (ev.target.dataset && ev.target.dataset.act === 'ad-img-file') {
+    if (ev.target.dataset && (ev.target.dataset.act === 'ad-img-file' || ev.target.dataset.act === 'dash-ad-img')) {
       const file = ev.target.files && ev.target.files[0];
       if (file) uploadAdImage(ev.target.dataset.adId, ev.target.dataset.adName, file);
       return;

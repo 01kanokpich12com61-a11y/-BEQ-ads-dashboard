@@ -11,7 +11,7 @@ const providers = require('./lib/providers');
 const ops = require('./lib/ops');
 const audit = require('./lib/audit');
 const sla = require('./lib/sla');
-const { resolveRange, isDate, today } = require('./lib/dates');
+const { resolveRange, isDate, today, eachDay, addDays } = require('./lib/dates');
 const { buildDashboard, buildBoard, buildInbox, leadRow, listFilters } = require('./lib/metrics');
 
 const MIME = {
@@ -470,21 +470,39 @@ async function api(req, res, url, session) {
       // "results" จาก Ads Manager ของ Message objective = Messaging conversations
       const messages = Math.max(0, parseInt(String(r.messages || r.messaging_conversations || r.results || 0).replace(/[^0-9]/g, ''), 10) || 0);
       const purchases = Math.max(0, parseInt(String(r.purchases || 0).replace(/[^0-9]/g, ''), 10) || 0);
-      const date = normalizeDate(r.date || r.reporting_starts || r.day);
+      
+      const rawDateStart = r.date || r.reporting_starts || r.reportingStarts || r.day;
+      const rawDateEnd = r.dateEnd || r.reporting_ends || r.reportingEnds || rawDateStart;
+      const startDate = normalizeDate(rawDateStart);
+      const endDate = normalizeDate(rawDateEnd);
 
       // กรองแถวที่ไม่มีข้อมูลจริง (เช่น แถวสรุป Total ที่ Ads Manager ใส่ท้ายไฟล์)
       if (!spend && !impressions && !clicks && !messages) continue;
 
-      existingData.daily.push({
-        date,
-        adId,
-        spend,
-        impressions,
-        reach,
-        clicks,
-        messages,
-        purchases,
-      });
+      let dateList = [startDate];
+      if (startDate && endDate && startDate < endDate) {
+        dateList = eachDay(startDate, endDate);
+      }
+      const daysCount = Math.max(1, dateList.length);
+      const daySpend = Math.round((spend / daysCount) * 100) / 100;
+      const dayImpressions = Math.round(impressions / daysCount);
+      const dayReach = Math.round(reach / daysCount);
+      const dayClicks = Math.round(clicks / daysCount);
+      const dayMessages = Math.round(messages / daysCount);
+      const dayPurchases = Math.round(purchases / daysCount);
+
+      for (const d of dateList) {
+        existingData.daily.push({
+          date: d,
+          adId,
+          spend: daySpend,
+          impressions: dayImpressions,
+          reach: dayReach,
+          clicks: dayClicks,
+          messages: dayMessages,
+          purchases: dayPurchases,
+        });
+      }
       addedRows++;
     }
 
