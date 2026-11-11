@@ -261,7 +261,8 @@
 
   function parseCsv(text) {
     if (!text || !text.trim()) return [];
-    const s = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    // ตัด UTF-8 BOM (\ufeff) ที่มักติดมาจากไฟล์ Export ของ Excel / Windows ออก
+    const s = text.replace(/^\ufeff/, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
     
     // หา delimiter จากบรรทัดแรก
     const firstLineEnd = s.indexOf('\n');
@@ -305,7 +306,7 @@
 
     if (!allRows.length) return [];
     const rawFirstFields = allRows[0];
-    const firstFields = rawFirstFields.map((f) => f.toLowerCase().trim().replace(/^["']|["']$/g, ''));
+    const firstFields = rawFirstFields.map((f) => f.replace(/^\ufeff/, '').toLowerCase().trim().replace(/^["']|["']$/g, '').trim());
 
     // ตรวจสอบอัตโนมัติว่าเป็นไฟล์รายงานโฆษณา (Campaign Report) หรือไฟล์รายชื่อลูกค้า (Leads)
     const isCampaignFile = S.upload.tab === 'campaigns' || firstFields.some((f) =>
@@ -376,14 +377,10 @@
     let headers, dataLines;
     if (isHeader) {
       // map: null หมายถึง ignore คอลัมน์นั้น (ไม่ส่งไปเซิร์ฟเวอร์)
-      headers = firstFields.map((f, idx) => {
-        const mapped = COL_MAP[f];
-        if (mapped === null) return null; // ignore column
-        if (mapped !== undefined) return mapped;
-        // fallback สำหรับคอลัมน์ที่ไม่รู้จัก
-        return isCampaignFile
-          ? (idx === 0 ? 'campaign' : idx === 1 ? 'adName' : idx === 2 ? 'spend' : idx === 3 ? 'impressions' : '_unknown')
-          : (idx === 0 ? 'name' : idx === 1 ? 'channel' : idx === 2 ? 'adId' : idx === 3 ? 'date' : idx === 4 ? 'status' : 'rep');
+      // ถ้าคอลัมน์ไหนไม่รู้จัก ให้ข้าม (null) แทนการเดาตามลำดับ เพื่อไม่ให้ข้อมูลสลับคอลัมน์
+      headers = firstFields.map((f) => {
+        if (COL_MAP[f] !== undefined) return COL_MAP[f];
+        return null; // ignore unknown column
       });
       dataLines = allRows.slice(1);
     } else {
