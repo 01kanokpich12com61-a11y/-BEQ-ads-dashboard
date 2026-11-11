@@ -248,14 +248,17 @@
 
   async function doUploadLeads() {
     const u = S.upload;
-    if (!u.rows.length) return;
+    if (!u.rows.length || u.loading) return;
+    u.loading = true; u.err = null; renderUploadBody();
     try {
       const r = await api('/api/upload/leads', { method: 'POST', body: { rows: u.rows } });
       u.result = r; u.rows = []; u.err = null;
     } catch (e) {
       u.err = e.message || 'เกิดข้อผิดพลาดในการนำเข้า';
+    } finally {
+      u.loading = false;
+      renderUploadBody();
     }
-    renderUploadBody();
   }
 
   function renderUploadBody() {
@@ -302,8 +305,8 @@
             <td>${esc(r.date || '—')}</td><td>${esc(r.rep || '—')}</td></tr>`).join('')}
         </tbody></table></div>
         <div class="row-actions" style="margin-top:16px">
-          <button class="btn primary" data-act="upload-confirm">${icon('check')} ยืนยันนำเข้า ${num(u.rows.length)} รายการ</button>
-          <button class="btn" data-act="upload-cancel">ยกเลิก</button>
+          <button class="btn primary" data-act="upload-confirm" ${u.loading ? 'disabled' : ''}>${u.loading ? 'กำลังนำเข้า…' : `${icon('check')} ยืนยันนำเข้า ${num(u.rows.length)} รายการ`}</button>
+          <button class="btn" data-act="upload-cancel" ${u.loading ? 'disabled' : ''}>ยกเลิก</button>
         </div>
       </div>`;
       return;
@@ -1392,6 +1395,13 @@
         const r = await api('/api/settings/meta/extend', { method: 'POST' });
         S.flash = r.ok ? { type: 'ok', text: 'แลกเป็น token อายุยาวสำเร็จ' } : { type: 'err', text: r.error }; if (r.ok) S.settings = r.settings; render();
       }
+      /* ── upload page ── */
+      else if (act === 'upload-confirm') { await doUploadLeads(); }
+      else if (act === 'upload-cancel' || act === 'upload-reset') { S.upload.rows = []; S.upload.result = null; S.upload.err = null; renderUploadBody(); }
+      /* ── quality page ── */
+      else if (act === 'quality-reload') { S.dash.data = null; await loadQuality(); }
+      else if (act === 'q-sort') { const k = el.dataset.key; S.quality.sortDir = S.quality.sort === k && S.quality.sortDir === 'desc' ? 'asc' : 'desc'; S.quality.sort = k; renderQualityBody(); }
+      else if (act === 'q-clear-filters') { S.quality.campaign = ''; S.quality.minQuality = ''; renderQualityBody(); }
     } catch (e) { if (e.message !== 'กรุณาเข้าสู่ระบบ') { S.flash = { type: 'err', text: e.message }; render(); } }
   });
 
