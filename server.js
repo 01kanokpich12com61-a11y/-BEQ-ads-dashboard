@@ -73,13 +73,16 @@ function readRaw(req, limit = 1_000_000) {
   });
 }
 
-// Verify Token สำหรับ Webhook: สร้างอัตโนมัติครั้งแรก
+// Verify Token สำหรับ Webhook: ค่าคงที่ถาวร ไม่สุ่มใหม่ เพื่อไม่ให้หลุดเวลา Render รีสตาร์ท
 function webhookToken() {
+  if (process.env.WEBHOOK_VERIFY_TOKEN && process.env.WEBHOOK_VERIFY_TOKEN.trim()) {
+    return process.env.WEBHOOK_VERIFY_TOKEN.trim();
+  }
   const m = meta.getSettings().meta || {};
-  if (m.webhookVerifyToken) return m.webhookVerifyToken;
-  const t = crypto.randomBytes(16).toString('hex');
-  meta.saveSettings({ meta: { webhookVerifyToken: t } });
-  return t;
+  if (m.webhookVerifyToken && m.webhookVerifyToken.trim()) return m.webhookVerifyToken.trim();
+  const defaultToken = 'beq_webhook_verify_token_secure';
+  meta.saveSettings({ meta: { webhookVerifyToken: defaultToken } });
+  return defaultToken;
 }
 const safeEq = (a, b) => { const x = Buffer.from(String(a)); const y = Buffer.from(String(b)); return x.length === y.length && crypto.timingSafeEqual(x, y); };
 
@@ -692,13 +695,16 @@ const server = http.createServer(async (req, res) => {
     // Webhook จาก Meta (ไม่ใช้ session แต่ตรวจลายเซ็น X-Hub-Signature-256 ด้วย App Secret)
     if (url.pathname === '/webhook') {
       if (req.method === 'GET') {
-        const okTok = url.searchParams.get('hub.mode') === 'subscribe' && safeEq(url.searchParams.get('hub.verify_token') || '', webhookToken());
+        const reqTok = url.searchParams.get('hub.verify_token') || '';
+        const curTok = webhookToken();
+        const storedTok = (meta.getSettings().meta || {}).webhookVerifyToken || '';
+        const okTok = url.searchParams.get('hub.mode') === 'subscribe' && (safeEq(reqTok, curTok) || (storedTok && safeEq(reqTok, storedTok)));
         if (!okTok) { audit.log('meta-webhook', 'webhook_rejected', 'Verify Token ไม่ถูกต้อง', ip); return send(res, 403, 'Forbidden'); }
         return send(res, 200, clean(url.searchParams.get('hub.challenge'), 100));
       }
       if (req.method === 'POST') {
         const raw = await readRaw(req);
-        const secret = (meta.getSettings().meta || {}).appSecret;
+        const secret = (meta.getSettings().meta || {}).appSecret || process.env.META_APP_SECRET || '';
         const sig = String(req.headers['x-hub-signature-256'] || '');
         const good = secret && safeEq(sig, 'sha256=' + crypto.createHmac('sha256', secret).update(raw).digest('hex'));
         if (!good) { audit.log('meta-webhook', 'webhook_rejected', secret ? 'ลายเซ็นไม่ถูกต้อง' : 'ยังไม่ได้บันทึก App Secret', ip); return send(res, 403, 'Forbidden'); }
