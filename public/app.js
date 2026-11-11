@@ -235,6 +235,10 @@
       'date': 'date', 'created_time': 'date', 'created_at': 'date', 'timestamp': 'date', 'time': 'date',
       'เซลส์': 'rep', 'ผู้ดูแล': 'rep', 'พนักงาน': 'rep',
       'rep': 'rep', 'sales': 'rep', 'repid': 'rep', 'rep id': 'rep', 'owner': 'rep', 'admin': 'rep',
+      'สถานะ': 'status', 'สถานะลูกค้า': 'status', 'ขั้นตอน': 'status', 'ความคืบหน้า': 'status',
+      'status': 'status', 'lead_status': 'status', 'stage': 'status', 'stage_name': 'status', 'state': 'status',
+      'ยอดเงิน': 'value', 'ยอดขาย': 'value', 'ราคา': 'value', 'มูลค่า': 'value', 'value': 'value', 'amount': 'value', 'price': 'value',
+      'เหตุผล': 'dropReason', 'หมายเหตุ': 'dropReason', 'reason': 'dropReason', 'note': 'dropReason',
     };
 
     const rawFirstFields = parseLine(firstLine);
@@ -242,10 +246,10 @@
     const isHeader = firstFields.some((f) => COL_MAP[f] !== undefined);
     let headers, dataLines;
     if (isHeader) {
-      headers = firstFields.map((f, idx) => COL_MAP[f] || (idx === 0 ? 'name' : idx === 1 ? 'channel' : idx === 2 ? 'adId' : idx === 3 ? 'date' : 'rep'));
+      headers = firstFields.map((f, idx) => COL_MAP[f] || (idx === 0 ? 'name' : idx === 1 ? 'channel' : idx === 2 ? 'adId' : idx === 3 ? 'date' : idx === 4 ? 'status' : 'rep'));
       dataLines = lines.slice(1);
     } else {
-      headers = ['name', 'channel', 'adId', 'date', 'rep'];
+      headers = ['name', 'channel', 'adId', 'date', 'status', 'rep'];
       dataLines = lines;
     }
 
@@ -260,9 +264,11 @@
   async function doUploadLeads() {
     const u = S.upload;
     if (!u.rows.length || u.loading) return;
+    const repCheck = document.getElementById('upload-replace-check');
+    const replace = repCheck ? repCheck.checked : true;
     u.loading = true; u.err = null; renderUploadBody();
     try {
-      const r = await api('/api/upload/leads', { method: 'POST', body: { rows: u.rows } });
+      const r = await api('/api/upload/leads', { method: 'POST', body: { rows: u.rows, replace } });
       u.result = r; u.rows = []; u.err = null;
     } catch (e) {
       u.err = e.message || 'เกิดข้อผิดพลาดในการนำเข้า';
@@ -291,6 +297,7 @@
           </ul></details>` : ''}
         <div class="row-actions" style="margin-top:16px">
           <button class="btn" data-act="upload-reset">${icon('refresh')} นำเข้าไฟล์ใหม่</button>
+          <a class="btn" href="#/board">ไปดู Board</a>
           <a class="btn" href="#/inbox">ไปดู Inbox</a>
         </div>
       </div>${historyHtml(u)}`;
@@ -306,15 +313,23 @@
       $el.innerHTML = `${errHtml}<div class="card panel">
         <h3>${icon('upload')} ตรวจสอบข้อมูลก่อนนำเข้า</h3>
         <p class="sub">พบ ${num(u.rows.length)} แถว${u.rows.length > 20 ? ' (แสดง 20 แรก)' : ''}</p>
-        <div class="tscroll"><table style="min-width:640px"><thead><tr>
+        <div class="tscroll"><table style="min-width:720px"><thead><tr>
           <th class="nosort">#</th><th class="nosort">ชื่อ</th><th class="nosort">ช่องทาง</th>
-          <th class="nosort">Ad ID</th><th class="nosort">วันที่</th><th class="nosort">เซลส์</th>
+          <th class="nosort">โฆษณา / แคมเปญ</th><th class="nosort">วันที่</th><th class="nosort">สถานะบน Board</th><th class="nosort">เซลส์</th>
         </tr></thead><tbody>
           ${rows.map((r, i) => `<tr><td class="nowrap" style="color:var(--muted)">${i + 1}</td>
-            <td>${esc(r.name || '—')}</td><td>${esc(r.channel || '—')}</td>
-            <td style="font-family:monospace;font-size:13px">${esc(r.adId || '—')}</td>
-            <td>${esc(r.date || '—')}</td><td>${esc(r.rep || '—')}</td></tr>`).join('')}
+            <td><b>${esc(r.name || '—')}</b></td><td>${esc(r.channel || '—')}</td>
+            <td style="font-size:13px">${esc(r.adId || '—')}</td>
+            <td>${esc(r.date || '—')}</td>
+            <td><span class="q-badge q-average">${esc(r.status || 'พอได้คุย')}</span></td>
+            <td>${esc(r.rep || '—')}</td></tr>`).join('')}
         </tbody></table></div>
+        <div style="margin:16px 0 6px">
+          <label style="display:inline-flex;align-items:center;gap:8px;cursor:pointer">
+            <input type="checkbox" id="upload-replace-check" checked>
+            <span>แทนที่ข้อมูลชุดเดิม (ล้าง 307 รายการก่อนหน้าออกเพื่อลงข้อมูลที่แบ่งสถานะถูกต้อง)</span>
+          </label>
+        </div>
         <div class="row-actions" style="margin-top:16px">
           <button class="btn primary" data-act="upload-confirm" ${u.loading ? 'disabled' : ''}>${u.loading ? 'กำลังนำเข้า…' : `${icon('check')} ยืนยันนำเข้า ${num(u.rows.length)} รายการ`}</button>
           <button class="btn" data-act="upload-cancel" ${u.loading ? 'disabled' : ''}>ยกเลิก</button>

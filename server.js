@@ -312,7 +312,7 @@ async function api(req, res, url, session) {
     const b = await readJson(req);
     const rows = Array.isArray(b.rows) ? b.rows.slice(0, 2000) : [];
     if (!rows.length) return send(res, 400, { error: 'ไม่มีข้อมูลที่จะนำเข้า' });
-    const existing = store.read('leads.json', []);
+    let existing = b.replace ? [] : store.read('leads.json', []);
     const CHANNELS = ['Messenger', 'LINE', 'Instagram', 'WhatsApp'];
     const added = []; const errors = [];
     const tdy = today();
@@ -339,26 +339,44 @@ async function api(req, res, url, session) {
       return tdy;
     }
 
+    function normalizeStatus(st) {
+      if (!st) return 'talked';
+      const s = String(st).trim().toLowerCase();
+      // 1. ไม่ตอบ (no_reply)
+      if (['no_reply', 'no reply', 'unanswered', 'unread', 'ยังไม่ตอบ', 'ไม่ตอบ', 'ไม่ตอบกลับ', 'ติดต่อไม่ได้', 'ไม่รับสาย'].some((k) => s.includes(k))) return 'no_reply';
+      // 2. แย่มาก / หลุด (very_poor)
+      if (['very_poor', 'very poor', 'poor', 'bad', 'junk', 'spam', 'หลุด', 'แย่', 'ไม่สนใจ', 'ผิดกลุ่ม', 'ยกเลิก', 'ปฏิเสธ'].some((k) => s.includes(k))) return 'very_poor';
+      // 3. กำลังดำเนินการ / นัดหมาย (in_progress)
+      if (['in_progress', 'in progress', 'progress', 'followup', 'follow up', 'pending', 'appointment', 'consult', 'กำลังดำเนินการ', 'ดำเนินการ', 'กำลังคุย', 'นัดหมาย', 'รอตรวจ', 'ติดตาม', 'ส่งข้อมูล'].some((k) => s.includes(k))) return 'in_progress';
+      // 4. มีคุณสมบัติ / ปิดการขาย (qualified)
+      if (['qualified', 'qualify', 'converted', 'convert', 'won', 'closed', 'deposit', 'booked', 'paid', 'success', 'มีคุณสมบัติ', 'คุณสมบัติผ่าน', 'ปิดการขาย', 'โอนแล้ว', 'มัดจำ', 'จอง', 'ซื้อแล้ว', 'สำเร็จ'].some((k) => s.includes(k))) return 'qualified';
+      // 5. พอได้คุย (talked)
+      return 'talked';
+    }
+
     for (const [i, r] of rows.entries()) {
       let name = clean(r.name || r.fullname || r.fullName || r.full_name || r.customer, 100);
       if (!name) name = `ลูกค้า #${existing.length + added.length + 1}`;
       let channel = clean(r.channel, 30);
       if (!CHANNELS.includes(channel)) channel = 'Messenger';
-      const adId = clean(r.adId || r.adid || r.ad_id || r.adName || r.ad_name || r.campaign, 50) || 'Direct';
+      const adId = clean(r.adId || r.adid || r.ad_id || r.adName || r.ad_name || r.campaign || r.campaign_name, 80) || 'Direct';
       const date = normalizeDate(r.date);
-      const rep = clean(r.repId || r.rep || r.sales, 30) || '';
+      const rep = clean(r.repId || r.rep || r.sales || r.owner, 30) || '';
+      const status = normalizeStatus(r.status || r.stage || r.lead_status);
+      const value = Math.max(0, parseFloat(String(r.value || r.amount || r.price || 0).replace(/[^0-9.]/g, '')) || 0);
+      const dropReason = clean(r.dropReason || r.reason || r.note, 100) || null;
 
       const id = `U-${Date.now().toString(36)}-${String(i).padStart(4, '0')}`;
       const lead = {
         id, name, channel, adId, date,
         repId: rep,
-        status: 'talked', quality: 'average', value: 0, firstResponseMin: null, dropReason: null,
+        status, quality: ops.QUALITY[status] || 'average', value, firstResponseMin: null, dropReason,
       };
       existing.push(lead);
       added.push(lead);
     }
-    if (added.length) store.write('leads.json', existing);
-    audit.log(session.user.username, 'leads_upload', `นำเข้า ${added.length} leads`, clientIp(req));
+    if (added.length || b.replace) store.write('leads.json', existing);
+    audit.log(session.user.username, 'leads_upload', `นำเข้า ${added.length} leads${b.replace ? ' (แทนที่ชุดเดิม)' : ''}`, clientIp(req));
     return send(res, 200, { ok: true, added: added.length, errors });
   }
 
