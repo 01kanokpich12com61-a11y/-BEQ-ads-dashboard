@@ -17,6 +17,7 @@ const { buildDashboard, buildBoard, buildInbox, leadRow, listFilters } = require
 const MIME = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8',
   '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon', '.json': 'application/json',
+  '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp',
 };
 const SECURITY_HEADERS = {
   'X-Content-Type-Options': 'nosniff',
@@ -343,13 +344,13 @@ async function api(req, res, url, session) {
       if (!st) return 'talked';
       const s = String(st).trim().toLowerCase();
       // 1. ไม่ตอบ (no_reply)
-      if (['no_reply', 'no reply', 'unanswered', 'unread', 'ยังไม่ตอบ', 'ไม่ตอบ', 'ไม่ตอบกลับ', 'ติดต่อไม่ได้', 'ไม่รับสาย'].some((k) => s.includes(k))) return 'no_reply';
+      if (['no_reply', 'no reply', 'raw', 'new', 'uncontacted', 'unanswered', 'unread', 'ยังไม่ตอบ', 'ไม่ตอบ', 'ไม่ตอบกลับ', 'ติดต่อไม่ได้', 'ไม่รับสาย'].some((k) => s.includes(k))) return 'no_reply';
       // 2. แย่มาก / หลุด (very_poor)
-      if (['very_poor', 'very poor', 'poor', 'bad', 'junk', 'spam', 'หลุด', 'แย่', 'ไม่สนใจ', 'ผิดกลุ่ม', 'ยกเลิก', 'ปฏิเสธ'].some((k) => s.includes(k))) return 'very_poor';
+      if (['very_poor', 'very poor', 'poor', 'bad', 'junk', 'spam', 'lost', 'unqualified', 'not interested', 'หลุด', 'แย่', 'ไม่สนใจ', 'ผิดกลุ่ม', 'ยกเลิก', 'ปฏิเสธ'].some((k) => s.includes(k))) return 'very_poor';
       // 3. กำลังดำเนินการ / นัดหมาย (in_progress)
-      if (['in_progress', 'in progress', 'progress', 'followup', 'follow up', 'pending', 'appointment', 'consult', 'กำลังดำเนินการ', 'ดำเนินการ', 'กำลังคุย', 'นัดหมาย', 'รอตรวจ', 'ติดตาม', 'ส่งข้อมูล'].some((k) => s.includes(k))) return 'in_progress';
+      if (['in_progress', 'in progress', 'progress', 'followup', 'follow up', 'pending', 'scheduled', 'trial', 'appointment', 'consult', 'กำลังดำเนินการ', 'ดำเนินการ', 'กำลังคุย', 'นัดหมาย', 'รอตรวจ', 'ติดตาม', 'ส่งข้อมูล'].some((k) => s.includes(k))) return 'in_progress';
       // 4. มีคุณสมบัติ / ปิดการขาย (qualified)
-      if (['qualified', 'qualify', 'converted', 'convert', 'won', 'closed', 'deposit', 'booked', 'paid', 'success', 'มีคุณสมบัติ', 'คุณสมบัติผ่าน', 'ปิดการขาย', 'โอนแล้ว', 'มัดจำ', 'จอง', 'ซื้อแล้ว', 'สำเร็จ'].some((k) => s.includes(k))) return 'qualified';
+      if (['qualified', 'qualify', 'converted', 'convert', 'won', 'closed won', 'closed', 'deposit', 'booked', 'paid', 'success', 'มีคุณสมบัติ', 'คุณสมบัติผ่าน', 'ปิดการขาย', 'โอนแล้ว', 'มัดจำ', 'จอง', 'ซื้อแล้ว', 'สำเร็จ'].some((k) => s.includes(k))) return 'qualified';
       // 5. พอได้คุย (talked)
       return 'talked';
     }
@@ -358,19 +359,28 @@ async function api(req, res, url, session) {
       let name = clean(r.name || r.fullname || r.fullName || r.full_name || r.customer, 100);
       if (!name) name = `ลูกค้า #${existing.length + added.length + 1}`;
       let channel = clean(r.channel, 30);
-      if (!CHANNELS.includes(channel)) channel = 'Messenger';
-      const adId = clean(r.adId || r.adid || r.ad_id || r.adName || r.ad_name || r.campaign || r.campaign_name, 80) || 'Direct';
-      const date = normalizeDate(r.date);
+      if (!CHANNELS.includes(channel)) {
+        const chLow = (channel || r.source || '').toLowerCase();
+        if (chLow.includes('line')) channel = 'LINE';
+        else if (chLow.includes('ig') || chLow.includes('instagram')) channel = 'Instagram';
+        else if (chLow.includes('wa') || chLow.includes('whatsapp')) channel = 'WhatsApp';
+        else channel = 'Messenger';
+      }
+      const adId = clean(r.adId || r.form || r.form_name || r.adid || r.ad_id || r.adName || r.ad_name || r.campaign || r.campaign_name || r.source, 80) || 'Direct';
+      const date = normalizeDate(r.date || r.created);
       const rep = clean(r.repId || r.rep || r.sales || r.owner, 30) || '';
       const status = normalizeStatus(r.status || r.stage || r.lead_status);
       const value = Math.max(0, parseFloat(String(r.value || r.amount || r.price || 0).replace(/[^0-9.]/g, '')) || 0);
-      const dropReason = clean(r.dropReason || r.reason || r.note, 100) || null;
+      const dropReason = clean(r.dropReason || r.labels || r.reason || r.note, 100) || null;
+      const phone = clean(r.phone || r.phone_number || r.telephone, 40) || '';
+      const email = clean(r.email || r.email_address, 80) || '';
 
       const id = `U-${Date.now().toString(36)}-${String(i).padStart(4, '0')}`;
       const lead = {
         id, name, channel, adId, date,
         repId: rep,
         status, quality: ops.QUALITY[status] || 'average', value, firstResponseMin: null, dropReason,
+        phone, email,
       };
       existing.push(lead);
       added.push(lead);
@@ -594,6 +604,45 @@ async function api(req, res, url, session) {
     if (err) return send(res, 400, { error: err });
     audit.log(session.user.username, 'password_change', 'เปลี่ยนรหัสผ่านของตัวเอง', clientIp(req));
     return send(res, 200, { ok: true });
+  }
+
+  if (route === 'POST /api/upload/ad-image') {
+    if (!auth.isAdmin(session.user)) return send(res, 403, { error: 'เฉพาะผู้ดูแล (admin) เท่านั้น' });
+    const b = await readJson(req, 15_000_000); // 15MB รองรับรูปคุณภาพสูง
+    const { adId, adName, imageData, mimeType } = b;
+    if (!imageData) return send(res, 400, { error: 'ต้องส่งข้อมูลรูปภาพ (imageData)' });
+
+    const ALLOWED_MIME = { 'image/jpeg': 'jpg', 'image/jpg': 'jpg', 'image/png': 'png', 'image/gif': 'gif', 'image/webp': 'webp' };
+    const ext = ALLOWED_MIME[mimeType] || ALLOWED_MIME[imageData.match(/^data:([^;]+);base64,/)?.[1]] || 'jpg';
+    if (!Object.values(ALLOWED_MIME).includes(ext)) return send(res, 400, { error: 'รองรับเฉพาะ JPEG, PNG, GIF, WebP' });
+
+    // ถอด base64 header ออกก่อน decode
+    const base64Data = imageData.replace(/^data:[^;]+;base64,/, '');
+    const buf = Buffer.from(base64Data, 'base64');
+    if (buf.length > 10_000_000) return send(res, 400, { error: 'รูปใหญ่เกิน 10 MB หลัง decode' });
+
+    const safeName = (adId || adName || 'ad').replace(/[^a-zA-Z0-9ก-๙-]/g, '_').slice(0, 40);
+    const filename = `${Date.now()}-${safeName}.${ext}`;
+    const uploadsDir = path.join(config.publicDir, 'ad-images');
+    if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+    fs.writeFileSync(path.join(uploadsDir, filename), buf);
+    const url = `/ad-images/${filename}`;
+
+    // อัปเดต thumb ของ ad ใน campaigns_data.json
+    const campData = store.read('campaigns_data.json', { ads: [], daily: [], campaigns: [] });
+    const ad = (campData.ads || []).find((a) => a.id === adId || a.name === adName || a.name === adId);
+    if (ad) {
+      ad.thumb = url;
+      store.write('campaigns_data.json', campData);
+    }
+    audit.log(session.user.username, 'image_upload', `อัปโหลดรูปโฆษณา: ${filename}${ad ? ' → ' + ad.name : ' (ยังไม่จับคู่กับโฆษณา)'}`, clientIp(req));
+    return send(res, 200, { ok: true, url, adName: ad ? ad.name : null, adUpdated: Boolean(ad) });
+  }
+
+  if (route === 'GET /api/upload/ad-images') {
+    const campData = store.read('campaigns_data.json', { ads: [], daily: [], campaigns: [] });
+    const ads = (campData.ads || []).map((a) => ({ id: a.id, name: a.name, thumb: a.thumb || null }));
+    return send(res, 200, { ads });
   }
 
   return send(res, 404, { error: 'ไม่พบ API นี้' });

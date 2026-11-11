@@ -179,17 +179,41 @@
   async function loadUpload() {
     const u = S.upload;
     try {
-      const [history, summary] = await Promise.all([
+      const [history, summary, adImages] = await Promise.all([
         api('/api/upload/history').catch(() => ({ history: [] })),
         api('/api/data/summary').catch(() => null),
+        api('/api/upload/ad-images').catch(() => ({ ads: [] })),
       ]);
       u.data = history;
       u.summary = summary;
+      u.ads = (adImages && adImages.ads) || [];
       u.err = null;
     } catch (_) {
       u.data = { history: [] };
     }
     renderUploadBody();
+  }
+
+  async function uploadAdImage(adId, adName, file) {
+    if (!file) return;
+    if (file.size > 10_000_000) { alert('รูปภาพมีขนาดใหญ่เกิน 10 MB'); return; }
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      try {
+        const imageData = e.target.result;
+        const mimeType = file.type || 'image/jpeg';
+        const res = await api('/api/upload/ad-image', {
+          method: 'POST',
+          body: { adId, adName, imageData, mimeType },
+        });
+        S.flash = { type: 'ok', text: `อัปโหลดรูปให้โฆษณา "${res.adName || adName}" สำเร็จแล้ว!` };
+        S.dash.data = null; // รีเฟรชข้อมูล Dashboard เพื่อให้รูปโชว์
+        await loadUpload();
+      } catch (err) {
+        alert('อัปโหลดรูปไม่สำเร็จ: ' + err.message);
+      }
+    };
+    reader.readAsDataURL(file);
   }
 
   function handleUploadFile(file) {
@@ -279,17 +303,22 @@
         'ชื่อ': 'name', 'ชื่อ-นามสกุล': 'name', 'ชื่อจริง': 'name', 'ชื่อเต็ม': 'name', 'ชื่อลูกค้า': 'name',
         'name': 'name', 'full_name': 'name', 'fullname': 'name', 'first_name': 'name', 'customer': 'name', 'customer_name': 'name', 'lead_name': 'name',
         'ช่องทาง': 'channel', 'ช่องทางติดต่อ': 'channel', 'แพลตฟอร์ม': 'channel',
-        'channel': 'channel', 'platform': 'channel', 'source': 'channel',
+        'channel': 'channel', 'platform': 'channel',
+        'source': 'source',
+        'form': 'adId', 'form name': 'adId', 'form_name': 'adId',
         'ad id': 'adId', 'adid': 'adId', 'ad_id': 'adId', 'ad': 'adId', 'ad name': 'adId', 'ad_name': 'adId',
         'ชื่อโฆษณา': 'adId', 'รหัสโฆษณา': 'adId', 'โฆษณา': 'adId', 'campaign': 'adId', 'campaign_name': 'adId', 'campaign id': 'adId', 'แคมเปญ': 'adId',
         'วันที่': 'date', 'วันที่สร้าง': 'date', 'วันและเวลา': 'date', 'เวลา': 'date',
-        'date': 'date', 'created_time': 'date', 'created_at': 'date', 'timestamp': 'date', 'time': 'date',
+        'date': 'date', 'created': 'date', 'created_time': 'date', 'created_at': 'date', 'timestamp': 'date', 'time': 'date',
         'เซลส์': 'rep', 'ผู้ดูแล': 'rep', 'พนักงาน': 'rep',
         'rep': 'rep', 'sales': 'rep', 'repid': 'rep', 'rep id': 'rep', 'owner': 'rep', 'admin': 'rep',
         'สถานะ': 'status', 'สถานะลูกค้า': 'status', 'ขั้นตอน': 'status', 'ความคืบหน้า': 'status',
         'status': 'status', 'lead_status': 'status', 'stage': 'status', 'stage_name': 'status', 'state': 'status',
         'ยอดเงิน': 'value', 'ยอดขาย': 'value', 'ราคา': 'value', 'มูลค่า': 'value', 'value': 'value', 'amount': 'value', 'price': 'value',
-        'เหตุผล': 'dropReason', 'หมายเหตุ': 'dropReason', 'reason': 'dropReason', 'note': 'dropReason',
+        'เหตุผล': 'dropReason', 'หมายเหตุ': 'dropReason', 'reason': 'dropReason', 'note': 'dropReason', 'labels': 'dropReason',
+        'phone': 'phone', 'phone number': 'phone', 'telephone': 'phone', 'เบอร์': 'phone', 'เบอร์โทร': 'phone',
+        'email': 'email', 'email address': 'email', 'อีเมล': 'email',
+        'secondary phone number': null, 'whatsapp number': null,
       };
     }
 
@@ -320,7 +349,7 @@
         if (h && !h.startsWith('_')) obj[h] = (vals[i] || '').trim();
       });
       return obj;
-    }).filter((r) => r.name || r.date || r.adId || r.campaign || r.adName || r.spend || r.impressions);
+    }).filter((r) => r.name || r.date || r.adId || r.campaign || r.adName || r.spend || r.impressions || r.status || r.channel);
   }
 
   async function doUploadData() {
@@ -348,8 +377,42 @@
       <div class="seg">
         <button data-act="upload-tab" data-tab="leads" class="${u.tab === 'leads' ? 'active' : ''}">👥 นำเข้า Leads (ลูกค้า & แชท)</button>
         <button data-act="upload-tab" data-tab="campaigns" class="${u.tab === 'campaigns' ? 'active' : ''}">📊 นำเข้าแคมเปญ Ads (โชว์ Dashboard)</button>
+        <button data-act="upload-tab" data-tab="images" class="${u.tab === 'images' ? 'active' : ''}">🖼️ รูปภาพ Ads</button>
         <button data-act="upload-tab" data-tab="manage" class="${u.tab === 'manage' ? 'active' : ''}">⚙️ จัดการ & ลบข้อมูลในระบบ</button>
       </div>
+    </div>`;
+  }
+
+  function renderImagesTab(u) {
+    const ads = u.ads || [];
+    return `<div class="card panel">
+      <h3>🖼️ จัดการรูปภาพโฆษณา (Ad Creatives)</h3>
+      <p class="sub">เลือกรูปภาพเพื่อแสดงในคอลัมน์ Creative ในหน้า Dashboard และ Quality เพื่อให้เห็นรูปโฆษณาจริงประกอบตัวเลขสถิติ</p>
+      ${!ads.length ? `<div class="notice warn" style="margin-top:14px">ยังไม่มีข้อมูลโฆษณาในระบบ — กรุณานำเข้าไฟล์แคมเปญ Ads ที่แท็บ "📊 นำเข้าแคมเปญ Ads" ก่อน เพื่อให้มีรายชื่อโฆษณามาจับคู่กับรูป</div>` : `
+      <div class="tscroll" style="margin-top:16px"><table style="min-width:650px">
+        <thead><tr>
+          <th class="nosort" style="width:70px">รูปภาพ</th>
+          <th class="nosort">ชื่อโฆษณา (Ad Name)</th>
+          <th class="nosort" style="width:180px">จัดการรูปภาพ</th>
+        </tr></thead>
+        <tbody>
+          ${ads.map((a) => `<tr>
+            <td>
+              ${a.thumb ? `<img class="thumb" src="${esc(a.thumb)}" alt="" style="width:48px;height:48px;border-radius:10px;object-fit:cover;box-shadow:0 1px 3px rgba(0,0,0,.15);cursor:pointer" onclick="window.open('${esc(a.thumb)}')">` : `<span class="thumb" style="width:48px;height:48px;border-radius:10px;background:#eceae2;display:grid;place-items:center;color:var(--muted);font-size:11px">ไม่มีรูป</span>`}
+            </td>
+            <td>
+              <b style="font-size:14.5px">${esc(a.name)}</b>
+              <div class="ad-sub">${esc(a.id)}</div>
+            </td>
+            <td>
+              <label class="btn primary" style="cursor:pointer;display:inline-flex;align-items:center;gap:6px;font-size:13px;padding:6px 14px">
+                📷 ${a.thumb ? 'เปลี่ยนรูป' : 'เลือกรูปภาพ'}
+                <input type="file" accept="image/*" style="display:none" data-act="ad-img-file" data-ad-id="${esc(a.id)}" data-ad-name="${esc(a.name)}">
+              </label>
+            </td>
+          </tr>`).join('')}
+        </tbody>
+      </table></div>`}
     </div>`;
   }
 
@@ -445,10 +508,16 @@
 
     // Default upload view with tabs
     const isCampTab = u.tab === 'campaigns';
+    const isImagesTab = u.tab === 'images';
     const isManageTab = u.tab === 'manage';
 
     if (isManageTab) {
       $el.innerHTML = `${errHtml}${renderTabs(u)}${renderDataManagement(sm)}${historyHtml(u)}`;
+      return;
+    }
+
+    if (isImagesTab) {
+      $el.innerHTML = `${errHtml}${renderTabs(u)}${renderImagesTab(u)}`;
       return;
     }
 
@@ -1211,8 +1280,10 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
 
   function leadCard(l) {
     return `<div class="lead" draggable="true" data-lead-id="${esc(l.id)}" data-lead-status="${esc(l.status)}" data-act="open-chat" data-id="${esc(l.id)}">
-      <b>${esc(l.name)}</b>${chanHtml(l.channel)}<small>${esc(l.ad)}</small>
-      <small>เริ่มคุย ${esc(l.date)}${l.rep ? ' · ' + esc(l.rep) : ''}${l.value ? ' · ' + baht(l.value) : ''}</small>${l.reason ? `<small>${esc(l.reason)}</small>` : ''}</div>`;
+      <b>${esc(l.name)}</b>${chanHtml(l.channel)}${l.ad ? `<small>${esc(l.ad)}</small>` : ''}
+      <small>เริ่มคุย ${esc(l.date)}${l.rep ? ' · ' + esc(l.rep) : ''}${l.value ? ' · ' + baht(l.value) : ''}</small>
+      ${l.phone ? `<small>📞 ${esc(l.phone)}</small>` : ''}
+      ${l.reason ? `<small>${esc(l.reason)}</small>` : ''}</div>`;
   }
 
   let draggedLeadId = null;
@@ -1625,6 +1696,11 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
   });
 
   document.addEventListener('change', (ev) => {
+    if (ev.target.dataset && ev.target.dataset.act === 'ad-img-file') {
+      const file = ev.target.files && ev.target.files[0];
+      if (file) uploadAdImage(ev.target.dataset.adId, ev.target.dataset.adName, file);
+      return;
+    }
     const b = ev.target.dataset && ev.target.dataset.bind; if (!b) return;
     const d = S.dash;
     if (b === 'lfrom' || b === 'lto') {
