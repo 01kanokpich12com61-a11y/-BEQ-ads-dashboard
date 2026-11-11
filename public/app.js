@@ -203,7 +203,9 @@
   function parseCsv(text) {
     const lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n').filter((l) => l.trim());
     if (!lines.length) return [];
-    const delim = lines[0].includes('\t') ? '\t' : ',';
+    const firstLine = lines[0];
+    const delim = firstLine.includes('\t') ? '\t' : (firstLine.match(/;/g) || []).length > (firstLine.match(/,/g) || []).length ? ';' : ',';
+
     function parseLine(line) {
       const fields = []; let cur = ''; let inQ = false;
       for (let i = 0; i < line.length; i++) {
@@ -221,29 +223,38 @@
       fields.push(cur.trim());
       return fields;
     }
+
     const COL_MAP = {
-      'ชื่อ': 'name', 'name': 'name',
-      'ช่องทาง': 'channel', 'channel': 'channel',
-      'ad id': 'adId', 'adid': 'adId', 'ad_id': 'adId',
-      'วันที่': 'date', 'date': 'date',
-      'เซลส์': 'rep', 'rep': 'rep', 'sales': 'rep', 'repid': 'rep', 'rep id': 'rep',
+      'ชื่อ': 'name', 'ชื่อ-นามสกุล': 'name', 'ชื่อจริง': 'name', 'ชื่อเต็ม': 'name', 'ชื่อลูกค้า': 'name',
+      'name': 'name', 'full_name': 'name', 'fullname': 'name', 'first_name': 'name', 'customer': 'name', 'customer_name': 'name', 'lead_name': 'name',
+      'ช่องทาง': 'channel', 'ช่องทางติดต่อ': 'channel', 'แพลตฟอร์ม': 'channel',
+      'channel': 'channel', 'platform': 'channel', 'source': 'channel',
+      'ad id': 'adId', 'adid': 'adId', 'ad_id': 'adId', 'ad': 'adId', 'ad name': 'adId', 'ad_name': 'adId',
+      'ชื่อโฆษณา': 'adId', 'รหัสโฆษณา': 'adId', 'โฆษณา': 'adId', 'campaign': 'adId', 'campaign_name': 'adId', 'campaign id': 'adId', 'แคมเปญ': 'adId',
+      'วันที่': 'date', 'วันที่สร้าง': 'date', 'วันและเวลา': 'date', 'เวลา': 'date',
+      'date': 'date', 'created_time': 'date', 'created_at': 'date', 'timestamp': 'date', 'time': 'date',
+      'เซลส์': 'rep', 'ผู้ดูแล': 'rep', 'พนักงาน': 'rep',
+      'rep': 'rep', 'sales': 'rep', 'repid': 'rep', 'rep id': 'rep', 'owner': 'rep', 'admin': 'rep',
     };
-    const firstFields = parseLine(lines[0]).map((f) => f.toLowerCase().trim());
+
+    const rawFirstFields = parseLine(firstLine);
+    const firstFields = rawFirstFields.map((f) => f.toLowerCase().trim().replace(/^["']|["']$/g, ''));
     const isHeader = firstFields.some((f) => COL_MAP[f] !== undefined);
     let headers, dataLines;
     if (isHeader) {
-      headers = firstFields.map((f) => COL_MAP[f] || f);
+      headers = firstFields.map((f, idx) => COL_MAP[f] || (idx === 0 ? 'name' : idx === 1 ? 'channel' : idx === 2 ? 'adId' : idx === 3 ? 'date' : 'rep'));
       dataLines = lines.slice(1);
     } else {
       headers = ['name', 'channel', 'adId', 'date', 'rep'];
       dataLines = lines;
     }
+
     return dataLines.map((line) => {
       const vals = parseLine(line);
       const obj = {};
-      headers.forEach((h, i) => { obj[h] = (vals[i] || '').trim(); });
+      headers.forEach((h, i) => { if (h) obj[h] = (vals[i] || '').trim(); });
       return obj;
-    }).filter((r) => r.name || r.date);
+    }).filter((r) => r.name || r.date || r.adId);
   }
 
   async function doUploadLeads() {

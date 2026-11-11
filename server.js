@@ -11,7 +11,7 @@ const providers = require('./lib/providers');
 const ops = require('./lib/ops');
 const audit = require('./lib/audit');
 const sla = require('./lib/sla');
-const { resolveRange, isDate } = require('./lib/dates');
+const { resolveRange, isDate, today } = require('./lib/dates');
 const { buildDashboard, buildBoard, buildInbox, leadRow, listFilters } = require('./lib/metrics');
 
 const MIME = {
@@ -310,22 +310,48 @@ async function api(req, res, url, session) {
   if (route === 'POST /api/upload/leads') {
     if (!auth.isAdmin(session.user)) return send(res, 403, { error: 'เฉพาะผู้ดูแล (admin) เท่านั้น' });
     const b = await readJson(req);
-    const rows = Array.isArray(b.rows) ? b.rows.slice(0, 500) : [];
+    const rows = Array.isArray(b.rows) ? b.rows.slice(0, 2000) : [];
     if (!rows.length) return send(res, 400, { error: 'ไม่มีข้อมูลที่จะนำเข้า' });
     const existing = store.read('leads.json', []);
     const CHANNELS = ['Messenger', 'LINE', 'Instagram', 'WhatsApp'];
     const added = []; const errors = [];
+    const tdy = today();
+
+    function normalizeDate(d) {
+      if (!d) return tdy;
+      const s = String(d).trim();
+      // YYYY-MM-DD
+      const m1 = s.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/);
+      if (m1) {
+        let y = parseInt(m1[1], 10);
+        if (y > 2400) y -= 543; // ปี พ.ศ. -> ค.ศ.
+        return `${y}-${m1[2].padStart(2, '0')}-${m1[3].padStart(2, '0')}`;
+      }
+      // DD/MM/YYYY or DD-MM-YYYY
+      const m2 = s.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})/);
+      if (m2) {
+        let y = parseInt(m2[3], 10);
+        if (y > 2400) y -= 543;
+        return `${y}-${m2[2].padStart(2, '0')}-${m2[1].padStart(2, '0')}`;
+      }
+      const parsed = Date.parse(s);
+      if (!Number.isNaN(parsed)) return new Date(parsed).toISOString().slice(0, 10);
+      return tdy;
+    }
+
     for (const [i, r] of rows.entries()) {
-      const name = clean(r.name, 100);
-      const channel = CHANNELS.includes(r.channel) ? r.channel : 'Messenger';
-      const adId = clean(r.adId, 50);
-      const date = /^\d{4}-\d{2}-\d{2}$/.test(String(r.date || '')) ? r.date : null;
-      if (!name) { errors.push({ row: i + 1, reason: 'ชื่อว่าง' }); continue; }
-      if (!date) { errors.push({ row: i + 1, reason: 'วันที่ไม่ถูกต้อง' }); continue; }
-      const id = `U-${Date.now().toString(36)}-${String(i).padStart(3, '0')}`;
+      let name = clean(r.name || r.fullname || r.fullName || r.full_name || r.customer, 100);
+      if (!name) name = `ลูกค้า #${existing.length + added.length + 1}`;
+      let channel = clean(r.channel, 30);
+      if (!CHANNELS.includes(channel)) channel = 'Messenger';
+      const adId = clean(r.adId || r.adid || r.ad_id || r.adName || r.ad_name || r.campaign, 50) || 'Direct';
+      const date = normalizeDate(r.date);
+      const rep = clean(r.repId || r.rep || r.sales, 30) || '';
+
+      const id = `U-${Date.now().toString(36)}-${String(i).padStart(4, '0')}`;
       const lead = {
-        id, name, channel, adId: adId || '', date,
-        repId: clean(r.repId || r.rep, 30) || '',
+        id, name, channel, adId, date,
+        repId: rep,
         status: 'talked', quality: 'average', value: 0, firstResponseMin: null, dropReason: null,
       };
       existing.push(lead);
