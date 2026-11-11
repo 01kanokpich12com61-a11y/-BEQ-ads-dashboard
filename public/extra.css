@@ -167,3 +167,18 @@
   font-size: 13.5px;
 }
 
+/* ── Kanban Board Layout (10 คอลัมน์ เลื่อนแนวนอนแบบมืออาชีพ) ── */
+.kanban {
+  display: flex !important;
+  gap: 12px !important;
+  overflow-x: auto !important;
+  padding-bottom: 16px !important;
+  scrollbar-width: thin;
+}
+.kanban .col {
+  flex: 0 0 250px !important;
+  min-width: 250px !important;
+  max-width: 280px !important;
+}
+
+

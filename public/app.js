@@ -9,8 +9,8 @@
     dash: { range: '30d', from: '', to: '', page: '', campaign: '', agency: '', rep: '', status: '', tab: 'ads',
       data: null, loading: false, err: null, sort: 'spend', dir: 'desc', search: '', pageNo: 1 },
     settings: null, flash: null, loginErr: '',
-    board: { range: '30d', from: '', to: '', data: null, err: null },
-    inbox: { range: '30d', from: '', to: '', data: null, err: null, search: '', channel: '', status: '', pageNo: 1 },
+    board: { range: 'all', from: '', to: '', data: null, err: null },
+    inbox: { range: 'all', from: '', to: '', data: null, err: null, search: '', channel: '', status: '', pageNo: 1 },
     review: { range: '30d', from: '', to: '', data: null, err: null, state: '', rep: '' },
     followup: { data: null, err: null, tab: '', rep: '' },
     audit: { data: null, err: null, action: '', q: '', from: '', to: '', limit: 100 },
@@ -23,8 +23,19 @@
   const PAGE_SIZE = 8;
   const INBOX_PAGE = 15;
   // ความคืบหน้าของแชท เรียงตามคอลัมน์ใน Board
-  const STATUS_ORDER = ['no_reply', 'very_poor', 'talked', 'in_progress', 'qualified'];
-  const STATUS_TH = { no_reply: 'ไม่ตอบ', very_poor: 'แย่มาก', talked: 'พอได้คุย', in_progress: 'กำลังดำเนินการ', qualified: 'มีคุณสมบัติ' };
+  const STATUS_ORDER = ['new', 'intake', 'no_reply', 'talked', 'in_progress', 'appointment', 'qualified', 'conv_created', 'converted', 'very_poor'];
+  const STATUS_TH = {
+    new: 'มาใหม่',
+    intake: 'In-take',
+    no_reply: 'ไม่ตอบ',
+    talked: 'พอได้คุย',
+    in_progress: 'In-progress',
+    appointment: 'นัดแล้ว',
+    qualified: 'Qualifile',
+    conv_created: 'สร้างคอนเวอร์ชั่นแล้ว',
+    converted: 'Converted',
+    very_poor: 'แย่มาก',
+  };
   let reqSeq = 0;
   const CHARTS = {};
 
@@ -234,30 +245,51 @@
   }
 
   function parseCsv(text) {
-    const lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n').filter((l) => l.trim());
-    if (!lines.length) return [];
-    const firstLine = lines[0];
+    if (!text || !text.trim()) return [];
+    const s = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    
+    // หา delimiter จากบรรทัดแรก
+    const firstLineEnd = s.indexOf('\n');
+    const firstLine = firstLineEnd === -1 ? s : s.slice(0, firstLineEnd);
     const delim = firstLine.includes('\t') ? '\t' : (firstLine.match(/;/g) || []).length > (firstLine.match(/,/g) || []).length ? ';' : ',';
 
-    function parseLine(line) {
-      const fields = []; let cur = ''; let inQ = false;
-      for (let i = 0; i < line.length; i++) {
-        const ch = line[i];
-        if (inQ) {
-          if (ch === '"' && line[i + 1] === '"') { cur += '"'; i++; }
-          else if (ch === '"') inQ = false;
-          else cur += ch;
+    const allRows = [];
+    let curRow = [];
+    let curField = '';
+    let inQ = false;
+
+    for (let i = 0; i < s.length; i++) {
+      const ch = s[i];
+      if (inQ) {
+        if (ch === '"') {
+          if (s[i + 1] === '"') { curField += '"'; i++; }
+          else { inQ = false; }
         } else {
-          if (ch === '"') inQ = true;
-          else if (ch === delim) { fields.push(cur.trim()); cur = ''; }
-          else cur += ch;
+          curField += ch;
+        }
+      } else {
+        if (ch === '"') {
+          inQ = true;
+        } else if (ch === delim) {
+          curRow.push(curField.trim());
+          curField = '';
+        } else if (ch === '\n') {
+          curRow.push(curField.trim());
+          curField = '';
+          if (curRow.some((f) => f.length > 0)) allRows.push(curRow);
+          curRow = [];
+        } else {
+          curField += ch;
         }
       }
-      fields.push(cur.trim());
-      return fields;
+    }
+    if (curField.length > 0 || curRow.length > 0) {
+      curRow.push(curField.trim());
+      if (curRow.some((f) => f.length > 0)) allRows.push(curRow);
     }
 
-    const rawFirstFields = parseLine(firstLine);
+    if (!allRows.length) return [];
+    const rawFirstFields = allRows[0];
     const firstFields = rawFirstFields.map((f) => f.toLowerCase().trim().replace(/^["']|["']$/g, ''));
 
     // ตรวจสอบอัตโนมัติว่าเป็นไฟล์รายงานโฆษณา (Campaign Report) หรือไฟล์รายชื่อลูกค้า (Leads)
@@ -338,21 +370,21 @@
           ? (idx === 0 ? 'campaign' : idx === 1 ? 'adName' : idx === 2 ? 'spend' : idx === 3 ? 'impressions' : '_unknown')
           : (idx === 0 ? 'name' : idx === 1 ? 'channel' : idx === 2 ? 'adId' : idx === 3 ? 'date' : idx === 4 ? 'status' : 'rep');
       });
-      dataLines = lines.slice(1);
+      dataLines = allRows.slice(1);
     } else {
       headers = isCampaignFile ? ['campaign', 'adName', 'spend', 'impressions', 'clicks', 'date'] : ['name', 'channel', 'adId', 'date', 'status', 'rep'];
-      dataLines = lines;
+      dataLines = allRows;
     }
 
-    return dataLines.map((line) => {
-      const vals = parseLine(line);
+    return dataLines.map((vals) => {
       const obj = {};
       // ข้าม null headers (ignored columns) และ _ prefixed internal fields
       headers.forEach((h, i) => {
         if (h && !h.startsWith('_')) obj[h] = (vals[i] || '').trim();
       });
       return obj;
-    }).filter((r) => r.name || r.date || r.adId || r.campaign || r.adName || r.spend || r.impressions || r.status || r.channel);
+    }).filter((r) => r.name || r.date || r.adId || r.campaign || r.adName || r.spend || r.impressions || r.status || r.channel || r.phone || r.email);
+  }
   }
 
   async function doUploadData() {
@@ -985,8 +1017,30 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
 
   /* ---------------- list pages: inbox + board ---------------- */
   const seqs = { inbox: 0, board: 0, review: 0, sla: 0 };
-  const STATUS_CLASS = { no_reply: 'q-none', very_poor: 'q-poor', talked: 'q-average', in_progress: 'q-good', qualified: 'q-excellent' };
-  const STATUS_COLOR = { no_reply: '#8a948f', very_poor: '#d4412f', talked: '#c98a00', in_progress: '#2a56b8', qualified: '#44602f' };
+  const STATUS_CLASS = {
+    new: 'q-good',
+    intake: 'q-average',
+    no_reply: 'q-none',
+    talked: 'q-average',
+    in_progress: 'q-good',
+    appointment: 'q-excellent',
+    qualified: 'q-excellent',
+    conv_created: 'q-excellent',
+    converted: 'q-excellent',
+    very_poor: 'q-poor',
+  };
+  const STATUS_COLOR = {
+    new: '#0284c7',
+    intake: '#0891b2',
+    no_reply: '#8a948f',
+    talked: '#c98a00',
+    in_progress: '#2a56b8',
+    appointment: '#7c3aed',
+    qualified: '#44602f',
+    conv_created: '#d97706',
+    converted: '#16a34a',
+    very_poor: '#d4412f',
+  };
   const CHAN_COLOR = { Messenger: '#2a56b8', LINE: '#2f9e44', Instagram: '#c13584', WhatsApp: '#25a244' };
   const chanHtml = (c) => `<span class="chan"><i style="background:${CHAN_COLOR[c] || '#8a948f'}"></i>${esc(c)}</span>`;
   const statusHtml = (s) => `<span class="q-badge ${STATUS_CLASS[s] || 'q-none'}">${esc(STATUS_TH[s] || s)}</span>`;
@@ -1001,7 +1055,7 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
   function rangeBar(scope) {
     const s = S[scope];
     return `<section class="card filters">
-      <div class="seg">${[['7d', '7 วัน'], ['30d', '30 วัน'], ['90d', '90 วัน'], ['custom', 'กำหนดเอง']]
+      <div class="seg">${[['all', 'ทั้งหมด'], ['30d', '30 วัน'], ['90d', '90 วัน'], ['7d', '7 วัน'], ['custom', 'กำหนดเอง']]
         .map(([k, l]) => `<button data-act="lrange" data-scope="${scope}" data-range="${k}" class="${s.range === k ? 'active' : ''}">${l}</button>`).join('')}</div>
       ${s.range === 'custom' ? `<input class="date-in" type="date" data-bind="lfrom" data-scope="${scope}" value="${esc(s.from)}" aria-label="ตั้งแต่วันที่">
         <span class="vs">ถึง</span><input class="date-in" type="date" data-bind="lto" data-scope="${scope}" value="${esc(s.to)}" aria-label="ถึงวันที่">` : ''}

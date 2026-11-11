@@ -328,12 +328,18 @@ async function api(req, res, url, session) {
         if (y > 2400) y -= 543; // ปี พ.ศ. -> ค.ศ.
         return `${y}-${m1[2].padStart(2, '0')}-${m1[3].padStart(2, '0')}`;
       }
-      // DD/MM/YYYY or DD-MM-YYYY
+      // DD/MM/YYYY or MM/DD/YYYY
       const m2 = s.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})/);
       if (m2) {
         let y = parseInt(m2[3], 10);
         if (y > 2400) y -= 543;
-        return `${y}-${m2[2].padStart(2, '0')}-${m2[1].padStart(2, '0')}`;
+        let a = parseInt(m2[1], 10);
+        let b = parseInt(m2[2], 10);
+        let month = (a > 12) ? b : (b > 12 ? a : b);
+        let day = (a > 12) ? a : (b > 12 ? b : a);
+        month = Math.min(12, Math.max(1, month));
+        day = Math.min(31, Math.max(1, day));
+        return `${y}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
       }
       const parsed = Date.parse(s);
       if (!Number.isNaN(parsed)) return new Date(parsed).toISOString().slice(0, 10);
@@ -343,15 +349,26 @@ async function api(req, res, url, session) {
     function normalizeStatus(st) {
       if (!st) return 'talked';
       const s = String(st).trim().toLowerCase();
-      // 1. ไม่ตอบ (no_reply)
-      if (['no_reply', 'no reply', 'raw', 'new', 'uncontacted', 'unanswered', 'unread', 'ยังไม่ตอบ', 'ไม่ตอบ', 'ไม่ตอบกลับ', 'ติดต่อไม่ได้', 'ไม่รับสาย'].some((k) => s.includes(k))) return 'no_reply';
-      // 2. แย่มาก / หลุด (very_poor)
+      // 1. สร้างคอนเวอร์ชั่นแล้ว (conv_created)
+      if (['สร้างคอนเวอร์ชั่น', 'conversion created', 'conversion_created', 'conv_created', 'conv created'].some((k) => s.includes(k))) return 'conv_created';
+      // 2. Converted / ปิดการขาย (converted)
+      if (['converted', 'convert', 'ปิดการขาย', 'โอนแล้ว', 'มัดจำ', 'closed won', 'closed', 'paid', 'won', 'ซื้อแล้ว', 'สำเร็จ'].some((k) => s.includes(k))) return 'converted';
+      // 3. นัดแล้ว (appointment)
+      if (['นัดแล้ว', 'นัดหมาย', 'นัดพบแพทย์', 'นัดตรวจ', 'นัดปรึกษา', 'appointment', 'booked', 'booking'].some((k) => s.includes(k))) return 'appointment';
+      // 4. Qualifile / มีคุณสมบัติ (qualified)
+      if (['qualifile', 'qualified', 'qualify', 'มีคุณสมบัติ', 'คุณสมบัติผ่าน', 'ผ่านเกณฑ์'].some((k) => s.includes(k))) return 'qualified';
+      // 5. In-take (intake)
+      if (['in-take', 'intake', 'in take', 'คัดกรอง', 'รับเคส', 'ซักประวัติ'].some((k) => s.includes(k))) return 'intake';
+      // 6. In-progress / กำลังดำเนินการ (in_progress)
+      if (['in-progress', 'in progress', 'in_progress', 'progress', 'กำลังดำเนินการ', 'ดำเนินการ', 'กำลังคุย', 'ติดตาม', 'followup', 'follow up', 'pending'].some((k) => s.includes(k))) return 'in_progress';
+      // 7. มาใหม่ (new)
+      if (['มาใหม่', 'ลูกค้าใหม่', 'fresh', 'new lead', 'new customer', 'raw', 'ลูกค้ารายใหม่'].some((k) => s.includes(k)) || s === 'new') return 'new';
+      // 8. ไม่ตอบ (no_reply)
+      if (['no_reply', 'no reply', 'uncontacted', 'unanswered', 'unread', 'ยังไม่ตอบ', 'ไม่ตอบ', 'ไม่ตอบกลับ', 'ติดต่อไม่ได้', 'ไม่รับสาย'].some((k) => s.includes(k))) return 'no_reply';
+      // 9. แย่มาก / หลุด (very_poor)
       if (['very_poor', 'very poor', 'poor', 'bad', 'junk', 'spam', 'lost', 'unqualified', 'not interested', 'หลุด', 'แย่', 'ไม่สนใจ', 'ผิดกลุ่ม', 'ยกเลิก', 'ปฏิเสธ'].some((k) => s.includes(k))) return 'very_poor';
-      // 3. กำลังดำเนินการ / นัดหมาย (in_progress)
-      if (['in_progress', 'in progress', 'progress', 'followup', 'follow up', 'pending', 'scheduled', 'trial', 'appointment', 'consult', 'กำลังดำเนินการ', 'ดำเนินการ', 'กำลังคุย', 'นัดหมาย', 'รอตรวจ', 'ติดตาม', 'ส่งข้อมูล'].some((k) => s.includes(k))) return 'in_progress';
-      // 4. มีคุณสมบัติ / ปิดการขาย (qualified)
-      if (['qualified', 'qualify', 'converted', 'convert', 'won', 'closed won', 'closed', 'deposit', 'booked', 'paid', 'success', 'มีคุณสมบัติ', 'คุณสมบัติผ่าน', 'ปิดการขาย', 'โอนแล้ว', 'มัดจำ', 'จอง', 'ซื้อแล้ว', 'สำเร็จ'].some((k) => s.includes(k))) return 'qualified';
-      // 5. พอได้คุย (talked)
+      // 10. พอได้คุย (talked)
+      if (['พอได้คุย', 'talked', 'contacted', 'คุยแล้ว', 'ตอบแล้ว'].some((k) => s.includes(k))) return 'talked';
       return 'talked';
     }
 
@@ -429,7 +446,13 @@ async function api(req, res, url, session) {
       if (m2) {
         let y = parseInt(m2[3], 10);
         if (y > 2400) y -= 543;
-        return `${y}-${m2[2].padStart(2, '0')}-${m2[1].padStart(2, '0')}`;
+        let a = parseInt(m2[1], 10);
+        let b = parseInt(m2[2], 10);
+        let month = (a > 12) ? b : (b > 12 ? a : b);
+        let day = (a > 12) ? a : (b > 12 ? b : a);
+        month = Math.min(12, Math.max(1, month));
+        day = Math.min(31, Math.max(1, day));
+        return `${y}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
       }
       const parsed = Date.parse(s);
       if (!Number.isNaN(parsed)) return new Date(parsed).toISOString().slice(0, 10);
