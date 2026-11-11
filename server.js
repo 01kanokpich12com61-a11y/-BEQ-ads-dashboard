@@ -187,7 +187,14 @@ async function api(req, res, url, session) {
 
   if (route === 'GET /api/board') {
     const range = resolveRange(q);
-    return send(res, 200, { mode: providers.currentMode(), ...buildBoard(await providers.load(range), range) });
+    const data = await providers.load(range);
+    const isDemo = providers.currentMode() === 'demo';
+    const overlay = store.read('messages.json', {});
+    const messagesMap = {};
+    for (const l of data.leads) {
+      messagesMap[l.id] = ops.messagesFor(l, data, isDemo, overlay);
+    }
+    return send(res, 200, { mode: providers.currentMode(), ...buildBoard(data, range, { messagesMap }) });
   }
 
   if (route === 'GET /api/sla') {
@@ -355,12 +362,14 @@ async function api(req, res, url, session) {
       if (['converted', 'convert', 'ปิดการขาย', 'โอนแล้ว', 'มัดจำ', 'closed won', 'closed', 'paid', 'won', 'ซื้อแล้ว', 'สำเร็จ'].some((k) => s.includes(k))) return 'converted';
       // 3. นัดแล้ว (appointment)
       if (['นัดแล้ว', 'นัดหมาย', 'นัดพบแพทย์', 'นัดตรวจ', 'นัดปรึกษา', 'appointment', 'booked', 'booking'].some((k) => s.includes(k))) return 'appointment';
-      // 4. Qualifile / มีคุณสมบัติ (qualified)
-      if (['qualifile', 'qualified', 'qualify', 'มีคุณสมบัติ', 'คุณสมบัติผ่าน', 'ผ่านเกณฑ์'].some((k) => s.includes(k))) return 'qualified';
+      // 4. Qualifile (qualifile) & มีคุณสมบัติ (qualified)
+      if (['qualifile'].some((k) => s.includes(k))) return 'qualifile';
+      if (['มีคุณสมบัติ', 'คุณสมบัติผ่าน', 'ผ่านเกณฑ์', 'qualified', 'qualify'].some((k) => s.includes(k))) return 'qualified';
       // 5. In-take (intake)
       if (['in-take', 'intake', 'in take', 'คัดกรอง', 'รับเคส', 'ซักประวัติ'].some((k) => s.includes(k))) return 'intake';
-      // 6. In-progress / กำลังดำเนินการ (in_progress)
-      if (['in-progress', 'in progress', 'in_progress', 'progress', 'กำลังดำเนินการ', 'ดำเนินการ', 'กำลังคุย', 'ติดตาม', 'followup', 'follow up', 'pending'].some((k) => s.includes(k))) return 'in_progress';
+      // 6. In-progress (inprogress) & กำลังดำเนินการ (in_progress)
+      if (['in-progress', 'in progress', 'inprogress', 'progress'].some((k) => s.includes(k))) return 'inprogress';
+      if (['กำลังดำเนินการ', 'ดำเนินการ', 'กำลังคุย', 'ติดตาม', 'followup', 'follow up', 'pending'].some((k) => s.includes(k))) return 'in_progress';
       // 7. มาใหม่ (new)
       if (['มาใหม่', 'ลูกค้าใหม่', 'fresh', 'new lead', 'new customer', 'raw', 'ลูกค้ารายใหม่'].some((k) => s.includes(k)) || s === 'new') return 'new';
       // 8. ไม่ตอบ (no_reply)

@@ -22,19 +22,34 @@
   };
   const PAGE_SIZE = 8;
   const INBOX_PAGE = 15;
-  // ความคืบหน้าของแชท เรียงตามคอลัมน์ใน Board
-  const STATUS_ORDER = ['new', 'intake', 'no_reply', 'talked', 'in_progress', 'appointment', 'qualified', 'conv_created', 'converted', 'very_poor'];
+  // ความคืบหน้าของแชท เรียงตามคอลัมน์ใน Board ตามลำดับที่ผู้ใช้กำหนด (12 คอลัมน์)
+  const STATUS_ORDER = [
+    'no_reply',     // 1. ไม่ตอบ (กล่องสีแดง)
+    'very_poor',    // 2. แย่มาก (กล่องสีแดง)
+    'talked',       // 3. พอได้คุย (กล่องสีเขียว)
+    'in_progress',  // 4. กำลังดำเนินการ (กล่องสีเขียว)
+    'qualified',    // 5. มีคุณสมบัติ
+    'appointment',  // 6. นัดแล้ว
+    'conv_created', // 7. สร้างคอนเวอร์ชั่นแล้ว
+    'new',          // 8. มาใหม่
+    'inprogress',   // 9. In-progress
+    'intake',       // 10. In-take
+    'qualifile',    // 11. Qualifile
+    'converted',    // 12. Converted
+  ];
   const STATUS_TH = {
-    new: 'มาใหม่',
-    intake: 'In-take',
     no_reply: 'ไม่ตอบ',
-    talked: 'พอได้คุย',
-    in_progress: 'In-progress',
-    appointment: 'นัดแล้ว',
-    qualified: 'Qualifile',
-    conv_created: 'สร้างคอนเวอร์ชั่นแล้ว',
-    converted: 'Converted',
     very_poor: 'แย่มาก',
+    talked: 'พอได้คุย',
+    in_progress: 'กำลังดำเนินการ',
+    qualified: 'มีคุณสมบัติ',
+    appointment: 'นัดแล้ว',
+    conv_created: 'สร้างคอนเวอร์ชั่นแล้ว',
+    new: 'มาใหม่',
+    inprogress: 'In-progress',
+    intake: 'In-take',
+    qualifile: 'Qualifile',
+    converted: 'Converted',
   };
   let reqSeq = 0;
   const CHARTS = {};
@@ -1017,28 +1032,32 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
   /* ---------------- list pages: inbox + board ---------------- */
   const seqs = { inbox: 0, board: 0, review: 0, sla: 0 };
   const STATUS_CLASS = {
-    new: 'q-good',
-    intake: 'q-average',
     no_reply: 'q-none',
+    very_poor: 'q-poor',
     talked: 'q-average',
     in_progress: 'q-good',
-    appointment: 'q-excellent',
     qualified: 'q-excellent',
+    appointment: 'q-excellent',
     conv_created: 'q-excellent',
+    new: 'q-good',
+    inprogress: 'q-good',
+    intake: 'q-average',
+    qualifile: 'q-excellent',
     converted: 'q-excellent',
-    very_poor: 'q-poor',
   };
   const STATUS_COLOR = {
-    new: '#0284c7',
-    intake: '#0891b2',
-    no_reply: '#8a948f',
-    talked: '#c98a00',
-    in_progress: '#2a56b8',
+    no_reply: '#dc2626',
+    very_poor: '#ef4444',
+    talked: '#16a34a',
+    in_progress: '#22c55e',
+    qualified: '#059669',
     appointment: '#7c3aed',
-    qualified: '#44602f',
     conv_created: '#d97706',
-    converted: '#16a34a',
-    very_poor: '#d4412f',
+    new: '#0284c7',
+    inprogress: '#2563eb',
+    intake: '#0891b2',
+    qualifile: '#047857',
+    converted: '#15803d',
   };
   const CHAN_COLOR = { Messenger: '#2a56b8', LINE: '#2f9e44', Instagram: '#c13584', WhatsApp: '#25a244' };
   const chanHtml = (c) => `<span class="chan"><i style="background:${CHAN_COLOR[c] || '#8a948f'}"></i>${esc(c)}</span>`;
@@ -1343,11 +1362,25 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
   }
 
   function leadCard(l) {
+    const custMsg = l.customerMsg || l.reason || '';
+    const avgText = l.avgReply !== null && l.avgReply !== undefined ? `${num(l.avgReply)} นาที` : (l.firstResponseMin ? `${num(l.firstResponseMin)} นาที` : '—');
+    const slaText = l.slaLabel || (l.status === 'no_reply' ? 'ยังไม่ตอบ' : 'ทันเวลา');
+    const slaCls = l.slaStatus === 'late' || l.status === 'no_reply' || l.status === 'very_poor' ? 'q-poor' : 'q-excellent';
+
     return `<div class="lead" draggable="true" data-lead-id="${esc(l.id)}" data-lead-status="${esc(l.status)}" data-act="open-chat" data-id="${esc(l.id)}">
-      <b>${esc(l.name)}</b>${chanHtml(l.channel)}${l.ad ? `<small>${esc(l.ad)}</small>` : ''}
-      <small>เริ่มคุย ${esc(l.date)}${l.rep ? ' · ' + esc(l.rep) : ''}${l.value ? ' · ' + baht(l.value) : ''}</small>
-      ${l.phone ? `<small>📞 ${esc(l.phone)}</small>` : ''}
-      ${l.reason ? `<small>${esc(l.reason)}</small>` : ''}</div>`;
+      <div class="lead-head">
+        <b>${esc(l.name)}</b>
+        ${chanHtml(l.channel)}
+      </div>
+      ${custMsg ? `<div class="lead-cust-bubble" title="ลูกค้าพิมพ์: ${esc(custMsg)}"><span class="cust-prefix">💬 ลูกค้าพิมพ์:</span> <span class="cust-text">${esc(custMsg)}</span></div>` : ''}
+      <div class="lead-meta-grid">
+        <div class="lead-meta-row"><span class="m-lbl">📅 วันที่:</span><span class="m-val">${esc(l.date)}</span></div>
+        <div class="lead-meta-row"><span class="m-lbl">👤 เซลส์:</span><span class="m-val">${esc(l.rep || '—')}</span></div>
+        <div class="lead-meta-row"><span class="m-lbl">⏱️ ตอบเฉลี่ย:</span><span class="m-val">${avgText}</span></div>
+        <div class="lead-meta-row"><span class="m-lbl">🎯 SLA:</span><span class="q-badge ${slaCls}" style="font-size:11px;padding:2px 8px">${esc(slaText)}</span></div>
+      </div>
+      ${l.phone ? `<small class="lead-phone">📞 ${esc(l.phone)}</small>` : ''}
+    </div>`;
   }
 
   let draggedLeadId = null;
