@@ -428,7 +428,8 @@ async function api(req, res, url, session) {
 
     let addedRows = 0;
     for (const r of rows) {
-      const campName = clean(r.campaign || r.campaign_name || r.campaignName, 100) || 'General Campaign';
+      // ถ้าไม่มีคอลัมน์ Campaign (เช่น export แบบ Ad-level เท่านั้น) ใช้ Ad set name เป็นแคมเปญแทน
+      const campName = clean(r.campaign || r.campaign_name || r.campaignName || r.adset || r.adName || r.ad_name, 100) || 'General Campaign';
       const campId = clean(r.campaignId || r.campaign_id, 50) || `C-${campName.slice(0, 20).replace(/\s+/g, '_')}`;
       if (!campMap.has(campId)) {
         campMap.set(campId, { id: campId, name: campName });
@@ -456,9 +457,13 @@ async function api(req, res, url, session) {
       const impressions = Math.max(0, parseInt(String(r.impressions || 0).replace(/[^0-9]/g, ''), 10) || 0);
       const reach = Math.max(0, parseInt(String(r.reach || 0).replace(/[^0-9]/g, ''), 10) || Math.round(impressions * 0.7));
       const clicks = Math.max(0, parseInt(String(r.clicks || r.clicks_all || r.link_clicks || 0).replace(/[^0-9]/g, ''), 10) || 0);
-      const messages = Math.max(0, parseInt(String(r.messages || r.messaging_conversations || 0).replace(/[^0-9]/g, ''), 10) || 0);
+      // "results" จาก Ads Manager ของ Message objective = Messaging conversations
+      const messages = Math.max(0, parseInt(String(r.messages || r.messaging_conversations || r.results || 0).replace(/[^0-9]/g, ''), 10) || 0);
       const purchases = Math.max(0, parseInt(String(r.purchases || 0).replace(/[^0-9]/g, ''), 10) || 0);
       const date = normalizeDate(r.date || r.reporting_starts || r.day);
+
+      // กรองแถวที่ไม่มีข้อมูลจริง (เช่น แถวสรุป Total ที่ Ads Manager ใส่ท้ายไฟล์)
+      if (!spend && !impressions && !clicks && !messages) continue;
 
       existingData.daily.push({
         date,

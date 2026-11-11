@@ -234,21 +234,44 @@
 
     // ตรวจสอบอัตโนมัติว่าเป็นไฟล์รายงานโฆษณา (Campaign Report) หรือไฟล์รายชื่อลูกค้า (Leads)
     const isCampaignFile = S.upload.tab === 'campaigns' || firstFields.some((f) =>
-      ['spend', 'amount spent', 'amount spent (thb)', 'impressions', 'จำนวนเงินที่ใช้ไป', 'งบประมาณ', 'การแสดงผล', 'cpm', 'ctr'].includes(f));
+      ['spend', 'amount spent', 'amount spent (thb)', 'impressions', 'จำนวนเงินที่ใช้ไป', 'งบประมาณ', 'การแสดงผล', 'cpm', 'ctr',
+       'reporting starts', 'reporting ends', 'hook rate', 'hold rate', 'quality ranking', 'engagement rate ranking'].includes(f));
     S.upload.detectedType = isCampaignFile ? 'campaigns' : 'leads';
 
     let COL_MAP = {};
     if (isCampaignFile) {
       COL_MAP = {
+        // แคมเปญ
         'campaign': 'campaign', 'campaign name': 'campaign', 'campaign_name': 'campaign', 'ชื่อแคมเปญ': 'campaign', 'แคมเปญ': 'campaign',
+        // Ad Set
         'ad set name': 'adset', 'adset_name': 'adset', 'adset': 'adset', 'ชื่อชุดโฆษณา': 'adset',
+        // Ad ชื่อโฆษณา
         'ad name': 'adName', 'ad_name': 'adName', 'ชื่อโฆษณา': 'adName', 'ad id': 'adId', 'adid': 'adId', 'ad_id': 'adId', 'ad': 'adName',
-        'amount spent': 'spend', 'amount spent (thb)': 'spend', 'spend': 'spend', 'จำนวนเงินที่ใช้ไป': 'spend', 'จำนวนเงินที่ใช้ไป (thb)': 'spend', 'งบประมาณ': 'spend',
+        // งบโฆษณา (Amount Spent)
+        'amount spent': 'spend', 'amount spent (thb)': 'spend', 'spend': 'spend',
+        'จำนวนเงินที่ใช้ไป': 'spend', 'จำนวนเงินที่ใช้ไป (thb)': 'spend', 'งบประมาณ': 'spend',
+        // Impressions / Reach
         'impressions': 'impressions', 'การแสดงผล': 'impressions',
         'reach': 'reach', 'การเข้าถึง': 'reach',
+        // Clicks
         'clicks (all)': 'clicks', 'link clicks': 'clicks', 'clicks': 'clicks', 'คลิก': 'clicks', 'คลิก (ทั้งหมด)': 'clicks',
-        'reporting starts': 'date', 'reporting ends': 'date', 'day': 'date', 'date': 'date', 'วันที่': 'date',
-        'messaging conversations started': 'messages', 'messages': 'messages', 'การเริ่มสนทนาทางข้อความ': 'messages',
+        // วันที่ — ใช้ "Reporting starts" เป็นวันเริ่มต้น ไม่นับ "Reporting ends" (จะทับข้อมูล)
+        'reporting starts': 'date', 'day': 'date', 'date': 'date', 'วันที่': 'date', 'start date': 'date',
+        // "Reporting ends" → เก็บแยก (ไม่ทับ date)
+        'reporting ends': '_dateEnd',
+        // ผลลัพธ์โฆษณา (Results) — มักเป็น Messaging conversations สำหรับแคมเปญ Message objective
+        'results': 'messages', 'messaging conversations started': 'messages', 'messages': 'messages',
+        'การเริ่มสนทนาทางข้อความ': 'messages', 'messaging conversations': 'messages',
+        'results (initial)': '_resultsInitial',
+        // ตัวชี้วัดผล (ไม่ใช้ในการคำนวณ แต่เก็บไว้สำหรับ debug)
+        'result indicator': '_resultIndicator', 'results (initial) indicator': '_resultsInitialIndicator',
+        // อื่นๆ จาก Ads Manager ที่ไม่นำมาใช้ (map เป็น null เพื่อ ignore)
+        'ad delivery': null, 'attribution setting': null, 'cost per results': null,
+        'ad set budget': null, 'ad set budget type': null,
+        'hook rate': null, 'hold rate': null, 'ends': null, 'bid': null, 'bid type': null,
+        'last significant edit': null, 'quality ranking': null, 'engagement rate ranking': null,
+        'conversion rate ranking': null,
+        // Purchases
         'purchases': 'purchases', 'การซื้อ': 'purchases',
       };
     } else {
@@ -273,7 +296,16 @@
     const isHeader = firstFields.some((f) => COL_MAP[f] !== undefined);
     let headers, dataLines;
     if (isHeader) {
-      headers = firstFields.map((f, idx) => COL_MAP[f] || (isCampaignFile ? (idx === 0 ? 'campaign' : idx === 1 ? 'adName' : idx === 2 ? 'spend' : idx === 3 ? 'impressions' : 'clicks') : (idx === 0 ? 'name' : idx === 1 ? 'channel' : idx === 2 ? 'adId' : idx === 3 ? 'date' : idx === 4 ? 'status' : 'rep')));
+      // map: null หมายถึง ignore คอลัมน์นั้น (ไม่ส่งไปเซิร์ฟเวอร์)
+      headers = firstFields.map((f, idx) => {
+        const mapped = COL_MAP[f];
+        if (mapped === null) return null; // ignore column
+        if (mapped !== undefined) return mapped;
+        // fallback สำหรับคอลัมน์ที่ไม่รู้จัก
+        return isCampaignFile
+          ? (idx === 0 ? 'campaign' : idx === 1 ? 'adName' : idx === 2 ? 'spend' : idx === 3 ? 'impressions' : '_unknown')
+          : (idx === 0 ? 'name' : idx === 1 ? 'channel' : idx === 2 ? 'adId' : idx === 3 ? 'date' : idx === 4 ? 'status' : 'rep');
+      });
       dataLines = lines.slice(1);
     } else {
       headers = isCampaignFile ? ['campaign', 'adName', 'spend', 'impressions', 'clicks', 'date'] : ['name', 'channel', 'adId', 'date', 'status', 'rep'];
@@ -283,9 +315,12 @@
     return dataLines.map((line) => {
       const vals = parseLine(line);
       const obj = {};
-      headers.forEach((h, i) => { if (h) obj[h] = (vals[i] || '').trim(); });
+      // ข้าม null headers (ignored columns) และ _ prefixed internal fields
+      headers.forEach((h, i) => {
+        if (h && !h.startsWith('_')) obj[h] = (vals[i] || '').trim();
+      });
       return obj;
-    }).filter((r) => r.name || r.date || r.adId || r.campaign || r.spend);
+    }).filter((r) => r.name || r.date || r.adId || r.campaign || r.adName || r.spend || r.impressions);
   }
 
   async function doUploadData() {
