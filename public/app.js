@@ -17,7 +17,7 @@
     chat: { id: null, loading: false, data: null, err: null, sending: false, msg: null },
     users: { data: null, err: null, result: null },
     sla: { data: null, err: null, open: '', kind: '' },
-    upload: { data: null, err: null, loading: false, rows: [], result: null },
+    upload: { data: null, err: null, loading: false, rows: [], result: null, tab: 'leads', detectedType: 'leads', summary: null },
     quality: { data: null, err: null, loading: false, campaign: '', minQuality: '', sort: 'leads', sortDir: 'desc' },
   };
   const PAGE_SIZE = 8;
@@ -168,27 +168,32 @@
   }
 
   /* ═══════════════════════════════════════════
-     UPLOAD PAGE — นำเข้า Leads จาก CSV
+     UPLOAD & DATA MANAGEMENT — นำเข้าและจัดการข้อมูล
   ═══════════════════════════════════════════ */
   function uploadShell() {
-    return `<div class="page-head"><div><h1>${icon('upload')} นำเข้า Leads (CSV)</h1>
-        <div class="meta-line"><span>อัปโหลดไฟล์ CSV เพื่อนำเข้าข้อมูล leads จากโฆษณา (เฉพาะ admin)</span></div></div></div>
+    return `<div class="page-head"><div><h1>${icon('upload')} นำเข้าและจัดการข้อมูล (CSV)</h1>
+        <div class="meta-line"><span>นำเข้า Leads ลูกค้า และข้อมูลแคมเปญโฆษณาเพื่อนำไปแสดงผลบน Dashboard (เฉพาะ admin)</span></div></div></div>
       <div id="upload-body"><div class="loading">Loading…</div></div>`;
   }
 
   async function loadUpload() {
     const u = S.upload;
     try {
-      const data = await api('/api/upload/history');
-      u.data = data; u.err = null;
+      const [history, summary] = await Promise.all([
+        api('/api/upload/history').catch(() => ({ history: [] })),
+        api('/api/data/summary').catch(() => null),
+      ]);
+      u.data = history;
+      u.summary = summary;
+      u.err = null;
     } catch (_) {
-      u.data = { history: [] }; // history optional
+      u.data = { history: [] };
     }
     renderUploadBody();
   }
 
   function handleUploadFile(file) {
-    if (file.size > 1_048_576) { S.upload.err = 'ไฟล์ใหญ่เกิน 1 MB'; renderUploadBody(); return; }
+    if (file.size > 2_097_152) { S.upload.err = 'ไฟล์ใหญ่เกิน 2 MB'; renderUploadBody(); return; }
     const reader = new FileReader();
     reader.onload = (e) => {
       const text = e.target.result;
@@ -224,32 +229,54 @@
       return fields;
     }
 
-    const COL_MAP = {
-      'ชื่อ': 'name', 'ชื่อ-นามสกุล': 'name', 'ชื่อจริง': 'name', 'ชื่อเต็ม': 'name', 'ชื่อลูกค้า': 'name',
-      'name': 'name', 'full_name': 'name', 'fullname': 'name', 'first_name': 'name', 'customer': 'name', 'customer_name': 'name', 'lead_name': 'name',
-      'ช่องทาง': 'channel', 'ช่องทางติดต่อ': 'channel', 'แพลตฟอร์ม': 'channel',
-      'channel': 'channel', 'platform': 'channel', 'source': 'channel',
-      'ad id': 'adId', 'adid': 'adId', 'ad_id': 'adId', 'ad': 'adId', 'ad name': 'adId', 'ad_name': 'adId',
-      'ชื่อโฆษณา': 'adId', 'รหัสโฆษณา': 'adId', 'โฆษณา': 'adId', 'campaign': 'adId', 'campaign_name': 'adId', 'campaign id': 'adId', 'แคมเปญ': 'adId',
-      'วันที่': 'date', 'วันที่สร้าง': 'date', 'วันและเวลา': 'date', 'เวลา': 'date',
-      'date': 'date', 'created_time': 'date', 'created_at': 'date', 'timestamp': 'date', 'time': 'date',
-      'เซลส์': 'rep', 'ผู้ดูแล': 'rep', 'พนักงาน': 'rep',
-      'rep': 'rep', 'sales': 'rep', 'repid': 'rep', 'rep id': 'rep', 'owner': 'rep', 'admin': 'rep',
-      'สถานะ': 'status', 'สถานะลูกค้า': 'status', 'ขั้นตอน': 'status', 'ความคืบหน้า': 'status',
-      'status': 'status', 'lead_status': 'status', 'stage': 'status', 'stage_name': 'status', 'state': 'status',
-      'ยอดเงิน': 'value', 'ยอดขาย': 'value', 'ราคา': 'value', 'มูลค่า': 'value', 'value': 'value', 'amount': 'value', 'price': 'value',
-      'เหตุผล': 'dropReason', 'หมายเหตุ': 'dropReason', 'reason': 'dropReason', 'note': 'dropReason',
-    };
-
     const rawFirstFields = parseLine(firstLine);
     const firstFields = rawFirstFields.map((f) => f.toLowerCase().trim().replace(/^["']|["']$/g, ''));
+
+    // ตรวจสอบอัตโนมัติว่าเป็นไฟล์รายงานโฆษณา (Campaign Report) หรือไฟล์รายชื่อลูกค้า (Leads)
+    const isCampaignFile = S.upload.tab === 'campaigns' || firstFields.some((f) =>
+      ['spend', 'amount spent', 'amount spent (thb)', 'impressions', 'จำนวนเงินที่ใช้ไป', 'งบประมาณ', 'การแสดงผล', 'cpm', 'ctr'].includes(f));
+    S.upload.detectedType = isCampaignFile ? 'campaigns' : 'leads';
+
+    let COL_MAP = {};
+    if (isCampaignFile) {
+      COL_MAP = {
+        'campaign': 'campaign', 'campaign name': 'campaign', 'campaign_name': 'campaign', 'ชื่อแคมเปญ': 'campaign', 'แคมเปญ': 'campaign',
+        'ad set name': 'adset', 'adset_name': 'adset', 'adset': 'adset', 'ชื่อชุดโฆษณา': 'adset',
+        'ad name': 'adName', 'ad_name': 'adName', 'ชื่อโฆษณา': 'adName', 'ad id': 'adId', 'adid': 'adId', 'ad_id': 'adId', 'ad': 'adName',
+        'amount spent': 'spend', 'amount spent (thb)': 'spend', 'spend': 'spend', 'จำนวนเงินที่ใช้ไป': 'spend', 'จำนวนเงินที่ใช้ไป (thb)': 'spend', 'งบประมาณ': 'spend',
+        'impressions': 'impressions', 'การแสดงผล': 'impressions',
+        'reach': 'reach', 'การเข้าถึง': 'reach',
+        'clicks (all)': 'clicks', 'link clicks': 'clicks', 'clicks': 'clicks', 'คลิก': 'clicks', 'คลิก (ทั้งหมด)': 'clicks',
+        'reporting starts': 'date', 'reporting ends': 'date', 'day': 'date', 'date': 'date', 'วันที่': 'date',
+        'messaging conversations started': 'messages', 'messages': 'messages', 'การเริ่มสนทนาทางข้อความ': 'messages',
+        'purchases': 'purchases', 'การซื้อ': 'purchases',
+      };
+    } else {
+      COL_MAP = {
+        'ชื่อ': 'name', 'ชื่อ-นามสกุล': 'name', 'ชื่อจริง': 'name', 'ชื่อเต็ม': 'name', 'ชื่อลูกค้า': 'name',
+        'name': 'name', 'full_name': 'name', 'fullname': 'name', 'first_name': 'name', 'customer': 'name', 'customer_name': 'name', 'lead_name': 'name',
+        'ช่องทาง': 'channel', 'ช่องทางติดต่อ': 'channel', 'แพลตฟอร์ม': 'channel',
+        'channel': 'channel', 'platform': 'channel', 'source': 'channel',
+        'ad id': 'adId', 'adid': 'adId', 'ad_id': 'adId', 'ad': 'adId', 'ad name': 'adId', 'ad_name': 'adId',
+        'ชื่อโฆษณา': 'adId', 'รหัสโฆษณา': 'adId', 'โฆษณา': 'adId', 'campaign': 'adId', 'campaign_name': 'adId', 'campaign id': 'adId', 'แคมเปญ': 'adId',
+        'วันที่': 'date', 'วันที่สร้าง': 'date', 'วันและเวลา': 'date', 'เวลา': 'date',
+        'date': 'date', 'created_time': 'date', 'created_at': 'date', 'timestamp': 'date', 'time': 'date',
+        'เซลส์': 'rep', 'ผู้ดูแล': 'rep', 'พนักงาน': 'rep',
+        'rep': 'rep', 'sales': 'rep', 'repid': 'rep', 'rep id': 'rep', 'owner': 'rep', 'admin': 'rep',
+        'สถานะ': 'status', 'สถานะลูกค้า': 'status', 'ขั้นตอน': 'status', 'ความคืบหน้า': 'status',
+        'status': 'status', 'lead_status': 'status', 'stage': 'status', 'stage_name': 'status', 'state': 'status',
+        'ยอดเงิน': 'value', 'ยอดขาย': 'value', 'ราคา': 'value', 'มูลค่า': 'value', 'value': 'value', 'amount': 'value', 'price': 'value',
+        'เหตุผล': 'dropReason', 'หมายเหตุ': 'dropReason', 'reason': 'dropReason', 'note': 'dropReason',
+      };
+    }
+
     const isHeader = firstFields.some((f) => COL_MAP[f] !== undefined);
     let headers, dataLines;
     if (isHeader) {
-      headers = firstFields.map((f, idx) => COL_MAP[f] || (idx === 0 ? 'name' : idx === 1 ? 'channel' : idx === 2 ? 'adId' : idx === 3 ? 'date' : idx === 4 ? 'status' : 'rep'));
+      headers = firstFields.map((f, idx) => COL_MAP[f] || (isCampaignFile ? (idx === 0 ? 'campaign' : idx === 1 ? 'adName' : idx === 2 ? 'spend' : idx === 3 ? 'impressions' : 'clicks') : (idx === 0 ? 'name' : idx === 1 ? 'channel' : idx === 2 ? 'adId' : idx === 3 ? 'date' : idx === 4 ? 'status' : 'rep')));
       dataLines = lines.slice(1);
     } else {
-      headers = ['name', 'channel', 'adId', 'date', 'status', 'rep'];
+      headers = isCampaignFile ? ['campaign', 'adName', 'spend', 'impressions', 'clicks', 'date'] : ['name', 'channel', 'adId', 'date', 'status', 'rep'];
       dataLines = lines;
     }
 
@@ -258,18 +285,21 @@
       const obj = {};
       headers.forEach((h, i) => { if (h) obj[h] = (vals[i] || '').trim(); });
       return obj;
-    }).filter((r) => r.name || r.date || r.adId);
+    }).filter((r) => r.name || r.date || r.adId || r.campaign || r.spend);
   }
 
-  async function doUploadLeads() {
+  async function doUploadData() {
     const u = S.upload;
     if (!u.rows.length || u.loading) return;
     const repCheck = document.getElementById('upload-replace-check');
-    const replace = repCheck ? repCheck.checked : true;
+    const replace = repCheck ? repCheck.checked : false; // ค่าเริ่มต้นคือ false: นำเข้าสะสม ไม่ลบของเดิม!
     u.loading = true; u.err = null; renderUploadBody();
     try {
-      const r = await api('/api/upload/leads', { method: 'POST', body: { rows: u.rows, replace } });
-      u.result = r; u.rows = []; u.err = null;
+      const endpoint = u.detectedType === 'campaigns' ? '/api/upload/campaigns' : '/api/upload/leads';
+      const r = await api(endpoint, { method: 'POST', body: { rows: u.rows, replace } });
+      u.result = { ...r, type: u.detectedType };
+      u.rows = []; u.err = null;
+      u.summary = await api('/api/data/summary').catch(() => null);
     } catch (e) {
       u.err = e.message || 'เกิดข้อผิดพลาดในการนำเข้า';
     } finally {
@@ -278,56 +308,96 @@
     }
   }
 
+  function renderTabs(u) {
+    return `<div class="card filters" style="margin-bottom:14px">
+      <div class="seg">
+        <button data-act="upload-tab" data-tab="leads" class="${u.tab === 'leads' ? 'active' : ''}">👥 นำเข้า Leads (ลูกค้า & แชท)</button>
+        <button data-act="upload-tab" data-tab="campaigns" class="${u.tab === 'campaigns' ? 'active' : ''}">📊 นำเข้าแคมเปญ Ads (โชว์ Dashboard)</button>
+        <button data-act="upload-tab" data-tab="manage" class="${u.tab === 'manage' ? 'active' : ''}">⚙️ จัดการ & ลบข้อมูลในระบบ</button>
+      </div>
+    </div>`;
+  }
+
+  function renderDataManagement(sm) {
+    return `<section class="card panel" style="margin-top:16px">
+      <h3>⚙️ ข้อมูลที่บันทึกอยู่ในระบบปัจจุบัน</h3>
+      <p class="sub">ข้อมูลทั้งหมดจะถูกบันทึกค้างไว้ในระบบเสมอ สามารถนำเข้าสะสมเพิ่มได้เรื่อยๆ หรือเลือกลบชุดที่ไม่ต้องการได้ที่นี่</p>
+      <div class="grid-4" style="margin:16px 0">
+        <div class="stat"><div class="k-label">Leads (ลูกค้า) ในระบบ</div><div class="k-value">${num(sm.leadsCount || 0)} รายการ</div></div>
+        <div class="stat"><div class="k-label">แคมเปญโฆษณาในระบบ</div><div class="k-value">${num(sm.campaignsCount || 0)} แคมเปญ</div></div>
+        <div class="stat"><div class="k-label">โฆษณา (Ads) ในระบบ</div><div class="k-value">${num(sm.adsCount || 0)} รายการ</div></div>
+        <div class="stat"><div class="k-label">งบโฆษณาสะสม (Spend)</div><div class="k-value" style="color:var(--brand)">${baht(sm.totalSpend || 0)}</div></div>
+      </div>
+      <div class="row-actions" style="margin-top:16px;padding-top:14px;border-top:1px solid var(--line-soft)">
+        <button class="btn danger" data-act="clear-data" data-target="leads">🗑️ ล้างข้อมูล Leads ทั้งหมด</button>
+        <button class="btn danger" data-act="clear-data" data-target="campaigns">🗑️ ล้างข้อมูลแคมเปญ Ads ทั้งหมด</button>
+        <button class="btn danger" data-act="clear-data" data-target="all" style="background:#fff0f0">⚠️ ล้างข้อมูลทั้งหมดในระบบ</button>
+      </div>
+    </section>`;
+  }
+
   function renderUploadBody() {
     const $el = document.getElementById('upload-body'); if (!$el) return;
     const u = S.upload;
+    const sm = u.summary || { leadsCount: 0, campaignsCount: 0, adsCount: 0, totalSpend: 0 };
 
-    // Result after upload
+    // Result view
     if (u.result) {
       const r = u.result;
+      const isCamp = r.type === 'campaigns';
       $el.innerHTML = `<div class="card panel">
-        <h3>${icon('check')} นำเข้าสำเร็จ</h3>
+        <h3>${icon('check')} นำเข้าข้อมูล${isCamp ? 'แคมเปญโฆษณา' : 'Leads'}สำเร็จ</h3>
         <div class="grid-4" style="margin:16px 0">
-          <div class="stat"><div class="k-label">นำเข้าสำเร็จ</div><div class="k-value" style="color:var(--brand)">${num(r.added)}</div></div>
-          <div class="stat"><div class="k-label">ข้อผิดพลาด</div><div class="k-value" style="color:${r.errors && r.errors.length ? 'var(--coral)' : 'var(--muted)'}">${num(r.errors ? r.errors.length : 0)}</div></div>
+          <div class="stat"><div class="k-label">นำเข้าสำเร็จ</div><div class="k-value" style="color:var(--brand)">${num(r.added)} แถว</div></div>
+          ${isCamp ? `<div class="stat"><div class="k-label">แคมเปญสะสม</div><div class="k-value">${num(r.campaigns)}</div></div>
+          <div class="stat"><div class="k-label">โฆษณา (Ads) สะสม</div><div class="k-value">${num(r.ads)}</div></div>` : `
+          <div class="stat"><div class="k-label">ข้อผิดพลาด</div><div class="k-value" style="color:${r.errors && r.errors.length ? 'var(--coral)' : 'var(--muted)'}">${num(r.errors ? r.errors.length : 0)}</div></div>`}
         </div>
-        ${r.errors && r.errors.length ? `<details><summary class="rv-hint" style="cursor:pointer">ดูรายการที่มีข้อผิดพลาด (${r.errors.length})</summary>
-          <ul style="margin:8px 0 0;padding-left:18px;color:var(--coral);font-size:14px">
-            ${r.errors.slice(0, 20).map((e) => `<li>แถว ${e.row}: ${esc(e.reason)}</li>`).join('')}
-          </ul></details>` : ''}
         <div class="row-actions" style="margin-top:16px">
-          <button class="btn" data-act="upload-reset">${icon('refresh')} นำเข้าไฟล์ใหม่</button>
-          <a class="btn" href="#/board">ไปดู Board</a>
-          <a class="btn" href="#/inbox">ไปดู Inbox</a>
+          <button class="btn" data-act="upload-reset">${icon('refresh')} นำเข้าไฟล์เพิ่ม</button>
+          ${isCamp ? '<a class="btn primary" href="#/dashboard">ไปดู Dashboard ทันที</a>' : '<a class="btn primary" href="#/board">ไปดู Board</a><a class="btn" href="#/inbox">ไปดู Inbox</a>'}
         </div>
-      </div>${historyHtml(u)}`;
+      </div>${renderDataManagement(sm)}${historyHtml(u)}`;
       return;
     }
 
-    // Error notice
     const errHtml = u.err ? `<div class="notice err" style="margin-bottom:14px">${esc(u.err)}</div>` : '';
 
     // Preview table
     if (u.rows.length) {
       const rows = u.rows.slice(0, 20);
+      const isCamp = u.detectedType === 'campaigns';
       $el.innerHTML = `${errHtml}<div class="card panel">
-        <h3>${icon('upload')} ตรวจสอบข้อมูลก่อนนำเข้า</h3>
+        <h3>${icon('upload')} ตรวจสอบข้อมูลก่อนนำเข้า (${isCamp ? '📊 ข้อมูลแคมเปญ/โฆษณา' : '👥 รายชื่อลูกค้า Leads'})</h3>
         <p class="sub">พบ ${num(u.rows.length)} แถว${u.rows.length > 20 ? ' (แสดง 20 แรก)' : ''}</p>
-        <div class="tscroll"><table style="min-width:720px"><thead><tr>
-          <th class="nosort">#</th><th class="nosort">ชื่อ</th><th class="nosort">ช่องทาง</th>
-          <th class="nosort">โฆษณา / แคมเปญ</th><th class="nosort">วันที่</th><th class="nosort">สถานะบน Board</th><th class="nosort">เซลส์</th>
-        </tr></thead><tbody>
-          ${rows.map((r, i) => `<tr><td class="nowrap" style="color:var(--muted)">${i + 1}</td>
-            <td><b>${esc(r.name || '—')}</b></td><td>${esc(r.channel || '—')}</td>
-            <td style="font-size:13px">${esc(r.adId || '—')}</td>
-            <td>${esc(r.date || '—')}</td>
-            <td><span class="q-badge q-average">${esc(r.status || 'พอได้คุย')}</span></td>
-            <td>${esc(r.rep || '—')}</td></tr>`).join('')}
-        </tbody></table></div>
+        <div class="tscroll">${isCamp ? `
+          <table style="min-width:760px"><thead><tr>
+            <th class="nosort">#</th><th class="nosort">แคมเปญ</th><th class="nosort">ชื่อโฆษณา</th>
+            <th class="nosort">งบที่ใช้ (Spend)</th><th class="nosort">การแสดงผล (Impressions)</th><th class="nosort">คลิก (Clicks)</th><th class="nosort">วันที่</th>
+          </tr></thead><tbody>
+            ${rows.map((r, i) => `<tr><td class="nowrap" style="color:var(--muted)">${i + 1}</td>
+              <td><b>${esc(r.campaign || '—')}</b></td>
+              <td>${esc(r.adName || r.adId || '—')}</td>
+              <td>${r.spend ? baht(r.spend) : '฿0'}</td>
+              <td>${num(r.impressions || 0)}</td>
+              <td>${num(r.clicks || 0)}</td>
+              <td>${esc(r.date || '—')}</td></tr>`).join('')}
+          </tbody></table>` : `
+          <table style="min-width:760px"><thead><tr>
+            <th class="nosort">#</th><th class="nosort">ชื่อ</th><th class="nosort">ช่องทาง</th>
+            <th class="nosort">โฆษณา / แคมเปญ</th><th class="nosort">วันที่</th><th class="nosort">สถานะบน Board</th><th class="nosort">เซลส์</th>
+          </tr></thead><tbody>
+            ${rows.map((r, i) => `<tr><td class="nowrap" style="color:var(--muted)">${i + 1}</td>
+              <td><b>${esc(r.name || '—')}</b></td><td>${esc(r.channel || '—')}</td>
+              <td style="font-size:13px">${esc(r.adId || '—')}</td>
+              <td>${esc(r.date || '—')}</td>
+              <td><span class="q-badge q-average">${esc(r.status || 'พอได้คุย')}</span></td>
+              <td>${esc(r.rep || '—')}</td></tr>`).join('')}
+          </tbody></table>`}</div>
         <div style="margin:16px 0 6px">
           <label style="display:inline-flex;align-items:center;gap:8px;cursor:pointer">
-            <input type="checkbox" id="upload-replace-check" checked>
-            <span>แทนที่ข้อมูลชุดเดิม (ล้าง 307 รายการก่อนหน้าออกเพื่อลงข้อมูลที่แบ่งสถานะถูกต้อง)</span>
+            <input type="checkbox" id="upload-replace-check">
+            <span>แทนที่ข้อมูลเดิมทั้งหมด (ถ้าไม่ติ๊ก ระบบจะ<b>นำเข้าสะสมต่อจากของเดิม</b>ให้โดยไม่ลบข้อมูลเก่า)</span>
           </label>
         </div>
         <div class="row-actions" style="margin-top:16px">
@@ -338,30 +408,39 @@
       return;
     }
 
-    // Upload zone (default)
-    $el.innerHTML = `${errHtml}<div class="card panel">
-      <h3>${icon('upload')} อัปโหลดไฟล์ CSV / TSV</h3>
+    // Default upload view with tabs
+    const isCampTab = u.tab === 'campaigns';
+    const isManageTab = u.tab === 'manage';
+
+    if (isManageTab) {
+      $el.innerHTML = `${errHtml}${renderTabs(u)}${renderDataManagement(sm)}${historyHtml(u)}`;
+      return;
+    }
+
+    $el.innerHTML = `${errHtml}${renderTabs(u)}<div class="card panel">
+      <h3>${icon('upload')} ${isCampTab ? 'อัปโหลดรายงานแคมเปญโฆษณา (Campaign & Ads Performance)' : 'อัปโหลดรายชื่อลูกค้าและแชท (Leads)'}</h3>
+      <p class="sub">${isCampTab ? 'นำเข้าไฟล์ Export จาก Facebook Ads Manager (มีงบโฆษณา, คลิก, ยอดแสดงผล) เพื่อให้หน้า Dashboard แสดงผลตัวเลขและกราฟจริง' : 'นำเข้าไฟล์รายชื่อลูกค้าและสถานะ เพื่อให้ไปแสดงบนหน้า Board และ Inbox'}</p>
       <label class="upload-zone" id="upload-zone">
         <input type="file" id="upload-file-input" accept=".csv,.tsv,.txt">
         ${icon('upload')}
         <b>ลากไฟล์มาวางที่นี่ หรือคลิกเพื่อเลือกไฟล์</b>
-        <span style="font-size:14px">รองรับ .csv / .tsv — ขนาดสูงสุด 1 MB</span>
+        <span style="font-size:14px">รองรับ .csv / .tsv — นำเข้าสะสมได้หลายครั้ง ข้อมูลไม่หาย</span>
       </label>
       <div style="margin-top:18px">
-        <b style="font-size:14px;color:var(--ink-2)">รูปแบบคอลัมน์ที่รองรับ</b>
-        <pre class="upload-code-hint">ชื่อ,ช่องทาง,Ad ID,วันที่,เซลส์
-สมชาย ใจดี,Messenger,AD-1046,2026-11-01,rep01
-สมหญิง รักดี,LINE,AD-1052,2026-11-02,rep02</pre>
+        <b style="font-size:14px;color:var(--ink-2)">ตัวอย่างคอลัมน์ที่รองรับ (${isCampTab ? 'รายงานโฆษณา Ads Manager' : 'ข้อมูลลูกค้า Leads'})</b>
+        <pre class="upload-code-hint">${isCampTab ? `ชื่อแคมเปญ,ชื่อโฆษณา,งบประมาณ,การแสดงผล,คลิก,วันที่
+FUE Hair Transplant,FUE-Reels-01,15000,85000,2100,2026-11-01
+PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่องทาง,โฆษณา,วันที่,สถานะ,เซลส์
+สมชาย ใจดี,Messenger,FUE-Reels-01,2026-11-01,กำลังดำเนินการ,นก
+สมหญิง รักดี,LINE,PRP-Promo-50,2026-11-02,มีคุณสมบัติ,มิ้นท์`}</pre>
         <p class="sub" style="margin-top:8px">
-          • ช่องทางที่รองรับ: Messenger, LINE, Instagram, WhatsApp<br>
-          • วันที่รูปแบบ YYYY-MM-DD<br>
-          • แถวแรกเป็น header จะถูกข้ามโดยอัตโนมัติ<br>
-          • เฉพาะผู้ดูแล (admin) เท่านั้นที่นำเข้าได้
+          • รองรับหัวคอลัมน์ภาษาไทยและอังกฤษจาก Facebook Ads Manager / Google Sheets โดยอัตโนมัติ<br>
+          • นำเข้าเพิ่มได้เรื่อยๆ โดยข้อมูลเก่าจะยังค้างอยู่ในระบบ หากต้องการล้างข้อมูลสามารถกดที่แท็บ "จัดการ & ลบข้อมูล" ได้ครับ
         </p>
       </div>
-    </div>${historyHtml(u)}`;
+    </div>${renderDataManagement(sm)}${historyHtml(u)}`;
 
-    // Bind drag & drop + file input
+    // Bind drag & drop
     const zone = document.getElementById('upload-zone');
     if (zone) {
       zone.addEventListener('dragover', (e) => { e.preventDefault(); zone.classList.add('drag-over'); });
@@ -377,11 +456,12 @@
     return `<section class="card table-card" style="margin-top:16px">
       <div class="table-head"><div><h2>ประวัติการนำเข้าล่าสุด</h2></div></div>
       <div class="tscroll"><table style="min-width:500px"><thead><tr>
-        <th class="nosort">วันที่/เวลา</th><th class="nosort">ผู้นำเข้า</th><th class="nosort">จำนวน</th>
+        <th class="nosort">วันที่/เวลา</th><th class="nosort">ผู้นำเข้า</th><th class="nosort">ประเภท</th><th class="nosort">จำนวน</th>
       </tr></thead><tbody>
         ${u.data.history.map((h) => `<tr>
           <td>${esc(h.at ? fmtTs(h.at).slice(0, 16) : '—')}</td>
           <td>${esc(h.user || '—')}</td>
+          <td><span class="q-badge ${h.action === 'campaigns_upload' ? 'q-good' : 'q-average'}">${h.action === 'campaigns_upload' ? 'แคมเปญ Ads' : 'Leads'}</span></td>
           <td>${num(h.count)}</td>
         </tr>`).join('')}
       </tbody></table></div>
@@ -1489,8 +1569,19 @@
         S.flash = r.ok ? { type: 'ok', text: 'แลกเป็น token อายุยาวสำเร็จ' } : { type: 'err', text: r.error }; if (r.ok) S.settings = r.settings; render();
       }
       /* ── upload page ── */
-      else if (act === 'upload-confirm') { await doUploadLeads(); }
-      else if (act === 'upload-cancel' || act === 'upload-reset') { S.upload.rows = []; S.upload.result = null; S.upload.err = null; renderUploadBody(); }
+      else if (act === 'upload-confirm') { await doUploadData(); }
+      else if (act === 'upload-cancel' || act === 'upload-reset') { S.upload.rows = []; S.upload.result = null; S.upload.err = null; await loadUpload(); }
+      else if (act === 'upload-tab') { S.upload.tab = el.dataset.tab; S.upload.rows = []; S.upload.result = null; S.upload.err = null; renderUploadBody(); }
+      else if (act === 'clear-data') {
+        const target = el.dataset.target;
+        const labels = { leads: 'Leads ทั้งหมด', campaigns: 'ข้อมูลแคมเปญ Ads ทั้งหมด', all: 'ข้อมูลทั้งหมดในระบบ (Leads + Ads)' };
+        if (!confirm(`⚠️ ยืนยันการลบ: ${labels[target] || target}\nการลบนี้ไม่สามารถกู้คืนได้ ต้องการดำเนินการต่อไปไหม?`)) return;
+        await api('/api/data/clear', { method: 'POST', body: { target } });
+        S.flash = { type: 'ok', text: `ลบ ${labels[target]} เรียบร้อยแล้ว` };
+        S.upload.summary = await api('/api/data/summary').catch(() => null);
+        S.dash.data = null;
+        await loadUpload();
+      }
       /* ── quality page ── */
       else if (act === 'quality-reload') { S.dash.data = null; await loadQuality(); }
       else if (act === 'q-sort') { const k = el.dataset.key; S.quality.sortDir = S.quality.sort === k && S.quality.sortDir === 'desc' ? 'asc' : 'desc'; S.quality.sort = k; renderQualityBody(); }

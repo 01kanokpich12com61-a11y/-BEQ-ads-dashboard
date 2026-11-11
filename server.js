@@ -36,13 +36,13 @@ function send(res, status, body, headers = {}) {
   res.end(isJson ? JSON.stringify(body) : body);
 }
 
-function readJson(req) {
+function readJson(req, maxBytes = 5_000_000) {
   return new Promise((resolve, reject) => {
     if (!String(req.headers['content-type'] || '').startsWith('application/json')) return reject(Object.assign(new Error('Content-Type ต้องเป็น application/json'), { status: 415 }));
     let size = 0; const chunks = [];
     req.on('data', (c) => {
       size += c.length;
-      if (size > 100_000) { reject(Object.assign(new Error('ข้อมูลใหญ่เกินไป'), { status: 413 })); req.destroy(); return; }
+      if (size > maxBytes) { reject(Object.assign(new Error('ข้อมูลใหญ่เกินไป'), { status: 413 })); req.destroy(); return; }
       chunks.push(c);
     });
     req.on('end', () => {
@@ -381,13 +381,132 @@ async function api(req, res, url, session) {
   }
 
   if (route === 'GET /api/upload/history') {
-    const logs = (store.read('audit.json', [])).filter((l) => l.action === 'leads_upload').slice(-20).reverse();
+    const logs = (store.read('audit.json', [])).filter((l) => l.action === 'leads_upload' || l.action === 'campaigns_upload').slice(-20).reverse();
     const history = logs.map((l) => ({
       at: l.at,
       user: l.user,
+      action: l.action,
       count: parseInt((l.detail || '0').match(/\d+/)?.[0] || '0', 10),
     }));
     return send(res, 200, { history });
+  }
+
+  if (route === 'POST /api/upload/campaigns') {
+    if (!auth.isAdmin(session.user)) return send(res, 403, { error: 'เฉพาะผู้ดูแล (admin) เท่านั้น' });
+    const b = await readJson(req);
+    const rows = Array.isArray(b.rows) ? b.rows.slice(0, 2000) : [];
+    if (!rows.length) return send(res, 400, { error: 'ไม่มีข้อมูลที่จะนำเข้า' });
+
+    let existingData = b.replace ? { ads: [], daily: [], campaigns: [] } : store.read('campaigns_data.json', { ads: [], daily: [], campaigns: [] });
+    if (!Array.isArray(existingData.daily)) existingData.daily = [];
+    if (!Array.isArray(existingData.ads)) existingData.ads = [];
+    if (!Array.isArray(existingData.campaigns)) existingData.campaigns = [];
+
+    const campMap = new Map((existingData.campaigns || []).map((c) => [c.id, c]));
+    const adMap = new Map((existingData.ads || []).map((a) => [a.id, a]));
+    const tdy = today();
+
+    function normalizeDate(d) {
+      if (!d) return tdy;
+      const s = String(d).trim();
+      const m1 = s.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/);
+      if (m1) {
+        let y = parseInt(m1[1], 10);
+        if (y > 2400) y -= 543;
+        return `${y}-${m1[2].padStart(2, '0')}-${m1[3].padStart(2, '0')}`;
+      }
+      const m2 = s.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})/);
+      if (m2) {
+        let y = parseInt(m2[3], 10);
+        if (y > 2400) y -= 543;
+        return `${y}-${m2[2].padStart(2, '0')}-${m2[1].padStart(2, '0')}`;
+      }
+      const parsed = Date.parse(s);
+      if (!Number.isNaN(parsed)) return new Date(parsed).toISOString().slice(0, 10);
+      return tdy;
+    }
+
+    let addedRows = 0;
+    for (const r of rows) {
+      const campName = clean(r.campaign || r.campaign_name || r.campaignName, 100) || 'General Campaign';
+      const campId = clean(r.campaignId || r.campaign_id, 50) || `C-${campName.slice(0, 20).replace(/\s+/g, '_')}`;
+      if (!campMap.has(campId)) {
+        campMap.set(campId, { id: campId, name: campName });
+      }
+
+      const adName = clean(r.adName || r.ad_name || r.name || r.ad, 100) || campName;
+      const adId = clean(r.adId || r.ad_id || r.id, 50) || adName;
+      const adset = clean(r.adset || r.adset_name || r.adsetName, 100) || '';
+      const creative = clean(r.creative || r.creative_type, 20) || 'IMAGE';
+
+      if (!adMap.has(adId)) {
+        adMap.set(adId, {
+          id: adId,
+          name: adName,
+          campaignId: campId,
+          adset,
+          pageId: 'P1',
+          agencyId: 'In-house',
+          creative,
+          thumb: null,
+        });
+      }
+
+      const spend = Math.max(0, parseFloat(String(r.spend || r.amount_spent || 0).replace(/[^0-9.]/g, '')) || 0);
+      const impressions = Math.max(0, parseInt(String(r.impressions || 0).replace(/[^0-9]/g, ''), 10) || 0);
+      const reach = Math.max(0, parseInt(String(r.reach || 0).replace(/[^0-9]/g, ''), 10) || Math.round(impressions * 0.7));
+      const clicks = Math.max(0, parseInt(String(r.clicks || r.clicks_all || r.link_clicks || 0).replace(/[^0-9]/g, ''), 10) || 0);
+      const messages = Math.max(0, parseInt(String(r.messages || r.messaging_conversations || 0).replace(/[^0-9]/g, ''), 10) || 0);
+      const purchases = Math.max(0, parseInt(String(r.purchases || 0).replace(/[^0-9]/g, ''), 10) || 0);
+      const date = normalizeDate(r.date || r.reporting_starts || r.day);
+
+      existingData.daily.push({
+        date,
+        adId,
+        spend,
+        impressions,
+        reach,
+        clicks,
+        messages,
+        purchases,
+      });
+      addedRows++;
+    }
+
+    existingData.campaigns = [...campMap.values()];
+    existingData.ads = [...adMap.values()];
+    store.write('campaigns_data.json', existingData);
+    audit.log(session.user.username, 'campaigns_upload', `นำเข้าข้อมูลโฆษณา ${addedRows} แถว${b.replace ? ' (แทนที่ชุดเดิม)' : ''}`, clientIp(req));
+    return send(res, 200, { ok: true, added: addedRows, campaigns: existingData.campaigns.length, ads: existingData.ads.length });
+  }
+
+  if (route === 'GET /api/data/summary') {
+    const leads = store.read('leads.json', []);
+    const campData = store.read('campaigns_data.json', { ads: [], daily: [], campaigns: [] });
+    const totalSpend = (campData.daily || []).reduce((sum, d) => sum + (d.spend || 0), 0);
+    return send(res, 200, {
+      leadsCount: leads.length,
+      adsCount: (campData.ads || []).length,
+      campaignsCount: (campData.campaigns || []).length,
+      dailyRecordsCount: (campData.daily || []).length,
+      totalSpend: Math.round(totalSpend * 100) / 100,
+    });
+  }
+
+  if (route === 'POST /api/data/clear') {
+    if (!auth.isAdmin(session.user)) return send(res, 403, { error: 'เฉพาะผู้ดูแล (admin) เท่านั้น' });
+    const b = await readJson(req);
+    const target = b.target || 'leads';
+    if (target === 'leads' || target === 'all') {
+      store.write('leads.json', []);
+      store.write('leadmeta.json', {});
+      audit.log(session.user.username, 'data_clear', 'ล้างข้อมูล Leads ทั้งหมด', clientIp(req));
+    }
+    if (target === 'campaigns' || target === 'all') {
+      store.write('campaigns_data.json', { ads: [], daily: [], campaigns: [] });
+      audit.log(session.user.username, 'data_clear', 'ล้างข้อมูล Ads & Campaigns ทั้งหมด', clientIp(req));
+    }
+    return send(res, 200, { ok: true, target });
   }
 
   if (route === 'GET /api/audit') {
