@@ -6,7 +6,7 @@
   /* ---------------- state ---------------- */
   const S = {
     me: null, booted: false, filters: null, route: 'dashboard', menu: null,
-    dash: { range: '30d', from: '', to: '', page: '', campaign: '', agency: '', rep: '', status: '', tab: 'ads',
+    dash: { range: '30d', from: '', to: '', platform: '', page: '', campaign: '', agency: '', rep: '', status: '', tab: 'ads',
       data: null, loading: false, err: null, sort: 'spend', dir: 'desc', search: '', pageNo: 1 },
     settings: null, flash: null, loginErr: '',
     board: { range: 'all', from: '', to: '', data: null, err: null },
@@ -147,16 +147,25 @@
     const nav = [['dashboard', 'Dashboard', 'grid'], ['inbox', 'Inbox', 'chat'], ['board', 'Board', 'grid'],
       ['followup', 'ตามลูกค้า', 'clock'], ['review', 'Review', 'check'], ['audit', 'Audit', 'list'],
       ['upload', 'Upload', 'upload'], ['quality', 'Quality', 'shield'], ['setting', 'Setting', 'gear']];
-    const pages = (S.filters && S.filters.pages) || [];
+    const platforms = (S.filters && S.filters.platforms) || ['Facebook', 'LINE', 'WhatsApp', 'Instagram'];
+    const allPages = (S.filters && S.filters.pages) || [];
+    const curPlatform = S.dash.platform || '';
+    const filteredPages = curPlatform ? allPages.filter((p) => !p.platform || p.platform.toLowerCase() === curPlatform.toLowerCase()) : allPages;
     const list = notices();
     return `<header class="topbar">
       <div class="brand"><img class="brand-mark" src="/logo-mark.png" alt="BEQ Group" width="44" height="44"><div><b>BEQ Group</b><small>Ads · Chat · Lead Suite</small></div></div>
       <nav class="nav">${nav.map(([id, label, ic]) => `<a href="#/${id}" class="${S.route === id ? 'active' : ''}">${icon(ic)}${label}</a>`).join('')}</nav>
       <div class="spacer"></div>
-      <div class="pill-select"><select data-bind="header-page" aria-label="Facebook page">
-        <option value="">All Facebook pages</option>
-        ${pages.map((p) => `<option value="${esc(p.id)}" ${S.dash.page === p.id ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}
-      </select></div>
+      <div class="topbar-selectors" style="display:inline-flex;gap:8px;align-items:center">
+        <div class="pill-select"><select data-bind="header-platform" aria-label="แพลตฟอร์ม">
+          <option value="">🌐 ทุกแพลตฟอร์ม</option>
+          ${platforms.map((p) => `<option value="${esc(p)}" ${curPlatform.toLowerCase() === p.toLowerCase() ? 'selected' : ''}>${esc(p)}</option>`).join('')}
+        </select></div>
+        <div class="pill-select"><select data-bind="header-page" aria-label="เลือกเพจ">
+          <option value="">${curPlatform ? `📄 ทุกเพจ (${esc(curPlatform)})` : '📄 ทุกเพจ / บัญชี'}</option>
+          ${filteredPages.map((p) => `<option value="${esc(p.id)}" ${S.dash.page === p.id ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}
+        </select></div>
+      </div>
       <div class="rel"><button class="icon-btn" data-act="menu" data-menu="bell" aria-label="Notifications">${icon('bell')}${list.length ? '<span class="dot"></span>' : ''}</button>
         ${S.menu === 'bell' ? `<div class="popover">${list.length ? list.map((t) => `<div class="item">${esc(t)}</div>`).join('') : '<div class="item">ไม่มีการแจ้งเตือน</div>'}</div>` : ''}</div>
       <div class="rel"><button class="user-btn" data-act="menu" data-menu="user"><span class="avatar">${esc(S.me.username[0])}</span>${esc(S.me.username)}<span style="opacity:.6">▾</span></button>
@@ -403,13 +412,20 @@
     if (!u.rows.length || u.loading) return;
     const repCheck = document.getElementById('upload-replace-check');
     const replace = repCheck ? repCheck.checked : false; // ค่าเริ่มต้นคือ false: นำเข้าสะสม ไม่ลบของเดิม!
+    const platformIn = document.getElementById('upload-platform-input');
+    const pageNameIn = document.getElementById('upload-page-input');
+    const platform = (platformIn ? platformIn.value : '') || u.platform || 'Facebook';
+    const pageName = (pageNameIn ? pageNameIn.value.trim() : '') || u.pageName || '';
+
     u.loading = true; u.err = null; renderUploadBody();
     try {
       const endpoint = u.detectedType === 'campaigns' ? '/api/upload/campaigns' : '/api/upload/leads';
-      const r = await api(endpoint, { method: 'POST', body: { rows: u.rows, replace } });
+      const r = await api(endpoint, { method: 'POST', body: { rows: u.rows, replace, platform, pageName } });
       u.result = { ...r, type: u.detectedType };
       u.rows = []; u.err = null;
       u.summary = await api('/api/data/summary').catch(() => null);
+      S.filters = null; // รีเฟรชตัวกรองเพจ/แพลตฟอร์ม
+      S.dash.data = null;
     } catch (e) {
       u.err = e.message || 'เกิดข้อผิดพลาดในการนำเข้า';
     } finally {
@@ -472,12 +488,74 @@
         <div class="stat"><div class="k-label">โฆษณา (Ads) ในระบบ</div><div class="k-value">${num(sm.adsCount || 0)} รายการ</div></div>
         <div class="stat"><div class="k-label">งบโฆษณาสะสม (Spend)</div><div class="k-value" style="color:var(--brand)">${baht(sm.totalSpend || 0)}</div></div>
       </div>
+      <div style="margin:16px 0;padding:14px 16px;background:#f9fafb;border-radius:12px;border:1px solid var(--line-soft)">
+        <b style="display:block;font-size:14.5px;margin-bottom:6px">📥 ดาวน์โหลด & สำรองข้อมูล (Export / Backup)</b>
+        <p class="sub" style="margin-bottom:12px">เปิดเว็บมาจะเจอข้อมูลเก่าและสามารถดาวน์โหลดเก็บเป็นไฟล์ CSV หรือสำรองข้อมูลทั้งหมดได้ทันที</p>
+        <div class="row-actions">
+          <a class="btn" href="/api/export/leads" download style="display:inline-flex;align-items:center;gap:6px">📥 ดาวน์โหลด Leads เป็น CSV</a>
+          <a class="btn" href="/api/export/campaigns" download style="display:inline-flex;align-items:center;gap:6px">📥 ดาวน์โหลดแคมเปญ Ads เป็น CSV</a>
+          <a class="btn primary" href="/api/export/backup" download style="display:inline-flex;align-items:center;gap:6px">📦 สำรองข้อมูลทั้งหมด (Full JSON)</a>
+        </div>
+      </div>
       <div class="row-actions" style="margin-top:16px;padding-top:14px;border-top:1px solid var(--line-soft)">
         <button class="btn danger" data-act="clear-data" data-target="leads">🗑️ ล้างข้อมูล Leads ทั้งหมด</button>
         <button class="btn danger" data-act="clear-data" data-target="campaigns">🗑️ ล้างข้อมูลแคมเปญ Ads ทั้งหมด</button>
         <button class="btn danger" data-act="clear-data" data-target="all" style="background:#fff0f0">⚠️ ล้างข้อมูลทั้งหมดในระบบ</button>
       </div>
     </section>`;
+  }
+
+  function renderPlatformPageInputs(u) {
+    const pages = (S.filters && S.filters.pages) || [];
+    const curPlatform = u.platform || 'Facebook';
+    const curPage = u.pageName || '';
+    return `<div class="grid-2" style="margin:14px 0 16px;background:#f8faf6;padding:14px 16px;border-radius:12px;border:1px solid var(--line-soft)">
+      <div class="field" style="margin-bottom:0">
+        <label style="font-weight:600">🌐 แพลตฟอร์ม</label>
+        <div class="sel" style="width:100%"><select id="upload-platform-input" style="width:100%">
+          <option value="Facebook" ${curPlatform === 'Facebook' ? 'selected' : ''}>Facebook</option>
+          <option value="LINE" ${curPlatform === 'LINE' ? 'selected' : ''}>LINE Official Account</option>
+          <option value="WhatsApp" ${curPlatform === 'WhatsApp' ? 'selected' : ''}>WhatsApp Business</option>
+          <option value="Instagram" ${curPlatform === 'Instagram' ? 'selected' : ''}>Instagram</option>
+          <option value="Direct" ${curPlatform === 'Direct' ? 'selected' : ''}>Direct / อื่นๆ</option>
+        </select></div>
+        <small>ระบุว่าไฟล์นี้เป็นข้อมูลของแพลตฟอร์มใด (เช่น Facebook, LINE)</small>
+      </div>
+      <div class="field" style="margin-bottom:0">
+        <label style="font-weight:600">📄 ชื่อเพจ / บัญชี</label>
+        <input type="text" id="upload-page-input" placeholder="เช่น เพจรักเพื่อน, Hairlab Clinic, LINE OA คลินิก" value="${esc(curPage)}" list="known-pages-list">
+        <datalist id="known-pages-list">
+          ${pages.map((p) => `<option value="${esc(p.name)}">`).join('')}
+        </datalist>
+        <small>พิมพ์หรือเลือกชื่อเพจ เพื่อแยกดูรายงานบนแถบด้านบน</small>
+      </div>
+    </div>`;
+  }
+
+  function renderSheetsSyncCard(u) {
+    const lastUrl = (S.settings && S.settings.sheets && S.settings.sheets.lastUrl) || '';
+    const lastSync = (S.settings && S.settings.sheets && S.settings.sheets.lastSyncAt) || null;
+    return `<div class="card panel sheets-sync-box" style="margin-bottom:16px;background:linear-gradient(135deg, #fafffa 0%, #f0f7ef 100%);border:1.5px solid #c2e2be">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <h3 style="margin:0;color:#244c1d;display:flex;align-items:center;gap:8px">📊 เชื่อมต่อ Google Sheets (ซิงค์ข้อมูลสด)</h3>
+        <span class="chip good">Google Sheets Sync</span>
+      </div>
+      <p class="sub">เชื่อมฐานข้อมูล Google Sheets ไว้ได้ เพียงวางลิงก์ (แชร์ Anyone with the link หรือ Publish to web) แล้วกดซิงค์ ข้อมูลจะถูกดูดมาลงระบบทันที</p>
+      <form class="form" data-form="sheets-sync" style="margin-top:12px">
+        <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+          <div class="field" style="flex:1;min-width:280px;margin-bottom:0">
+            <label>Google Sheet URL ${lastSync ? `<small class="rv-hint">(ซิงค์ล่าสุด: ${esc(fmtTs(lastSync).slice(0, 16))})</small>` : ''}</label>
+            <input type="url" name="sheetUrl" id="sheets-url-input" placeholder="https://docs.google.com/spreadsheets/d/.../edit" value="${esc(lastUrl)}" required>
+          </div>
+          <button class="btn primary" type="submit" id="btn-sync-sheets" style="background:#2d5022;white-space:nowrap;padding:10px 18px">
+            📥 ซิงค์จาก Google Sheet ทันที
+          </button>
+        </div>
+        <small style="display:block;margin-top:6px;color:var(--muted)">
+          * ข้อมูลจาก Google Sheet จะถูกบันทึกเข้าแท็บ <b>${u.tab === 'campaigns' ? 'แคมเปญ Ads' : 'Leads ลูกค้า'}</b> ตามแพลตฟอร์มและชื่อเพจที่ระบุด้านล่าง
+        </small>
+      </form>
+    </div>`;
   }
 
   function renderUploadBody() {
@@ -514,6 +592,7 @@
       $el.innerHTML = `${errHtml}<div class="card panel">
         <h3>${icon('upload')} ตรวจสอบข้อมูลก่อนนำเข้า (${isCamp ? '📊 ข้อมูลแคมเปญ/โฆษณา' : '👥 รายชื่อลูกค้า Leads'})</h3>
         <p class="sub">พบ ${num(u.rows.length)} แถว${u.rows.length > 20 ? ' (แสดง 20 แรก)' : ''}</p>
+        ${renderPlatformPageInputs(u)}
         <div class="tscroll">${isCamp ? `
           <table style="min-width:760px"><thead><tr>
             <th class="nosort">#</th><th class="nosort">แคมเปญ</th><th class="nosort">ชื่อโฆษณา</th>
@@ -567,9 +646,10 @@
       return;
     }
 
-    $el.innerHTML = `${errHtml}${renderTabs(u)}<div class="card panel">
+    $el.innerHTML = `${errHtml}${renderTabs(u)}${renderSheetsSyncCard(u)}<div class="card panel">
       <h3>${icon('upload')} ${isCampTab ? 'อัปโหลดรายงานแคมเปญโฆษณา (Campaign & Ads Performance)' : 'อัปโหลดรายชื่อลูกค้าและแชท (Leads)'}</h3>
       <p class="sub">${isCampTab ? 'นำเข้าไฟล์ Export จาก Facebook Ads Manager (มีงบโฆษณา, คลิก, ยอดแสดงผล) เพื่อให้หน้า Dashboard แสดงผลตัวเลขและกราฟจริง' : 'นำเข้าไฟล์รายชื่อลูกค้าและสถานะ เพื่อให้ไปแสดงบนหน้า Board และ Inbox'}</p>
+      ${renderPlatformPageInputs(u)}
       <label class="upload-zone" id="upload-zone">
         <input type="file" id="upload-file-input" accept=".csv,.tsv,.txt">
         ${icon('upload')}
@@ -758,7 +838,7 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
     const d = S.dash;
     const p = new URLSearchParams({ range: d.range });
     if (d.range === 'custom') { p.set('from', d.from); p.set('to', d.to); }
-    for (const k of ['page', 'campaign', 'agency', 'rep', 'status']) if (d[k]) p.set(k, d[k]);
+    for (const k of ['platform', 'page', 'campaign', 'agency', 'rep', 'status']) if (d[k]) p.set(k, d[k]);
     return p.toString();
   }
 
@@ -789,10 +869,10 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
   const cap = (s) => String(s).charAt(0).toUpperCase() + String(s).slice(1);
 
   function dashShell() {
-    const d = S.dash; const f = S.filters || { pages: [], campaigns: [], agencies: [], reps: [], statuses: [] };
+    const d = S.dash; const f = S.filters || { platforms: [], pages: [], campaigns: [], agencies: [], reps: [], statuses: [] };
     const data = d.data;
     const customDays = d.from && d.to ? Math.round((Date.parse(d.to) - Date.parse(d.from)) / 864e5) + 1 : 30;
-    const days = d.range === 'custom' ? Math.max(1, customDays) : ({ '7d': 7, '30d': 30, '90d': 90 }[d.range] || 30);
+    const days = d.range === 'all' ? 'All time' : d.range === 'custom' ? Math.max(1, customDays) : ({ '7d': 7, '30d': 30, '90d': 90 }[d.range] || 30);
     const live = S.me.mode === 'meta' || S.me.mode === 'live';
     return `<div class="page-head"><div>
         <h1>Dashboard ${live ? '<span class="badge-demo" style="background:var(--mint);color:var(--brand-deep)">Live · ข้อมูลจริง</span>' : `<span class="badge-demo">${icon('spark')}Demo data</span>`}</h1>
@@ -800,10 +880,11 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
       <button class="btn" data-act="refresh">${icon('refresh')}Refresh</button></div>
 
       <section class="card filters">
-        <div class="seg">${[['7d', '7D'], ['30d', '30D'], ['90d', '90D'], ['custom', 'Custom']].map(([k, l]) => `<button data-act="range" data-range="${k}" class="${d.range === k ? 'active' : ''}">${l}</button>`).join('')}</div>
+        <div class="seg">${[['all', 'ทั้งหมด'], ['7d', '7D'], ['30d', '30D'], ['90d', '90D'], ['custom', 'Custom']].map(([k, l]) => `<button data-act="range" data-range="${k}" class="${d.range === k ? 'active' : ''}">${l}</button>`).join('')}</div>
         ${d.range === 'custom' ? `<input class="date-in" type="date" data-bind="from" value="${esc(d.from)}" aria-label="From"><input class="date-in" type="date" data-bind="to" value="${esc(d.to)}" aria-label="To">` : ''}
-        <span class="vs">${icon('cal')}vs previous ${days} days</span>
+        <span class="vs">${icon('cal')}ช่วงเวลา: ${days === 'All time' ? 'ข้อมูลทั้งหมด' : `vs ก่อนหน้า ${days} วัน`}</span>
         <span class="label">${icon('filter')}Filters</span>
+        ${selectHtml('platform', 'All platforms', f.platforms || ['Facebook', 'LINE', 'WhatsApp', 'Instagram'], d.platform)}
         ${selectHtml('page', 'All pages', f.pages, d.page)}
         ${selectHtml('campaign', 'All campaigns', f.campaigns, d.campaign)}
         ${selectHtml('agency', 'All agencies', f.agencies, d.agency)}
@@ -1063,6 +1144,8 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
   function listQuery(s) {
     const p = new URLSearchParams({ range: s.range });
     if (s.range === 'custom') { p.set('from', s.from); p.set('to', s.to); }
+    if (S.dash.platform) p.set('platform', S.dash.platform);
+    if (S.dash.page) p.set('page', S.dash.page);
     return p.toString();
   }
 
@@ -1367,7 +1450,10 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
     return `<div class="lead" draggable="true" data-lead-id="${esc(l.id)}" data-lead-status="${esc(l.status)}" data-act="open-chat" data-id="${esc(l.id)}">
       <div class="lead-head">
         <b>${esc(l.name)}</b>
-        ${chanHtml(l.channel)}
+        <span style="display:inline-flex;align-items:center;gap:4px">
+          ${l.pageName ? `<span class="ad-sub" style="font-size:11px;color:var(--muted)">${esc(l.pageName)}</span>` : ''}
+          ${chanHtml(l.channel)}
+        </span>
       </div>
       ${custMsg ? `<div class="lead-cust-bubble" title="ลูกค้าพิมพ์: ${esc(custMsg)}"><span class="cust-prefix">💬 ลูกค้าพิมพ์:</span> <span class="cust-text">${esc(custMsg)}</span></div>` : ''}
       <div class="lead-meta-grid">
@@ -1687,6 +1773,33 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
           <li>Subscribe ฟิลด์ <code>messages</code>, <code>message_echoes</code>, <code>messaging_referrals</code></li>
           <li>ผูกเพจเข้ากับ Webhook (Add subscriptions) และให้ System User มีสิทธิ์ <code>pages_messaging</code> ในเพจนั้น</li></ol></section>
 
+      <section class="card panel"><h3>เชื่อมต่อ LINE Official Account (Messaging API)</h3>
+        <p class="sub">เชื่อมต่อกับ LINE Developers เพื่อดึงข้อความจากลูกค้า LINE OA เข้ามาในระบบ</p>
+        <form class="form" data-form="line-settings" autocomplete="off">
+          <div class="field"><label>Channel ID</label><input type="text" name="channelId" value="${esc((s.line && s.line.channelId) || '')}" placeholder="เช่น 2001234567"></div>
+          <div class="field"><label>Channel Secret ${(s.line && s.line.hasSecret) ? '<span class="chip good" style="margin-left:6px">บันทึกแล้ว</span>' : ''}</label><input type="password" name="channelSecret" placeholder="${(s.line && s.line.hasSecret) ? 'เว้นว่างไว้ถ้าไม่ต้องการเปลี่ยน' : 'คัดลอกจาก LINE Developers Console'}" autocomplete="new-password"></div>
+          <div class="field"><label>Channel Access Token (long-lived) ${(s.line && s.line.hasToken) ? `<span class="chip good" style="margin-left:6px">บันทึกแล้ว ${esc(s.line.tokenHint)}</span>` : ''}</label><input type="password" name="channelAccessToken" placeholder="${(s.line && s.line.hasToken) ? 'เว้นว่างไว้ถ้าไม่ต้องการเปลี่ยน' : 'Issue token ที่แท็บ Messaging API'}" autocomplete="new-password"></div>
+          <div class="field"><label>Webhook URL สำหรับใส่ใน LINE Console</label><input type="text" readonly value="${esc(location.origin + ((s.line && s.line.webhookPath) || '/webhook/line'))}" onclick="this.select()"><small>นำ URL นี้ไปใส่ที่ LINE Developers Console → Messaging API → Webhook settings แล้วกด "Verify" และเปิด "Use webhook"</small></div>
+          <div class="row-actions">
+            <button class="btn primary" type="submit">บันทึกการเชื่อมต่อ LINE</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="card panel"><h3>เชื่อมต่อ WhatsApp Business (Cloud API)</h3>
+        <p class="sub">เชื่อมต่อกับ Meta for Developers WhatsApp Cloud API เพื่อรับข้อความลูกค้าผ่าน WhatsApp</p>
+        <form class="form" data-form="whatsapp-settings" autocomplete="off">
+          <div class="field"><label>WhatsApp Business Account ID (WABA ID)</label><input type="text" name="wabaId" value="${esc((s.whatsapp && s.whatsapp.wabaId) || '')}" placeholder="เช่น 109876543210"></div>
+          <div class="field"><label>Phone Number ID</label><input type="text" name="phoneId" value="${esc((s.whatsapp && s.whatsapp.phoneId) || '')}" placeholder="เช่น 102345678901"><small>ดูได้ที่ Meta Developer Dashboard → WhatsApp → API Setup</small></div>
+          <div class="field"><label>Permanent Access Token ${(s.whatsapp && s.whatsapp.hasToken) ? `<span class="chip good" style="margin-left:6px">บันทึกแล้ว ${esc(s.whatsapp.tokenHint)}</span>` : ''}</label><input type="password" name="accessToken" placeholder="${(s.whatsapp && s.whatsapp.hasToken) ? 'เว้นว่างไว้ถ้าไม่ต้องการเปลี่ยน' : 'System User Token หรือ Cloud API Token'}" autocomplete="new-password"></div>
+          <div class="field"><label>Webhook Callback URL</label><input type="text" readonly value="${esc(location.origin + ((s.whatsapp && s.whatsapp.webhookPath) || '/webhook/whatsapp'))}" onclick="this.select()"></div>
+          <div class="field"><label>Verify Token</label><input type="text" readonly value="${esc((s.whatsapp && s.whatsapp.verifyToken) || (s.webhook && s.webhook.verifyToken) || '')}" onclick="this.select()"></div>
+          <div class="row-actions">
+            <button class="btn primary" type="submit">บันทึกการเชื่อมต่อ WhatsApp</button>
+          </div>
+        </form>
+      </section>
+
       ${S.me.role === 'admin' ? usersPanelHtml() : ''}
 
       <section class="card panel"><h3>เปลี่ยนรหัสผ่าน</h3><p class="sub">ผู้ใช้: <b>${esc(S.me.username)}</b></p>
@@ -1697,7 +1810,7 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
   }
 
   /* ---------------- events ---------------- */
-  function resetFilters() { Object.assign(S.dash, { page: '', campaign: '', agency: '', rep: '', status: '', search: '' }); }
+  function resetFilters() { Object.assign(S.dash, { platform: '', page: '', campaign: '', agency: '', rep: '', status: '', search: '' }); }
 
   document.addEventListener('click', async (ev) => {
     const el = ev.target.closest('[data-act]');
@@ -1809,8 +1922,24 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
     if (b === 'aaction') { S.audit.action = ev.target.value; S.audit.limit = 100; loadAudit(); return; }
     if (b === 'afrom' || b === 'ato') { S.audit[b === 'afrom' ? 'from' : 'to'] = ev.target.value; S.audit.limit = 100; loadAudit(); return; }
     if (b === 'ichannel') { S.inbox.channel = ev.target.value; renderInboxTools(); renderInboxList(); return; }
-    if (b === 'header-page') { d.page = ev.target.value; if (S.route === 'dashboard') { render(); loadDash(); } else render(); return; }
-    if (['page', 'campaign', 'agency', 'rep', 'status'].includes(b)) { d[b] = ev.target.value; render(); loadDash(); }
+    if (b === 'header-platform') {
+      d.platform = ev.target.value;
+      d.page = '';
+      if (S.route === 'dashboard') { render(); loadDash(); }
+      else if (S.route === 'board') { render(); loadBoard(); }
+      else if (S.route === 'inbox') { render(); loadInbox(); }
+      else render();
+      return;
+    }
+    if (b === 'header-page') {
+      d.page = ev.target.value;
+      if (S.route === 'dashboard') { render(); loadDash(); }
+      else if (S.route === 'board') { render(); loadBoard(); }
+      else if (S.route === 'inbox') { render(); loadInbox(); }
+      else render();
+      return;
+    }
+    if (['platform', 'page', 'campaign', 'agency', 'rep', 'status'].includes(b)) { d[b] = ev.target.value; render(); loadDash(); }
     if (b === 'from' || b === 'to') { d[b] = ev.target.value; if (d.from && d.to && d.from <= d.to) loadDash(); }
     /* quality filters */
     if (b === 'q-campaign') { S.quality.campaign = ev.target.value; renderQualityBody(); return; }
@@ -1844,6 +1973,29 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
           else S.flash = { type: 'err', text: 'เชื่อมต่อไม่สำเร็จ: ' + r.error };
         }
         S.me = await api('/api/me'); render();
+      } else if (type === 'sheets-sync') {
+        const btn = document.getElementById('btn-sync-sheets');
+        if (btn) { btn.disabled = true; btn.textContent = 'กำลังดึงข้อมูลจาก Google Sheet…'; }
+        try {
+          const r = await api('/api/upload/sheets-sync', { method: 'POST', body: { sheetUrl: fd.sheetUrl } });
+          const rows = parseCsv(r.csvText);
+          if (!rows.length) throw new Error('ไม่พบข้อมูลใน Google Sheet นี้ — ตรวจสอบหัวตารางและลองใหม่');
+          S.upload.rows = rows;
+          S.upload.err = null;
+          S.upload.result = null;
+          S.flash = { type: 'ok', text: `ดึงข้อมูลจาก Google Sheet สำเร็จแล้ว (${rows.length} แถว) ตรวจสอบและกดยืนยันนำเข้าด้านล่าง` };
+          renderUploadBody();
+        } finally {
+          if (btn) { btn.disabled = false; btn.textContent = '📥 ซิงค์จาก Google Sheet ทันที'; }
+        }
+      } else if (type === 'line-settings') {
+        S.settings = await api('/api/settings/line', { method: 'PUT', body: fd });
+        S.flash = { type: 'ok', text: 'บันทึกการตั้งค่า LINE Official Account เรียบร้อยแล้ว' };
+        render();
+      } else if (type === 'whatsapp-settings') {
+        S.settings = await api('/api/settings/whatsapp', { method: 'PUT', body: fd });
+        S.flash = { type: 'ok', text: 'บันทึกการตั้งค่า WhatsApp Business เรียบร้อยแล้ว' };
+        render();
       } else if (type === 'reply') {
         const text = String(fd.text || '').trim(); if (text) await sendReply(text);
       } else if (type === 'followup') {

@@ -1,5 +1,6 @@
 'use strict';
 const http = require('node:http');
+const https = require('node:https');
 const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
@@ -110,12 +111,116 @@ async function handleWebhook(body) {
   }
 }
 
+function recordPage(pageId, pageName, platform = 'Facebook') {
+  if (!pageName && !pageId) return;
+  const pages = store.read('pages.json', []);
+  const name = clean(pageName, 80) || clean(pageId, 80);
+  const id = clean(pageId, 50) || `PAGE-${name.replace(/[^a-zA-Z0-9ก-๙]/g, '_')}`;
+  const idx = pages.findIndex((p) => p.id === id || p.name === name);
+  if (idx >= 0) {
+    if (platform && (!pages[idx].platform || pages[idx].platform === 'Facebook')) {
+      pages[idx].platform = platform;
+    }
+    if (name && !pages[idx].name) pages[idx].name = name;
+  } else {
+    pages.push({ id, name, platform: platform || 'Facebook' });
+  }
+  store.write('pages.json', pages);
+}
+
+function fetchUrl(targetUrl, maxRedirects = 5) {
+  return new Promise((resolve, reject) => {
+    const client = targetUrl.startsWith('https:') ? https : http;
+    client.get(targetUrl, (res) => {
+      if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location && maxRedirects > 0) {
+        let nextUrl = res.headers.location;
+        if (!nextUrl.startsWith('http')) {
+          const u = new URL(targetUrl);
+          nextUrl = `${u.protocol}//${u.host}${nextUrl}`;
+        }
+        return resolve(fetchUrl(nextUrl, maxRedirects - 1));
+      }
+      if (res.statusCode !== 200) {
+        return reject(new Error(`ดึงข้อมูลไม่สำเร็จ HTTP ${res.statusCode}`));
+      }
+      const chunks = [];
+      res.on('data', (c) => chunks.push(c));
+      res.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
+      res.on('error', reject);
+    }).on('error', reject);
+  });
+}
+
+// รับข้อความจาก LINE Official Account Webhook
+async function handleLineWebhook(body) {
+  for (const ev of body.events || []) {
+    if (ev.type !== 'message' || !ev.message) continue;
+    const userId = ev.source?.userId;
+    if (!userId) continue;
+    const text = ev.message.text || (ev.message.type === 'image' ? '[รูปภาพ]' : '[ข้อความ]');
+    const pageId = 'P-LINE';
+    const pageName = 'LINE Official Account';
+    recordPage(pageId, pageName, 'LINE');
+    let leads = store.read('leads.json', []);
+    let lead = leads.find((l) => l.psid === userId || l.phone === userId);
+    if (!lead) {
+      const name = `LINE ลูกค้า ${userId.slice(-4)}`;
+      lead = ops.findOrCreateLead({ psid: userId, pageId, name, adId: 'Direct', channel: 'LINE' }).lead;
+      lead.platform = 'LINE';
+      lead.pageName = pageName;
+      lead.pageId = pageId;
+    }
+    ops.addMessage(lead.id, {
+      from: 'customer', text, mid: ev.message.id || undefined,
+      at: ops.nowStamp(ev.timestamp || Date.now()), via: 'line',
+    });
+  }
+}
+
+// รับข้อความจาก WhatsApp Business Webhook
+async function handleWhatsAppWebhook(body) {
+  if (body.object !== 'whatsapp_business_account') return;
+  for (const entry of body.entry || []) {
+    for (const change of entry.changes || []) {
+      const val = change.value;
+      if (!val || !val.messages) continue;
+      const contactMap = new Map((val.contacts || []).map((c) => [c.wa_id, c.profile?.name]));
+      for (const msg of val.messages) {
+        const waId = msg.from;
+        if (!waId) continue;
+        const text = msg.text?.body || (msg.type ? `[${msg.type}]` : '[ข้อความ]');
+        const pageId = 'P-WhatsApp';
+        const pageName = 'WhatsApp Business';
+        recordPage(pageId, pageName, 'WhatsApp');
+        let leads = store.read('leads.json', []);
+        let lead = leads.find((l) => l.psid === waId || l.phone === waId);
+        if (!lead) {
+          const name = contactMap.get(waId) || `WhatsApp ${waId}`;
+          lead = ops.findOrCreateLead({ psid: waId, pageId, name, adId: 'Direct', channel: 'WhatsApp' }).lead;
+          lead.platform = 'WhatsApp';
+          lead.pageName = pageName;
+          lead.pageId = pageId;
+          lead.phone = waId;
+        }
+        const ts = msg.timestamp ? parseInt(msg.timestamp, 10) * 1000 : Date.now();
+        ops.addMessage(lead.id, {
+          from: 'customer', text, mid: msg.id || undefined,
+          at: ops.nowStamp(ts), via: 'whatsapp',
+        });
+      }
+    }
+  }
+}
+
 function publicSettings() {
   const s = meta.getSettings();
   const m = s.meta || {};
+  const ln = s.line || {};
+  const wa = s.whatsapp || {};
+  const sh = s.sheets || {};
   return {
     mode: providers.currentMode(),
-    clinicName: s.clinicName || 'Hairlab Clinic',
+    clinicName: s.clinicName || 'BEQ Group',
     meta: {
       appId: m.appId || '',
       hasSecret: Boolean(m.appSecret),
@@ -128,6 +233,27 @@ function publicSettings() {
       connectedAt: m.connectedAt || null,
     },
     webhook: { path: '/webhook', verifyToken: webhookToken(), hasSecret: Boolean(m.appSecret) },
+    line: {
+      channelId: ln.channelId || '',
+      hasSecret: Boolean(ln.channelSecret),
+      hasToken: Boolean(ln.channelAccessToken),
+      tokenHint: ln.channelAccessToken ? `••••${ln.channelAccessToken.slice(-4)}` : '',
+      connectedAt: ln.connectedAt || null,
+      webhookPath: '/webhook/line',
+    },
+    whatsapp: {
+      wabaId: wa.wabaId || '',
+      phoneId: wa.phoneId || '',
+      hasToken: Boolean(wa.accessToken),
+      tokenHint: wa.accessToken ? `••••${wa.accessToken.slice(-4)}` : '',
+      connectedAt: wa.connectedAt || null,
+      webhookPath: '/webhook/whatsapp',
+      verifyToken: webhookToken(),
+    },
+    sheets: {
+      lastUrl: sh.lastUrl || '',
+      lastSyncAt: sh.lastSyncAt || null,
+    },
   };
 }
 
@@ -197,7 +323,7 @@ async function api(req, res, url, session) {
     for (const l of data.leads) {
       messagesMap[l.id] = ops.messagesFor(l, data, isDemo, overlay);
     }
-    return send(res, 200, { mode: providers.currentMode(), ...buildBoard(data, range, { messagesMap }) });
+    return send(res, 200, { mode: providers.currentMode(), ...buildBoard(data, range, { messagesMap, platform: q.platform, page: q.page }) });
   }
 
   if (route === 'GET /api/sla') {
@@ -209,14 +335,16 @@ async function api(req, res, url, session) {
   if (route === 'GET /api/inbox') {
     const range = resolveRange(q);
     const data = await providers.load(range);
-    const out = buildInbox(data, range);
+    const out = buildInbox(data, range, { platform: q.platform, page: q.page });
     const isDemo = providers.currentMode() === 'demo';
     const byId = new Map(data.leads.map((l) => [l.id, l]));
     const overlay = store.read('messages.json', {});
     for (const r of out.rows) {
       const l = byId.get(r.id);
-      const msgs = ops.messagesFor(l, data, isDemo, overlay);
-      r.last = msgs.length ? msgs[msgs.length - 1] : null; // ข้อความล่าสุด ใช้แสดงในรายการแชท
+      if (l) {
+        const msgs = ops.messagesFor(l, data, isDemo, overlay);
+        r.last = msgs.length ? msgs[msgs.length - 1] : null; // ข้อความล่าสุด ใช้แสดงในรายการแชท
+      }
     }
     out.rows.sort((a, b) => {
       const x = a.last ? a.last.at : a.date; const y = b.last ? b.last.at : b.date;
@@ -321,12 +449,15 @@ async function api(req, res, url, session) {
   if (route === 'POST /api/upload/leads') {
     if (!auth.isAdmin(session.user)) return send(res, 403, { error: 'เฉพาะผู้ดูแล (admin) เท่านั้น' });
     const b = await readJson(req);
-    const rows = Array.isArray(b.rows) ? b.rows.slice(0, 2000) : [];
+    const rows = Array.isArray(b.rows) ? b.rows.slice(0, 25000) : [];
     if (!rows.length) return send(res, 400, { error: 'ไม่มีข้อมูลที่จะนำเข้า' });
     let existing = b.replace ? [] : store.read('leads.json', []);
     const CHANNELS = ['Messenger', 'LINE', 'Instagram', 'WhatsApp'];
     const added = []; const errors = [];
     const tdy = today();
+
+    const uploadPlatform = clean(b.platform, 30);
+    const uploadPageName = clean(b.pageName, 80);
 
     function normalizeDate(d) {
       if (!d) return tdy;
@@ -378,9 +509,15 @@ async function api(req, res, url, session) {
       const phone = clean(r.phone || r.phone_number || r.telephone, 40) || '';
       const email = clean(r.email || r.email_address, 80) || '';
 
+      const platform = uploadPlatform || clean(r.platform, 30) || channel;
+      const pageName = uploadPageName || clean(r.pageName || r.page, 80) || `${platform} เพจหลัก`;
+      const pageId = clean(r.pageId, 50) || `P_${pageName.replace(/[^a-zA-Z0-9ก-๙]/g, '_')}`;
+      recordPage(pageId, pageName, platform);
+
       const id = `U-${Date.now().toString(36)}-${String(i).padStart(4, '0')}`;
       const lead = {
         id, name, channel, adId, date,
+        platform, pageName, pageId,
         repId: rep,
         status, quality: ops.QUALITY[status] || 'average', value, firstResponseMin: null, dropReason,
         phone, email,
@@ -389,7 +526,7 @@ async function api(req, res, url, session) {
       added.push(lead);
     }
     if (added.length || b.replace) store.write('leads.json', existing);
-    audit.log(session.user.username, 'leads_upload', `นำเข้า ${added.length} leads${b.replace ? ' (แทนที่ชุดเดิม)' : ''}`, clientIp(req));
+    audit.log(session.user.username, 'leads_upload', `นำเข้า ${added.length} leads (เพจ: ${uploadPageName || 'ตามไฟล์'}, แพลตฟอร์ม: ${uploadPlatform || 'ตามไฟล์'})${b.replace ? ' (แทนที่ชุดเดิม)' : ''}`, clientIp(req));
     return send(res, 200, { ok: true, added: added.length, errors });
   }
 
@@ -407,7 +544,7 @@ async function api(req, res, url, session) {
   if (route === 'POST /api/upload/campaigns') {
     if (!auth.isAdmin(session.user)) return send(res, 403, { error: 'เฉพาะผู้ดูแล (admin) เท่านั้น' });
     const b = await readJson(req);
-    const rows = Array.isArray(b.rows) ? b.rows.slice(0, 2000) : [];
+    const rows = Array.isArray(b.rows) ? b.rows.slice(0, 25000) : [];
     if (!rows.length) return send(res, 400, { error: 'ไม่มีข้อมูลที่จะนำเข้า' });
 
     let existingData = b.replace ? { ads: [], daily: [], campaigns: [] } : store.read('campaigns_data.json', { ads: [], daily: [], campaigns: [] });
@@ -418,6 +555,11 @@ async function api(req, res, url, session) {
     const campMap = new Map((existingData.campaigns || []).map((c) => [c.id, c]));
     const adMap = new Map((existingData.ads || []).map((a) => [a.id, a]));
     const tdy = today();
+
+    const uploadPlatform = clean(b.platform, 30) || 'Facebook';
+    const uploadPageName = clean(b.pageName, 80) || 'Facebook เพจหลัก';
+    const uploadPageId = clean(b.pageId, 40) || `P_${uploadPageName.replace(/[^a-zA-Z0-9ก-๙]/g, '_')}`;
+    recordPage(uploadPageId, uploadPageName, uploadPlatform);
 
     function normalizeDate(d) {
       if (!d) return tdy;
@@ -447,7 +589,6 @@ async function api(req, res, url, session) {
 
     let addedRows = 0;
     for (const r of rows) {
-      // ถ้าไม่มีคอลัมน์ Campaign (เช่น export แบบ Ad-level เท่านั้น) ใช้ Ad set name เป็นแคมเปญแทน
       const campName = clean(r.campaign || r.campaign_name || r.campaignName || r.adset || r.adName || r.ad_name, 100) || 'General Campaign';
       const campId = clean(r.campaignId || r.campaign_id, 50) || `C-${campName.slice(0, 20).replace(/\s+/g, '_')}`;
       if (!campMap.has(campId)) {
@@ -459,24 +600,35 @@ async function api(req, res, url, session) {
       const adset = clean(r.adset || r.adset_name || r.adsetName, 100) || '';
       const creative = clean(r.creative || r.creative_type, 20) || 'IMAGE';
 
+      const pageName = clean(r.pageName || r.page, 80) || uploadPageName;
+      const platform = clean(r.platform, 30) || uploadPlatform;
+      const pageId = clean(r.pageId, 50) || (pageName === uploadPageName ? uploadPageId : `P_${pageName.replace(/[^a-zA-Z0-9ก-๙]/g, '_')}`);
+      if (pageName !== uploadPageName) recordPage(pageId, pageName, platform);
+
       if (!adMap.has(adId)) {
         adMap.set(adId, {
           id: adId,
           name: adName,
           campaignId: campId,
           adset,
-          pageId: 'P1',
+          pageId,
+          pageName,
+          platform,
           agencyId: 'In-house',
           creative,
           thumb: null,
         });
+      } else {
+        const existingAd = adMap.get(adId);
+        if (pageId && (!existingAd.pageId || existingAd.pageId === 'P1')) existingAd.pageId = pageId;
+        if (pageName && (!existingAd.pageName || existingAd.pageName === 'Facebook เพจหลัก')) existingAd.pageName = pageName;
+        if (platform && !existingAd.platform) existingAd.platform = platform;
       }
 
       const spend = Math.max(0, parseFloat(String(r.spend || r.amount_spent || 0).replace(/[^0-9.]/g, '')) || 0);
       const impressions = Math.max(0, parseInt(String(r.impressions || 0).replace(/[^0-9]/g, ''), 10) || 0);
       const reach = Math.max(0, parseInt(String(r.reach || 0).replace(/[^0-9]/g, ''), 10) || Math.round(impressions * 0.7));
       const clicks = Math.max(0, parseInt(String(r.clicks || r.clicks_all || r.link_clicks || 0).replace(/[^0-9]/g, ''), 10) || 0);
-      // "results" จาก Ads Manager ของ Message objective = Messaging conversations
       const messages = Math.max(0, parseInt(String(r.messages || r.messaging_conversations || r.results || 0).replace(/[^0-9]/g, ''), 10) || 0);
       const purchases = Math.max(0, parseInt(String(r.purchases || 0).replace(/[^0-9]/g, ''), 10) || 0);
       
@@ -485,8 +637,8 @@ async function api(req, res, url, session) {
       const startDate = normalizeDate(rawDateStart);
       const endDate = normalizeDate(rawDateEnd);
 
-      // กรองแถวที่ไม่มีข้อมูลจริง (เช่น แถวสรุป Total ที่ Ads Manager ใส่ท้ายไฟล์)
-      if (!spend && !impressions && !clicks && !messages) continue;
+      // ตรวจสอบว่ามีข้อมูลตัวเลขอย่างน้อยหนึ่งตัว
+      if (!spend && !impressions && !clicks && !messages && !reach) continue;
 
       let dateList = [startDate];
       if (startDate && endDate && startDate < endDate) {
@@ -518,7 +670,7 @@ async function api(req, res, url, session) {
     existingData.campaigns = [...campMap.values()];
     existingData.ads = [...adMap.values()];
     store.write('campaigns_data.json', existingData);
-    audit.log(session.user.username, 'campaigns_upload', `นำเข้าข้อมูลโฆษณา ${addedRows} แถว${b.replace ? ' (แทนที่ชุดเดิม)' : ''}`, clientIp(req));
+    audit.log(session.user.username, 'campaigns_upload', `นำเข้าข้อมูลโฆษณา ${addedRows} แถว (เพจ: ${uploadPageName}, แพลตฟอร์ม: ${uploadPlatform})${b.replace ? ' (แทนที่ชุดเดิม)' : ''}`, clientIp(req));
     return send(res, 200, { ok: true, added: addedRows, campaigns: existingData.campaigns.length, ads: existingData.ads.length });
   }
 
@@ -549,6 +701,150 @@ async function api(req, res, url, session) {
       audit.log(session.user.username, 'data_clear', 'ล้างข้อมูล Ads & Campaigns ทั้งหมด', clientIp(req));
     }
     return send(res, 200, { ok: true, target });
+  }
+
+  if (route === 'GET /api/export/leads') {
+    const leads = store.read('leads.json', []);
+    const csvRows = [
+      ['ID', 'ชื่อลูกค้า', 'ช่องทาง', 'แพลตฟอร์ม', 'เพจ', 'โฆษณา/แคมเปญ', 'วันที่', 'สถานะ', 'คุณภาพ', 'มูลค่า (บาท)', 'เบอร์โทร', 'อีเมล', 'เซลส์ผู้ดูแล', 'เหตุผล/หมายเหตุ'].join(','),
+      ...leads.map((l) => [
+        `"${(l.id || '').replace(/"/g, '""')}"`,
+        `"${(l.name || '').replace(/"/g, '""')}"`,
+        `"${(l.channel || '').replace(/"/g, '""')}"`,
+        `"${(l.platform || l.channel || '').replace(/"/g, '""')}"`,
+        `"${(l.pageName || '').replace(/"/g, '""')}"`,
+        `"${(l.adId || '').replace(/"/g, '""')}"`,
+        `"${(l.date || '').replace(/"/g, '""')}"`,
+        `"${(l.status || '').replace(/"/g, '""')}"`,
+        `"${(l.quality || '').replace(/"/g, '""')}"`,
+        l.value || 0,
+        `"${(l.phone || '').replace(/"/g, '""')}"`,
+        `"${(l.email || '').replace(/"/g, '""')}"`,
+        `"${(l.repId || '').replace(/"/g, '""')}"`,
+        `"${(l.dropReason || '').replace(/"/g, '""')}"`,
+      ].join(',')),
+    ];
+    audit.log(session.user.username, 'export_leads', `ส่งออก Leads ${leads.length} รายการเป็น CSV`, clientIp(req));
+    return send(res, 200, '\ufeff' + csvRows.join('\r\n'), {
+      'Content-Type': 'text/csv; charset=utf-8',
+      'Content-Disposition': 'attachment; filename="leads_export.csv"',
+    });
+  }
+
+  if (route === 'GET /api/export/campaigns') {
+    const campData = store.read('campaigns_data.json', { ads: [], daily: [], campaigns: [] });
+    const adMap = new Map((campData.ads || []).map((a) => [a.id, a]));
+    const campMap = new Map((campData.campaigns || []).map((c) => [c.id, c.name]));
+    const csvRows = [
+      ['วันที่', 'แคมเปญ', 'ชื่อโฆษณา', 'รหัสโฆษณา', 'เพจ', 'แพลตฟอร์ม', 'งบที่ใช้ (บาท)', 'การแสดงผล (Impressions)', 'การเข้าถึง (Reach)', 'คลิก', 'ข้อความ/ผลลัพธ์', 'การซื้อ'].join(','),
+      ...(campData.daily || []).map((d) => {
+        const ad = adMap.get(d.adId) || {};
+        const cName = campMap.get(ad.campaignId) || ad.campaignId || '';
+        return [
+          `"${(d.date || '').replace(/"/g, '""')}"`,
+          `"${cName.replace(/"/g, '""')}"`,
+          `"${(ad.name || d.adId || '').replace(/"/g, '""')}"`,
+          `"${(d.adId || '').replace(/"/g, '""')}"`,
+          `"${(ad.pageName || '').replace(/"/g, '""')}"`,
+          `"${(ad.platform || 'Facebook').replace(/"/g, '""')}"`,
+          d.spend || 0,
+          d.impressions || 0,
+          d.reach || 0,
+          d.clicks || 0,
+          d.messages || 0,
+          d.purchases || 0,
+        ].join(',');
+      }),
+    ];
+    audit.log(session.user.username, 'export_campaigns', `ส่งออกข้อมูลโฆษณา ${(campData.daily || []).length} แถวเป็น CSV`, clientIp(req));
+    return send(res, 200, '\ufeff' + csvRows.join('\r\n'), {
+      'Content-Type': 'text/csv; charset=utf-8',
+      'Content-Disposition': 'attachment; filename="campaigns_export.csv"',
+    });
+  }
+
+  if (route === 'GET /api/export/backup') {
+    const backup = {
+      exportedAt: new Date().toISOString(),
+      leads: store.read('leads.json', []),
+      campaignsData: store.read('campaigns_data.json', { ads: [], daily: [], campaigns: [] }),
+      pages: store.read('pages.json', []),
+      messages: store.read('messages.json', {}),
+      reviews: store.read('reviews.json', {}),
+      followups: store.read('followups.json', {}),
+    };
+    audit.log(session.user.username, 'export_backup', 'ดาวน์โหลด Full JSON Backup', clientIp(req));
+    return send(res, 200, JSON.stringify(backup, null, 2), {
+      'Content-Type': 'application/json; charset=utf-8',
+      'Content-Disposition': `attachment; filename="beq_backup_${today()}.json"`,
+    });
+  }
+
+  if (route === 'POST /api/upload/sheets-sync') {
+    if (!auth.isAdmin(session.user)) return send(res, 403, { error: 'เฉพาะผู้ดูแล (admin) เท่านั้น' });
+    const b = await readJson(req);
+    let sheetUrl = String(b.sheetUrl || '').trim();
+    if (!sheetUrl) return send(res, 400, { error: 'กรุณากรอกลิงก์ Google Sheets' });
+
+    let csvUrl = sheetUrl;
+    if (csvUrl.includes('/pubhtml')) {
+      csvUrl = csvUrl.replace('/pubhtml', '/pub?output=csv');
+    } else {
+      const match = csvUrl.match(/docs\.google\.com\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+      if (match) {
+        const docId = match[1];
+        let gid = '0';
+        const gidMatch = csvUrl.match(/[#&?]gid=([0-9]+)/);
+        if (gidMatch) gid = gidMatch[1];
+        csvUrl = `https://docs.google.com/spreadsheets/d/${docId}/export?format=csv&gid=${gid}`;
+      }
+    }
+
+    try {
+      const csvText = await fetchUrl(csvUrl);
+      if (!csvText || !csvText.trim()) return send(res, 400, { error: 'ไม่พบเนื้อหาใน Google Sheet นี้ หรือ Sheet ไม่ได้เปิดสิทธิ์สาธารณะ (Anyone with the link)' });
+
+      meta.saveSettings({ sheets: { lastUrl: sheetUrl, lastSyncAt: new Date().toISOString() } });
+      audit.log(session.user.username, 'sheets_sync', `ดึงข้อมูลจาก Google Sheet สำเร็จ (${csvText.length} ไบต์)`, clientIp(req));
+      return send(res, 200, { ok: true, csvText });
+    } catch (err) {
+      return send(res, 502, { error: `ดึง Google Sheet ไม่สำเร็จ: ${err.message}. ตรวจสอบว่าแชร์เป็น "Anyone with the link" หรือกด Publish to web แล้วหรือไม่` });
+    }
+  }
+
+  if (route === 'PUT /api/settings/line') {
+    if (!auth.isAdmin(session.user)) return send(res, 403, { error: 'เฉพาะผู้ดูแล (admin) เท่านั้น' });
+    const b = await readJson(req);
+    const cur = (meta.getSettings().line) || {};
+    const next = {
+      channelId: clean(b.channelId, 50),
+      connectedAt: new Date().toISOString(),
+    };
+    if (clean(b.channelSecret, 100)) next.channelSecret = clean(b.channelSecret, 100);
+    else if (cur.channelSecret) next.channelSecret = cur.channelSecret;
+    if (clean(b.channelAccessToken, 1000)) next.channelAccessToken = clean(b.channelAccessToken, 1000);
+    else if (cur.channelAccessToken) next.channelAccessToken = cur.channelAccessToken;
+
+    meta.saveSettings({ line: next });
+    audit.log(session.user.username, 'line_settings_save', `ตั้งค่า LINE OA Channel: ${next.channelId || '—'}`, clientIp(req));
+    return send(res, 200, publicSettings());
+  }
+
+  if (route === 'PUT /api/settings/whatsapp') {
+    if (!auth.isAdmin(session.user)) return send(res, 403, { error: 'เฉพาะผู้ดูแล (admin) เท่านั้น' });
+    const b = await readJson(req);
+    const cur = (meta.getSettings().whatsapp) || {};
+    const next = {
+      wabaId: clean(b.wabaId, 50),
+      phoneId: clean(b.phoneId, 50),
+      connectedAt: new Date().toISOString(),
+    };
+    if (clean(b.accessToken, 1000)) next.accessToken = clean(b.accessToken, 1000);
+    else if (cur.accessToken) next.accessToken = cur.accessToken;
+
+    meta.saveSettings({ whatsapp: next });
+    audit.log(session.user.username, 'whatsapp_settings_save', `ตั้งค่า WhatsApp Business Phone ID: ${next.phoneId || '—'}`, clientIp(req));
+    return send(res, 200, publicSettings());
   }
 
   if (route === 'GET /api/audit') {
@@ -711,6 +1007,45 @@ const server = http.createServer(async (req, res) => {
         let body; try { body = JSON.parse(raw.toString('utf8')); } catch { return send(res, 400, 'Bad request'); }
         try { await handleWebhook(body); } catch (e) { console.error('webhook', e); }
         return send(res, 200, 'EVENT_RECEIVED'); // ตอบ 200 เสมอเมื่อลายเซ็นถูก เพื่อไม่ให้ Meta ส่งซ้ำ
+      }
+      return send(res, 405, 'Method not allowed');
+    }
+
+    // Webhook จาก LINE Official Account (Messaging API)
+    if (url.pathname === '/webhook/line') {
+      if (req.method === 'POST') {
+        const raw = await readRaw(req);
+        const secret = (meta.getSettings().line || {}).channelSecret || process.env.LINE_CHANNEL_SECRET || '';
+        const sig = String(req.headers['x-line-signature'] || '');
+        if (secret) {
+          const expectedSig = crypto.createHmac('sha256', secret).update(raw).digest('base64');
+          if (!safeEq(sig, expectedSig)) {
+            audit.log('line-webhook', 'webhook_rejected', 'ลายเซ็น LINE ไม่ถูกต้อง', ip);
+            return send(res, 403, 'Forbidden');
+          }
+        }
+        let body; try { body = JSON.parse(raw.toString('utf8')); } catch { return send(res, 400, 'Bad request'); }
+        try { await handleLineWebhook(body); } catch (e) { console.error('line-webhook', e); }
+        return send(res, 200, 'OK');
+      }
+      return send(res, 405, 'Method not allowed');
+    }
+
+    // Webhook จาก WhatsApp Business (Cloud API)
+    if (url.pathname === '/webhook/whatsapp') {
+      if (req.method === 'GET') {
+        const reqTok = url.searchParams.get('hub.verify_token') || '';
+        const curTok = webhookToken();
+        const storedTok = (meta.getSettings().whatsapp || {}).verifyToken || '';
+        const okTok = url.searchParams.get('hub.mode') === 'subscribe' && (safeEq(reqTok, curTok) || (storedTok && safeEq(reqTok, storedTok)));
+        if (!okTok) { audit.log('wa-webhook', 'webhook_rejected', 'Verify Token WhatsApp ไม่ถูกต้อง', ip); return send(res, 403, 'Forbidden'); }
+        return send(res, 200, clean(url.searchParams.get('hub.challenge'), 100));
+      }
+      if (req.method === 'POST') {
+        const raw = await readRaw(req);
+        let body; try { body = JSON.parse(raw.toString('utf8')); } catch { return send(res, 400, 'Bad request'); }
+        try { await handleWhatsAppWebhook(body); } catch (e) { console.error('wa-webhook', e); }
+        return send(res, 200, 'EVENT_RECEIVED');
       }
       return send(res, 405, 'Method not allowed');
     }
