@@ -1699,6 +1699,51 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
     return Array.from(buf, (n) => chars[n % chars.length]).join('');
   }
   const ROLE_TH = { admin: 'ผู้ดูแล (admin)', staff: 'ทีมขาย (staff)' };
+  
+  function pagesPanelHtml() {
+    const pages = (S.filters && S.filters.pages) || [];
+    const rows = pages.map((p) => {
+      const colorDot = `<span class="page-dot" style="background:${p.color || '#1877f2'};margin-right:6px"></span>`;
+      const platformIcon = p.platform === 'LINE' ? '📱' : p.platform === 'WhatsApp' ? '💚' : '🔵';
+      return `<tr>
+        <td><b>${colorDot}${esc(p.name)}</b></td>
+        <td><span class="chip" style="font-size:12px">${platformIcon} ${esc(p.platform || 'Facebook')}</span></td>
+        <td><code>${esc(p.id)}</code></td>
+        <td class="nowrap">
+          <button class="btn danger" type="button" data-act="page-delete" data-page-id="${esc(p.id)}" style="padding:4px 10px;font-size:12px">ลบ</button>
+        </td>
+      </tr>`;
+    }).join('');
+
+    return `<section class="card panel">
+      <h3>🏢 จัดการเพจและบัญชีโซเชียล (Facebook / LINE / WhatsApp)</h3>
+      <p class="sub">เพิ่มเพจ Facebook ได้หลายเพจ (เช่น เพจ 1, เพจ 2, เพจ 3) เพื่อแยกดูยอดโฆษณา แชท และลูกค้าของแต่ละเพจได้อิสระ</p>
+      <div class="tscroll" style="margin:14px 0">
+        <table style="min-width:540px">
+          <thead><tr><th>ชื่อเพจ</th><th>แพลตฟอร์ม</th><th>Page ID / Account ID</th><th class="nosort">จัดการ</th></tr></thead>
+          <tbody>${rows || '<tr><td colspan="4" class="empty">ยังไม่มีเพจในระบบ</td></tr>'}</tbody>
+        </table>
+      </div>
+      <form class="form" data-form="pages-add" style="margin-top:16px;background:#f9f8f4;padding:16px;border-radius:12px;border:1px solid var(--line-soft)">
+        <h4 style="margin:0 0 10px">➕ เพิ่มหรืออัปเดตเพจ</h4>
+        <div style="display:grid;grid-template-columns:1fr 1fr 140px;gap:12px">
+          <div class="field" style="margin:0"><label>ชื่อเพจ (เช่น เพจที่ 2 - ปลูกผม)</label><input type="text" name="name" placeholder="ชื่อเพจ..." required></div>
+          <div class="field" style="margin:0"><label>Facebook Page ID (ตัวเลข)</label><input type="text" name="id" placeholder="เช่น 1018075398296404" required></div>
+          <div class="field" style="margin:0"><label>แพลตฟอร์ม</label>
+            <div class="sel" style="width:100%"><select name="platform" style="width:100%">
+              <option value="Facebook">Facebook</option>
+              <option value="LINE">LINE</option>
+              <option value="WhatsApp">WhatsApp</option>
+            </select></div>
+          </div>
+        </div>
+        <div class="row-actions" style="margin-top:12px">
+          <button class="btn primary" type="submit">บันทึกเพจ</button>
+        </div>
+      </form>
+    </section>`;
+  }
+
   function usersPanelHtml() {
     const u = S.users; const r = u.result;
     const rows = (u.data || []).map((x) => `<tr><td><b>${esc(x.username)}</b>${x.username === S.me.username ? ' <small class="rv-hint">(คุณ)</small>' : ''}</td>
@@ -1800,6 +1845,8 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
         </form>
       </section>
 
+      ${pagesPanelHtml()}
+
       ${S.me.role === 'admin' ? usersPanelHtml() : ''}
 
       <section class="card panel"><h3>เปลี่ยนรหัสผ่าน</h3><p class="sub">ผู้ใช้: <b>${esc(S.me.username)}</b></p>
@@ -1866,6 +1913,16 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
         await api('/api/users/reset', { method: 'POST', body: { username: name, password: pw } });
         S.flash = { type: 'ok', text: `รีเซ็ตรหัสผ่านของ ${name} แล้ว รหัสชั่วคราว: ${pw}` };
         await loadUsers();
+      }
+      else if (act === 'page-delete') {
+        const pageId = el.dataset.pageId;
+        if (!confirm('ยืนยันลบเพจนี้ออกจากระบบ? (ข้อมูลแชทเดิมจะไม่ถูกลบ)')) return;
+        const r = await api('/api/settings/pages/delete', { method: 'POST', body: { id: pageId } });
+        if (r.ok) {
+          S.flash = { type: 'ok', text: 'ลบเพจเรียบร้อยแล้ว' };
+          S.filters = await api('/api/filters').catch(() => null);
+          render();
+        }
       }
       else if (act === 'user-delete') {
         const name = el.dataset.user;
@@ -2018,6 +2075,13 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
         const pw = Object.fromEntries(items.map((i) => [i.username, i.password]));
         S.users.result = { added: r.added.map((a) => ({ ...a, password: pw[a.username] })), skipped: r.skipped };
         S.users.data = r.users; S.flash = null; renderSettingBody();
+      } else if (type === 'pages-add') {
+        const r = await api('/api/settings/pages', { method: 'POST', body: fd });
+        if (r.ok) {
+          S.flash = { type: 'ok', text: 'บันทึกเพจเรียบร้อยแล้ว' };
+          S.filters = await api('/api/filters').catch(() => null);
+          render();
+        }
       } else if (type === 'password') {
         await api('/api/password', { method: 'POST', body: fd });
         S.me = await api('/api/me'); S.flash = { type: 'ok', text: 'เปลี่ยนรหัสผ่านเรียบร้อย' }; render();
