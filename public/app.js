@@ -146,7 +146,7 @@
   function topbar() {
     const nav = [['dashboard', 'Dashboard', 'grid'], ['inbox', 'Inbox', 'chat'], ['board', 'Board', 'grid'],
       ['followup', 'ตามลูกค้า', 'clock'], ['review', 'Review', 'check'], ['audit', 'Audit', 'list'],
-      ['upload', 'Upload', 'upload'], ['quality', 'Quality', 'shield'], ['setting', 'Setting', 'gear']];
+      ['upload', 'Upload', 'upload'], ['quality', 'Quality', 'shield'], ['setting', 'ตั้งค่า', 'gear']];
     const platforms = (S.filters && S.filters.platforms) || ['Facebook', 'LINE', 'WhatsApp', 'Instagram'];
     const allPages = (S.filters && S.filters.pages) || [];
     const curPlatform = S.dash.platform || '';
