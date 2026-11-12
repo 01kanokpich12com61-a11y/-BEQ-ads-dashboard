@@ -1709,7 +1709,8 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
         <td><b>${colorDot}${esc(p.name)}</b></td>
         <td><span class="chip" style="font-size:12px">${platformIcon} ${esc(p.platform || 'Facebook')}</span></td>
         <td><code>${esc(p.id)}</code></td>
-        <td class="nowrap">
+        <td class="nowrap" style="display:flex;gap:6px">
+          ${p.platform === 'Facebook' ? `<button class="btn" type="button" data-act="fb-import-conv" data-page-id="${esc(p.id)}" data-page-name="${esc(p.name)}" style="padding:4px 10px;font-size:12px">📥 ดึงแชทย้อนหลัง</button>` : ''}
           <button class="btn danger" type="button" data-act="page-delete" data-page-id="${esc(p.id)}" style="padding:4px 10px;font-size:12px">ลบ</button>
         </td>
       </tr>`;
@@ -1913,6 +1914,44 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
         await api('/api/users/reset', { method: 'POST', body: { username: name, password: pw } });
         S.flash = { type: 'ok', text: `รีเซ็ตรหัสผ่านของ ${name} แล้ว รหัสชั่วคราว: ${pw}` };
         await loadUsers();
+      }
+      else if (act === 'refresh-names') {
+        el.disabled = true;
+        el.textContent = '⏳ กำลังดึงชื่อ...';
+        try {
+          const r = await api('/api/leads/refresh-names', { method: 'POST' });
+          if (r.ok) {
+            S.flash = { type: 'ok', text: `อัปเดตชื่อลูกค้าสำเร็จ ${r.updated} รายชื่อ (จาก ${r.total} แชท)` };
+            await loadInbox();
+          }
+        } catch (e) {
+          S.flash = { type: 'err', text: e.message || 'ไม่สามารถอัปเดตชื่อได้' };
+          render();
+        } finally {
+          el.disabled = false;
+          el.textContent = '🔄 ดึง/อัปเดตชื่อลูกค้าจาก Facebook';
+        }
+      }
+      else if (act === 'fb-import-conv') {
+        const pageId = el.dataset.pageId;
+        const pageName = el.dataset.pageName;
+        if (!confirm(`ต้องการดึงข้อมูลแชทและลูกค้าเก่าย้อนหลังของเพจ "${pageName}" (ID: ${pageId}) หรือไม่?`)) return;
+        el.disabled = true;
+        el.textContent = '⏳ กำลังดึงแชท...';
+        try {
+          const r = await api('/api/import/facebook-conversations', { method: 'POST', body: { pageId, limit: 50 } });
+          if (r.ok) {
+            S.flash = { type: 'ok', text: `นำเข้าบทสนทนาเพจ ${r.pageName} สำเร็จ: เพิ่มลูกค้าใหม่ ${r.importedLeads} ราย, ${r.importedMsgs} ข้อความ` };
+            S.filters = await api('/api/filters').catch(() => null);
+            render();
+          }
+        } catch (e) {
+          S.flash = { type: 'err', text: e.message || 'ดึงแชทย้อนหลังไม่สำเร็จ' };
+          render();
+        } finally {
+          el.disabled = false;
+          el.textContent = '📥 ดึงแชทย้อนหลัง';
+        }
       }
       else if (act === 'page-delete') {
         const pageId = el.dataset.pageId;

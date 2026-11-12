@@ -1030,6 +1030,98 @@ async function api(req, res, url, session) {
     return send(res, 200, { ok: true, pages });
   }
 
+
+  if (route === 'POST /api/leads/refresh-names') {
+    const leads = store.read('leads.json', []);
+    let updated = 0;
+    const pages = store.read('pages.json', []);
+    for (const l of leads) {
+      const isGeneric = !l.name || l.name.includes('ลูกค้า') || l.name.startsWith('M-') || l.name === 'Facebook';
+      if (l.platform === 'Facebook' && l.psid && isGeneric) {
+        try {
+          const pageId = l.pageId || (pages.find(p => !p.platform || p.platform === 'Facebook') || {}).id;
+          if (pageId) {
+            const realName = await meta.fetchProfileName(pageId, l.psid);
+            if (realName && realName !== l.name) {
+              l.name = realName;
+              updated++;
+            }
+          }
+        } catch {}
+      }
+    }
+    if (updated > 0) {
+      store.write('leads.json', leads);
+      audit.log(session.user.username, 'refresh_names', 'อัปเดตชื่อลูกค้าจาก Facebook สำเร็จ ' + updated + ' รายชื่อ', clientIp(req));
+    }
+    return send(res, 200, { ok: true, updated, total: leads.length });
+  }
+
+  if (route === 'POST /api/import/facebook-conversations') {
+    if (!auth.isAdmin(session.user)) return send(res, 403, { error: 'เฉพาะผู้ดูแล (admin) เท่านั้น' });
+    const b = await readJson(req).catch(() => ({}));
+    const pageId = clean(b.pageId, 80);
+    if (!pageId) return send(res, 400, { error: 'กรุณาระบุ Page ID' });
+
+    const pages = store.read('pages.json', []);
+    const matched = pages.find((p) => p.id === pageId || String(p.id) === String(pageId));
+    const pageName = matched ? matched.name : ('เพจ ' + pageId);
+
+    try {
+      const convs = await meta.fetchFbConversations(pageId, Number(b.limit) || 50);
+      let leads = store.read('leads.json', []);
+      let messages = store.read('messages.json', {});
+      let importedLeads = 0;
+      let importedMsgs = 0;
+
+      for (const c of convs) {
+        const parts = (c.participants && c.participants.data) || [];
+        const customerPart = parts.find((p) => String(p.id) !== String(pageId)) || parts[0];
+        if (!customerPart) continue;
+        const psid = String(customerPart.id);
+        const custName = customerPart.name || ('ลูกค้า ' + psid.slice(-4));
+
+        let lead = leads.find((l) => l.psid === psid && (!l.pageId || l.pageId === pageId));
+        if (!lead) {
+          lead = ops.findOrCreateLead({
+            psid,
+            pageId,
+            name: custName,
+            platform: 'Facebook',
+            pageName,
+            channel: 'Messenger',
+          }).lead;
+          importedLeads++;
+        } else if (!lead.name || lead.name.includes('ลูกค้า')) {
+          lead.name = custName;
+        }
+
+        const msgList = (c.messages && c.messages.data) || [];
+        for (const m of msgList) {
+          const fromPage = m.from && String(m.from.id) === String(pageId);
+          const text = m.message || '';
+          if (!text) continue;
+          const at = ops.nowStamp(m.created_time ? new Date(m.created_time).getTime() : Date.now());
+          const leadMsgs = messages[lead.id] || [];
+          if (!leadMsgs.some((x) => x.text === text && Math.abs(new Date(x.at) - new Date(at)) < 60000)) {
+            ops.addMessage(lead.id, {
+              from: fromPage ? 'staff' : 'customer',
+              text,
+              mid: m.id || undefined,
+              at,
+              via: 'import',
+            });
+            importedMsgs++;
+          }
+        }
+      }
+      audit.log(session.user.username, 'import_fb', 'นำเข้าบทสนทนาเพจ ' + pageName + ': ' + importedLeads + ' ลีด, ' + importedMsgs + ' ข้อความ', clientIp(req));
+      return send(res, 200, { ok: true, importedLeads, importedMsgs, pageId, pageName });
+    } catch (e) {
+      return send(res, 500, { error: e.message || 'ดึงบทสนทนาจาก Facebook ไม่สำเร็จ' });
+    }
+  }
+
   if (route === 'PUT /api/settings/meta') {
     const b = await readJson(req);
     const cur = meta.getSettings().meta || {};
