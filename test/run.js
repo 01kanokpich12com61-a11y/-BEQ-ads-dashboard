@@ -71,8 +71,9 @@ async function main() {
   const ibc = (await call('GET', '/api/inbox?range=custom&from=2026-10-01&to=2026-10-10')).json;
   assert.ok(ibc.rows.every((r) => r.date >= '2026-10-01' && r.date <= '2026-10-10')); ok('inbox กำหนดเอง');
   const bd = (await call('GET', '/api/board?range=90d')).json;
-  assert.deepEqual(bd.columns.map((c) => c.status), ['no_reply', 'very_poor', 'talked', 'in_progress', 'qualified']);
-  assert.equal(bd.columns.reduce((s, c) => s + c.total, 0), ib90.rows.length); ok('board 5 คอลัมน์ ผลรวมตรงกับ inbox');
+  const { STATUSES } = require('../lib/metrics');
+  assert.deepEqual(bd.columns.map((c) => c.status), STATUSES);
+  assert.equal(bd.columns.reduce((s, c) => s + c.total, 0), ib90.rows.length); ok(`board ${STATUSES.length} คอลัมน์ ผลรวมตรงกับ inbox`);
 
 
   // ตอบแชท (โหมดเดโม)

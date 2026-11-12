@@ -98,10 +98,50 @@ async function handleWebhook(body) {
       const pageId = String(echo ? ev.sender.id : ev.recipient.id);
       const psid = String(echo ? ev.recipient.id : ev.sender.id);
       const ref = msg.referral || ev.referral || {};
-      let lead = (store.read('leads.json', [])).find((l) => l.psid === psid && l.pageId === pageId);
+
+      // ตรวจสอบและลงทะเบียน Page พร้อมผูกชื่อเพจ (เช่น เพจรักเพื่อน)
+      let pages = store.read('pages.json', []);
+      let matchedPage = pages.find((p) => p.id === pageId);
+      let pageName = matchedPage ? matchedPage.name : '';
+
+      if (!matchedPage) {
+        const pageInfo = await meta.fetchPageInfo(pageId).catch(() => null);
+        if (pageInfo && pageInfo.name) pageName = pageInfo.name;
+
+        const fbPages = pages.filter((p) => (!p.platform || p.platform === 'Facebook'));
+        const rakPhuean = fbPages.find((p) => p.name.includes('รักเพื่อน') || p.id.includes('RakPhuean'));
+        const targetFb = rakPhuean || (fbPages.length === 1 ? fbPages[0] : null);
+        if (targetFb && targetFb.id.startsWith('P-')) {
+          targetFb.id = pageId;
+          if (pageName && !targetFb.name) targetFb.name = pageName;
+          else if (!pageName) pageName = targetFb.name;
+          store.write('pages.json', pages);
+        } else {
+          recordPage(pageId, pageName || 'Facebook เพจหลัก', 'Facebook');
+        }
+      }
+
+      let leads = store.read('leads.json', []);
+      let lead = leads.find((l) => l.psid === psid && (!pageId || !l.pageId || l.pageId === pageId));
       if (!lead) {
         const name = await meta.fetchProfileName(pageId, psid);
-        lead = ops.findOrCreateLead({ psid, pageId, name, adId: ref.ad_id ? String(ref.ad_id) : '' }).lead;
+        lead = ops.findOrCreateLead({
+          psid,
+          pageId,
+          name,
+          adId: ref.ad_id ? String(ref.ad_id) : '',
+          platform: 'Facebook',
+          pageName: pageName || 'Facebook เพจหลัก',
+        }).lead;
+      } else {
+        let changed = false;
+        if (!lead.pageId || lead.pageId !== pageId) { lead.pageId = pageId; changed = true; }
+        if (!lead.platform) { lead.platform = 'Facebook'; changed = true; }
+        if (!lead.pageName && pageName) { lead.pageName = pageName; changed = true; }
+        if (changed) {
+          const idx = leads.findIndex((x) => x.id === lead.id);
+          if (idx !== -1) { leads[idx] = lead; store.write('leads.json', leads); }
+        }
       }
       ops.addMessage(lead.id, {
         from: echo ? 'staff' : 'customer', text: msg.text || '[ไฟล์แนบ]', mid: msg.mid || undefined,
@@ -110,6 +150,37 @@ async function handleWebhook(body) {
     }
   }
 }
+
+function syncLegacyData() {
+  try {
+    const pages = store.read('pages.json', []);
+    const fbPages = pages.filter((p) => (!p.platform || p.platform === 'Facebook'));
+    const rakPhuean = fbPages.find((p) => p.name.includes('รักเพื่อน') || p.id.includes('RakPhuean'));
+    const singleFbPage = rakPhuean || (fbPages.length === 1 ? fbPages[0] : null);
+
+    const leads = store.read('leads.json', []);
+    let changed = false;
+    for (const l of leads) {
+      if (!l.platform) {
+        const ch = (l.channel || '').toLowerCase();
+        if (ch.includes('line')) l.platform = 'LINE';
+        else if (ch.includes('wa') || ch.includes('what')) l.platform = 'WhatsApp';
+        else l.platform = 'Facebook';
+        changed = true;
+      }
+      if ((!l.pageName || l.pageName.includes('เพจหลัก')) && singleFbPage && l.platform === 'Facebook') {
+        l.pageName = singleFbPage.name;
+        changed = true;
+      }
+      if (l.pageId && singleFbPage && l.platform === 'Facebook' && singleFbPage.id.startsWith('P-') && !isNaN(Number(l.pageId))) {
+        singleFbPage.id = l.pageId;
+        store.write('pages.json', pages);
+      }
+    }
+    if (changed) store.write('leads.json', leads);
+  } catch (_) {}
+}
+syncLegacyData();
 
 function recordPage(pageId, pageName, platform = 'Facebook') {
   if (!pageName && !pageId) return;
