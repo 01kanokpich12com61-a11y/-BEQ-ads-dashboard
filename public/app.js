@@ -533,7 +533,7 @@
   }
 
   function renderSheetsSyncCard(u) {
-    const lastUrl = (S.settings && S.settings.sheets && S.settings.sheets.lastUrl) || '';
+    const lastUrl = (S.settings && S.settings.sheets && S.settings.sheets.lastUrl) || 'https://docs.google.com/spreadsheets/d/1hDT2bqqFFCPdiZn0K7pJVXjo-KmUgjgaLtMOpcONjpk/edit?usp=sharing';
     const lastSync = (S.settings && S.settings.sheets && S.settings.sheets.lastSyncAt) || null;
     return `<div class="card panel sheets-sync-box" style="margin-bottom:16px;background:linear-gradient(135deg, #fafffa 0%, #f0f7ef 100%);border:1.5px solid #c2e2be">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">

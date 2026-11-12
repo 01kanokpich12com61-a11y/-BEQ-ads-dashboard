@@ -6,5 +6,10 @@
     "apiVersion": "v21.0",
     "webhookVerifyToken": "3c4b556cd2e95a8f290a0931bca7e552"
   },
+  "sheets": {
+    "sheetUrl": "https://docs.google.com/spreadsheets/d/1hDT2bqqFFCPdiZn0K7pJVXjo-KmUgjgaLtMOpcONjpk/edit?usp=sharing",
+    "lastUrl": "https://docs.google.com/spreadsheets/d/1hDT2bqqFFCPdiZn0K7pJVXjo-KmUgjgaLtMOpcONjpk/edit?usp=sharing",
+    "autoSync": true
+  },
   "mode": "live"
 }

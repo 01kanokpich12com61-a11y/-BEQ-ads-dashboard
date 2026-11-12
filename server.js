@@ -222,6 +222,67 @@ function fetchUrl(targetUrl, maxRedirects = 5) {
   });
 }
 
+// กู้คืนข้อมูลจาก Google Sheets อัตโนมัติเมื่อเว็บเริ่มทำงาน (ถ้าในระบบยังไม่มีลีด)
+async function autoRestoreFromSheets() {
+  try {
+    const s = meta.getSettings();
+    const sheetUrl = process.env.GOOGLE_SHEET_URL || (s.sheets && (s.sheets.sheetUrl || s.sheets.lastUrl));
+    if (!sheetUrl) return;
+
+    let csvUrl = sheetUrl;
+    if (csvUrl.includes('/pubhtml')) {
+      csvUrl = csvUrl.replace('/pubhtml', '/pub?output=csv');
+    } else {
+      const match = csvUrl.match(/docs\.google\.com\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+      if (match) {
+        const docId = match[1];
+        let gid = '0';
+        const gidMatch = csvUrl.match(/[#&?]gid=([0-9]+)/);
+        if (gidMatch) gid = gidMatch[1];
+        csvUrl = `https://docs.google.com/spreadsheets/d/${docId}/export?format=csv&gid=${gid}`;
+      }
+    }
+
+    const csvText = await fetchUrl(csvUrl).catch(() => null);
+    if (!csvText || !csvText.trim()) return;
+
+    const existingLeads = store.read('leads.json', []);
+    if (existingLeads.length === 0) {
+      const lines = csvText.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+      if (lines.length > 1) {
+        const headers = lines[0].split(',').map((h) => h.replace(/^["']|["']$/g, '').trim().toLowerCase());
+        const added = [];
+        for (let i = 1; i < lines.length; i++) {
+          const rowVals = lines[i].split(',').map((v) => v.replace(/^["']|["']$/g, '').trim());
+          const r = {};
+          headers.forEach((h, idx) => { r[h] = rowVals[idx] || ''; });
+
+          const name = r.name || r['ชื่อ'] || r['ชื่อลูกค้า'] || `ลูกค้า ${i}`;
+          const channel = r.channel || r['ช่องทาง'] || 'Messenger';
+          const platform = r.platform || r['แพลตฟอร์ม'] || (channel === 'LINE' ? 'LINE' : channel === 'WhatsApp' ? 'WhatsApp' : 'Facebook');
+          const pageName = r.page || r.pagename || r['เพจ'] || 'เพจรักเพื่อน';
+          const pageId = r.pageid || (pageName.includes('รักเพื่อน') ? 'P-RakPhuean' : `P_${pageName}`);
+          const date = r.date || r['วันที่'] || today();
+          const dropReason = r.message || r['ข้อความ'] || r['บันทึก'] || r.note || '';
+          const status = ops.normalizeStatus(r.status || r['สถานะ'] || 'talked', dropReason);
+          const phone = r.phone || r['เบอร์'] || r['เบอร์โทร'] || '';
+
+          added.push({
+            id: `S-${Date.now().toString(36)}-${String(i).padStart(4, '0')}`,
+            name, channel, platform, pageName, pageId, date, status, quality: ops.QUALITY[status] || 'average',
+            adId: 'Direct', repId: '', value: 0, firstResponseMin: null, dropReason, phone, email: '',
+          });
+        }
+        if (added.length) {
+          store.write('leads.json', added);
+          console.log(`[AutoRestore] Restored ${added.length} leads from Google Sheets`);
+        }
+      }
+    }
+  } catch (_) {}
+}
+setTimeout(autoRestoreFromSheets, 1500);
+
 // รับข้อความจาก LINE Official Account Webhook
 async function handleLineWebhook(body) {
   for (const ev of body.events || []) {
