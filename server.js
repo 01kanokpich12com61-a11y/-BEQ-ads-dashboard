@@ -990,6 +990,46 @@ async function api(req, res, url, session) {
 
   if (route === 'GET /api/settings') return send(res, 200, publicSettings());
 
+  if (route === 'GET /api/settings/pages') {
+    return send(res, 200, { pages: store.read('pages.json', []) });
+  }
+
+  if (route === 'POST /api/settings/pages') {
+    if (!auth.isAdmin(session.user)) return send(res, 403, { error: 'เฉพาะผู้ดูแล (admin) เท่านั้น' });
+    const b = await readJson(req);
+    const id = clean(b.id, 80);
+    const name = clean(b.name, 120);
+    const platform = clean(b.platform, 40) || 'Facebook';
+    const color = clean(b.color, 20) || '#1877f2';
+    if (!id || !name) return send(res, 400, { error: 'กรุณากรอก Page ID และชื่อเพจ' });
+
+    let pages = store.read('pages.json', []);
+    const idx = pages.findIndex((p) => p.id === id || String(p.id) === String(id));
+    if (idx >= 0) {
+      pages[idx] = { ...pages[idx], id, name, platform, color };
+    } else {
+      pages.push({ id, name, platform, color });
+    }
+    store.write('pages.json', pages);
+    meta.clearCache();
+    audit.log(session.user.username, 'page_save', `บันทึกเพจ: ${name} (${id})`, clientIp(req));
+    return send(res, 200, { ok: true, pages });
+  }
+
+  if (route === 'POST /api/settings/pages/delete') {
+    if (!auth.isAdmin(session.user)) return send(res, 403, { error: 'เฉพาะผู้ดูแล (admin) เท่านั้น' });
+    const b = await readJson(req);
+    const id = clean(b.id, 80);
+    if (!id) return send(res, 400, { error: 'กรุณาระบุ Page ID ที่ต้องการลบ' });
+
+    let pages = store.read('pages.json', []);
+    pages = pages.filter((p) => p.id !== id && String(p.id) !== String(id));
+    store.write('pages.json', pages);
+    meta.clearCache();
+    audit.log(session.user.username, 'page_delete', `ลบเพจ ID: ${id}`, clientIp(req));
+    return send(res, 200, { ok: true, pages });
+  }
+
   if (route === 'PUT /api/settings/meta') {
     const b = await readJson(req);
     const cur = meta.getSettings().meta || {};

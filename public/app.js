@@ -163,7 +163,7 @@
         </select></div>
         <div class="pill-select"><select data-bind="header-page" aria-label="เลือกเพจ">
           <option value="">${curPlatform ? `📄 ทุกเพจ (${esc(curPlatform)})` : '📄 ทุกเพจ / บัญชี'}</option>
-          ${filteredPages.map((p) => `<option value="${esc(p.id)}" ${S.dash.page === p.id ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}
+          ${filteredPages.map((p) => `<option value="${esc(p.id)}" ${S.dash.page === p.id ? "selected" : ""}>${p.platform === "Facebook" ? "🔵 " : p.platform === "LINE" ? "🟢 " : p.platform === "WhatsApp" ? "💚 " : ""}${esc(p.name)}</option>`).join("")}
         </select></div>
       </div>
       <div class="rel"><button class="icon-btn" data-act="menu" data-menu="bell" aria-label="Notifications">${icon('bell')}${list.length ? '<span class="dot"></span>' : ''}</button>
@@ -187,9 +187,9 @@
     if (S.route === 'dashboard') renderDashBody();
     if (S.route === 'inbox') renderInboxBody();
     renderDrawer();
-    if (S.route === 'board') { renderBoardBody(); renderSlaBody(); }
+    if (S.route === 'board') renderBoardBody();
     if (S.route === 'followup') renderFollowBody();
-    if (S.route === 'review') renderReviewBody();
+    if (S.route === 'review') { renderReviewBody(); renderSlaBody(); }
     if (S.route === 'audit') renderAuditBody();
     if (S.route === 'setting') renderSettingBody();
     if (S.route === 'upload') renderUploadBody();
@@ -1328,7 +1328,7 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
     list.innerHTML = rows.slice(0, MAX).map((r) => {
       const pv = r.last ? `${r.last.from === 'staff' ? 'คุณ: ' : ''}${esc(r.last.text)} · ${ago(r.last.at)}` : `ยังไม่มีข้อความ · ${esc(r.date)}`;
       return `<button class="conv ${r.id === S.chat.id ? 'active' : ''}" data-act="select-chat" data-id="${esc(r.id)}">${avatarHtml(r.name, r.id, 48)}
-        <span class="conv-main"><b>${esc(r.name)}</b><small>${pv}</small></span>
+        <span class="conv-main"><b><span style="font-size:13px;opacity:0.85">${r.channel === "LINE" ? "📱" : r.channel === "WhatsApp" ? "💚" : "💬"}</span> ${esc(r.name)}${r.pageName ? `<small style="display:inline;font-size:11px;color:var(--brand-deep);background:#e4eedc;padding:1px 6px;border-radius:4px;margin-left:6px">${esc(r.pageName)}</small>` : ""}</b><small>${pv}</small></span>
         <i class="s-dot" style="background:${STATUS_COLOR[r.status] || '#8a948f'}" title="${esc(STATUS_TH[r.status] || r.status)}"></i></button>`;
     }).join('') + (rows.length > MAX ? `<div class="ad-sub" style="text-align:center;padding:10px">แสดง ${MAX} จาก ${num(rows.length)} แชท ใช้ช่องค้นหาเพื่อกรอง</div>` : '');
   }
@@ -1387,7 +1387,7 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
 
   /* --- SLA ตอบแชท 15 นาที (ใช้ช่วงวันเดียวกับ Board) --- */
   async function loadSla() {
-    const b = S.board; const s = S.sla;
+    const b = S.route === 'review' ? S.review : S.board; const s = S.sla;
     if (b.range === 'custom' && !(b.from && b.to && b.from <= b.to)) return;
     const seq = ++seqs.sla; s.err = null;
     try { const data = await api('/api/sla?' + listQuery(b)); if (seq !== seqs.sla) return; s.data = data; }
@@ -1438,7 +1438,7 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
 
   function boardShell() {
     return `<div class="page-head"><div><h1>Board</h1><div class="meta-line"><span>ลูกค้าแยกตามความคืบหน้าของแชท</span></div></div></div>
-      ${rangeBar('board')}<div id="sla-body" style="margin-bottom:16px"></div><div id="board-body"><div class="loading">Loading…</div></div>`;
+      ${rangeBar('board')}<div id="board-body"><div class="loading">Loading…</div></div>`;
   }
 
   function leadCard(l) {
@@ -1583,10 +1583,10 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
   }
 
   /* --- รีวิวแชท --- */
-  async function loadReview() { ensureFilters(); if (await fetchList('review', '/api/review')) renderReviewBody(); }
+  async function loadReview() { ensureFilters(); loadSla(); if (await fetchList('review', '/api/review')) renderReviewBody(); }
   function reviewShell() {
     return `<div class="page-head"><div><h1>Review</h1><div class="meta-line"><span>หัวหน้าทีมตรวจและให้คะแนนแชทของเซลส์ (คลิกแถวเพื่อเปิดแชทและให้คะแนน)</span></div></div></div>
-      ${rangeBar('review')}<div id="review-body"><div class="loading">Loading…</div></div>`;
+      <div id="sla-body" style="margin-bottom:16px"></div>${rangeBar('review')}<div id="review-body"><div class="loading">Loading…</div></div>`;
   }
   function renderReviewBody() {
     const box = $id('review-body'); const s = S.review; if (!box) return;

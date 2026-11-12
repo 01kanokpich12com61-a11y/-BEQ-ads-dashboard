@@ -431,5 +431,119 @@
   box-shadow: 0 0 0 3px rgba(59, 108, 44, .2);
 }
 
+/* ── Inbox Wide & High Layout (ปรับหน้า Inbox ให้กว้างยาว ดูง่ายขึ้น) ── */
+.mess {
+  height: calc(100vh - 140px) !important;
+  min-height: 650px !important;
+  grid-template-columns: 360px minmax(0, 1fr) 300px !important;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.06);
+}
+
+.mess-list {
+  padding: 16px 14px 0 !important;
+  background: #fafaf8;
+}
+
+.conv-list {
+  margin: 0 -14px !important;
+  padding: 0 10px 14px !important;
+}
+
+.conv {
+  padding: 12px 12px !important;
+  min-height: 70px;
+  gap: 12px !important;
+  margin-bottom: 4px;
+  transition: all 0.15s ease;
+}
+
+.conv:hover {
+  background: #f0eee6 !important;
+}
+
+.conv.active {
+  background: #e3ebd9 !important;
+  border-left: 3px solid #2d5022;
+}
+
+.conv-main b {
+  font-size: 15px !important;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.conv-main small {
+  font-size: 13.5px !important;
+  line-height: 1.4 !important;
+  margin-top: 4px;
+  color: #555 !important;
+}
+
+.mess-chat {
+  background: #f7f6f2;
+}
+
+.mess-chat .chat-scroll {
+  padding: 20px 24px !important;
+  gap: 14px !important;
+}
+
+/* Chat bubble styling */
+.chat-scroll .msg {
+  max-width: 78% !important;
+}
+
+.chat-scroll .msg.in .bubble {
+  background: #ffffff !important;
+  border: 1px solid #e2e0d8 !important;
+  color: #1a221e !important;
+  font-size: 15px !important;
+  line-height: 1.55 !important;
+  padding: 12px 18px !important;
+  border-radius: 18px !important;
+  border-top-left-radius: 4px !important;
+  box-shadow: 0 1.5px 4px rgba(0,0,0,0.05) !important;
+}
+
+.chat-scroll .msg.out .bubble {
+  background: #244c1d !important;
+  color: #ffffff !important;
+  font-size: 15px !important;
+  line-height: 1.55 !important;
+  padding: 12px 18px !important;
+  border-radius: 18px !important;
+  border-top-right-radius: 4px !important;
+  box-shadow: 0 2px 6px rgba(36,76,29,0.2) !important;
+}
+
+.chat-scroll .msg small {
+  font-size: 12px !important;
+  color: #888 !important;
+  margin-top: 4px !important;
+  padding: 0 4px !important;
+}
+
+.composer {
+  padding: 14px 20px !important;
+  background: #fff;
+}
+
+.composer input {
+  font-size: 15px !important;
+  padding: 12px 20px !important;
+}
+
+/* Page color indicator pill */
+.page-dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  margin-right: 6px;
+  vertical-align: middle;
+}
+
+
 
 
