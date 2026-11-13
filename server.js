@@ -87,6 +87,29 @@ function webhookToken() {
 }
 const safeEq = (a, b) => { const x = Buffer.from(String(a)); const y = Buffer.from(String(b)); return x.length === y.length && crypto.timingSafeEqual(x, y); };
 
+// ส่งข้อมูล Lead + ข้อความล่าสุดไปยัง Google Sheets ผ่าน Apps Script ทันที (realtime backup)
+async function pushToSheets(lead, latestMsg) {
+  try {
+    const s = meta.getSettings();
+    const scriptUrl = s.sheets && s.sheets.appsScriptUrl;
+    if (!scriptUrl) return;
+    await fetch(scriptUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: lead.name || 'ลูกค้า Messenger',
+        platform: lead.platform || 'Facebook',
+        pageName: lead.pageName || '',
+        message: latestMsg || '',
+        date: lead.date || new Date().toISOString().slice(0, 10),
+        status: lead.status || 'talked',
+        phone: lead.phone || ''
+      }),
+      signal: AbortSignal.timeout(10000),
+    });
+  } catch (_) { /* ไม่ให้บล็อก webhook */ }
+}
+
 // รับข้อความจาก Meta Webhook (Messenger) แล้วบันทึกเป็นแชท
 async function handleWebhook(body) {
   if (body.object !== 'page') return;
@@ -147,6 +170,9 @@ async function handleWebhook(body) {
         from: echo ? 'staff' : 'customer', text: msg.text || '[ไฟล์แนบ]', mid: msg.mid || undefined,
         at: ops.nowStamp(ev.timestamp || Date.now()), via: 'webhook',
       });
+      if (!echo) {
+        pushToSheets(lead, msg.text || '').catch(() => {});
+      }
     }
   }
 }
@@ -306,6 +332,7 @@ async function handleLineWebhook(body) {
       from: 'customer', text, mid: ev.message.id || undefined,
       at: ops.nowStamp(ev.timestamp || Date.now()), via: 'line',
     });
+    pushToSheets(lead, text).catch(() => {});
   }
 }
 
@@ -339,6 +366,7 @@ async function handleWhatsAppWebhook(body) {
           from: 'customer', text, mid: msg.id || undefined,
           at: ops.nowStamp(ts), via: 'whatsapp',
         });
+        pushToSheets(lead, text).catch(() => {});
       }
     }
   }
@@ -385,6 +413,7 @@ function publicSettings() {
     sheets: {
       lastUrl: sh.lastUrl || '',
       lastSyncAt: sh.lastSyncAt || null,
+      hasAppsScript: Boolean(sh.appsScriptUrl),
     },
   };
 }

@@ -9,7 +9,8 @@
   "sheets": {
     "sheetUrl": "https://docs.google.com/spreadsheets/d/1hDT2bqqFFCPdiZn0K7pJVXjo-KmUgjgaLtMOpcONjpk/edit?usp=sharing",
     "lastUrl": "https://docs.google.com/spreadsheets/d/1hDT2bqqFFCPdiZn0K7pJVXjo-KmUgjgaLtMOpcONjpk/edit?usp=sharing",
-    "autoSync": true
+    "autoSync": true,
+    "appsScriptUrl": "https://script.google.com/macros/s/AKfycbyijMGy-r2jDqjUW6fIvX8HzvAOHvgK-to3xD3gfHcTYmINpqsYE3DDWejGNTalLdcH/exec"
   },
   "mode": "live"
 }
