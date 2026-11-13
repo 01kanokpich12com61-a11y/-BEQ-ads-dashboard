@@ -1030,18 +1030,24 @@ async function api(req, res, url, session) {
     const name = clean(b.name, 120);
     const platform = clean(b.platform, 40) || 'Facebook';
     const color = clean(b.color, 20) || '#1877f2';
+    const adAccountId = clean(b.adAccountId, 80) || '';
+    const pageToken = clean(b.pageToken, 500) || '';
     if (!id || !name) return send(res, 400, { error: 'กรุณากรอก Page ID และชื่อเพจ' });
 
     let pages = store.read('pages.json', []);
     const idx = pages.findIndex((p) => p.id === id || String(p.id) === String(id));
+    const pageItem = {
+      id, name, platform, color, adAccountId,
+      ...(pageToken ? { pageToken } : (idx >= 0 && pages[idx].pageToken ? { pageToken: pages[idx].pageToken } : {}))
+    };
     if (idx >= 0) {
-      pages[idx] = { ...pages[idx], id, name, platform, color };
+      pages[idx] = pageItem;
     } else {
-      pages.push({ id, name, platform, color });
+      pages.push(pageItem);
     }
     store.write('pages.json', pages);
     meta.clearCache();
-    audit.log(session.user.username, 'page_save', `บันทึกเพจ: ${name} (${id})`, clientIp(req));
+    audit.log(session.user.username, 'page_save', `บันทึกเพจ: ${name} (${id}) ผูก Ad Account: ${adAccountId || 'ไม่มี'}`, clientIp(req));
     return send(res, 200, { ok: true, pages });
   }
 

@@ -1549,7 +1549,14 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
   /* --- ตามลูกค้า --- */
   async function loadFollowups() {
     const s = S.followup; s.err = null; ensureFilters();
-    try { s.data = await api('/api/followups' + (s.rep ? '?rep=' + encodeURIComponent(s.rep) : '')); } catch (e) { s.err = e.message; }
+    try {
+      const p = new URLSearchParams();
+      if (s.rep) p.set('rep', s.rep);
+      if (S.dash.platform) p.set('platform', S.dash.platform);
+      if (S.dash.page) p.set('page', S.dash.page);
+      const qs = p.toString();
+      s.data = await api('/api/followups' + (qs ? '?' + qs : ''));
+    } catch (e) { s.err = e.message; }
     renderFollowBody();
   }
   function followShell() {
@@ -1709,6 +1716,7 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
         <td><b>${colorDot}${esc(p.name)}</b></td>
         <td><span class="chip" style="font-size:12px">${platformIcon} ${esc(p.platform || 'Facebook')}</span></td>
         <td><code>${esc(p.id)}</code></td>
+        <td>${p.adAccountId ? `<span class="chip good" style="font-size:12px;font-family:monospace">📊 ${esc(p.adAccountId)}</span>` : '<span class="rv-hint">ใช้ Ad กลาง</span>'}</td>
         <td class="nowrap" style="display:flex;gap:6px">
           ${p.platform === 'Facebook' ? `<button class="btn" type="button" data-act="fb-import-conv" data-page-id="${esc(p.id)}" data-page-name="${esc(p.name)}" style="padding:4px 10px;font-size:12px">📥 ดึงแชทย้อนหลัง</button>` : ''}
           <button class="btn danger" type="button" data-act="page-delete" data-page-id="${esc(p.id)}" style="padding:4px 10px;font-size:12px">ลบ</button>
@@ -1721,15 +1729,16 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
       <p class="sub">เพิ่มเพจ Facebook ได้หลายเพจ (เช่น เพจ 1, เพจ 2, เพจ 3) เพื่อแยกดูยอดโฆษณา แชท และลูกค้าของแต่ละเพจได้อิสระ</p>
       <div class="tscroll" style="margin:14px 0">
         <table style="min-width:540px">
-          <thead><tr><th>ชื่อเพจ</th><th>แพลตฟอร์ม</th><th>Page ID / Account ID</th><th class="nosort">จัดการ</th></tr></thead>
+          <thead><tr><th>ชื่อเพจ</th><th>แพลตฟอร์ม</th><th>Page ID (แชท)</th><th>Meta Ad Account ID (โฆษณา)</th><th class="nosort">จัดการ</th></tr></thead>
           <tbody>${rows || '<tr><td colspan="4" class="empty">ยังไม่มีเพจในระบบ</td></tr>'}</tbody>
         </table>
       </div>
       <form class="form" data-form="pages-add" style="margin-top:16px;background:#f9f8f4;padding:16px;border-radius:12px;border:1px solid var(--line-soft)">
         <h4 style="margin:0 0 10px">➕ เพิ่มหรืออัปเดตเพจ</h4>
-        <div style="display:grid;grid-template-columns:1fr 1fr 140px;gap:12px">
-          <div class="field" style="margin:0"><label>ชื่อเพจ (เช่น เพจที่ 2 - ปลูกผม)</label><input type="text" name="name" placeholder="ชื่อเพจ..." required></div>
-          <div class="field" style="margin:0"><label>Facebook Page ID (ตัวเลข)</label><input type="text" name="id" placeholder="เช่น 1018075398296404" required></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr 130px;gap:12px">
+          <div class="field" style="margin:0"><label>ชื่อเพจ (เช่น เพจรักเพื่อน)</label><input type="text" name="name" placeholder="ชื่อเพจ..." required></div>
+          <div class="field" style="margin:0"><label>Facebook Page ID (แชท)</label><input type="text" name="id" placeholder="เช่น 1018075398296404" required></div>
+          <div class="field" style="margin:0"><label>Meta Ad Account ID (โฆษณา)</label><input type="text" name="adAccountId" placeholder="เช่น act_12345 หรือตัวเลข"></div>
           <div class="field" style="margin:0"><label>แพลตฟอร์ม</label>
             <div class="sel" style="width:100%"><select name="platform" style="width:100%">
               <option value="Facebook">Facebook</option>
@@ -1738,6 +1747,7 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
             </select></div>
           </div>
         </div>
+        <p class="rv-hint" style="margin:8px 0 0">💡 ผูก 1 เพจ = 1 Page ID (แชท) + 1 Ad Account (โฆษณา) เมื่อเลือกเพจนี้ที่แถบเมนูด้านบน ยอดเงินและแชทจะแสดงเฉพาะของเพจนี้โดยตรง</p>
         <div class="row-actions" style="margin-top:12px">
           <button class="btn primary" type="submit">บันทึกเพจ</button>
         </div>
