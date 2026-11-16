@@ -506,7 +506,7 @@ async function api(req, res, url, session) {
     if (q.refresh) meta.clearCache();
     const range = resolveRange(q);
     const data = await providers.load(range);
-    return send(res, 200, { mode: providers.currentMode(), ...buildDashboard(data, range, q) });
+    return send(res, 200, { mode: providers.currentMode(), metaError: data.metaError || null, ...buildDashboard(data, range, q) });
   }
 
   if (route === 'GET /api/board') {

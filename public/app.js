@@ -911,7 +911,8 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
     const tabs = { ads: tabAds, chat: tabChat, sales: tabSales, trend: tabTrend, dropped: tabDropped };
     // เล่นแอนิเมชันเฉพาะตอนข้อมูลชุดใหม่เข้ามาครั้งแรก ไม่เล่นซ้ำเวลาสลับแท็บ
     d.animKey = `${d.data.range.from}|${d.data.range.to}|${d.page}|${d.campaign}|${d.agency}|${d.rep}|${d.status}|${S.me.mode}`;
-    box.innerHTML = (tabs[d.tab] || tabAds)(d.data);
+    const errNotice = d.data && d.data.metaError ? `<div class="notice err" style="margin-bottom:12px">⚠️ Meta API: ${esc(d.data.metaError)}</div>` : '';
+    box.innerHTML = errNotice + (tabs[d.tab] || tabAds)(d.data);
     if (d.tab === 'ads') {
       const el = box.querySelector('[data-count]');
       if (el && d.animKey !== d.lastAnimKey) countUp(el, Number(el.dataset.count));
