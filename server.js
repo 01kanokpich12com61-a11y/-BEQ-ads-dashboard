@@ -1162,6 +1162,117 @@ async function api(req, res, url, session) {
     }
   }
 
+  if (route === 'POST /api/meta/discover-pages') {
+    if (!auth.isAdmin(session.user)) return send(res, 403, { error: 'เฉพาะผู้ดูแล (admin) เท่านั้น' });
+    const b = await readJson(req).catch(() => ({}));
+    const customToken = clean(b.accessToken, 500);
+    try {
+      const fbPages = await meta.fetchManagedPages(customToken || null);
+      let pages = store.read('pages.json', []);
+      let added = 0;
+      let updated = 0;
+
+      for (const fp of fbPages) {
+        const id = String(fp.id);
+        const name = clean(fp.name, 120);
+        const pageToken = fp.access_token || '';
+        const idx = pages.findIndex((p) => p.id === id || String(p.id) === id);
+        if (idx >= 0) {
+          pages[idx].name = name;
+          if (pageToken) pages[idx].pageToken = pageToken;
+          if (!pages[idx].platform) pages[idx].platform = 'Facebook';
+          updated++;
+        } else {
+          pages.push({
+            id,
+            name,
+            platform: 'Facebook',
+            color: '#1877f2',
+            ...(pageToken ? { pageToken } : {}),
+          });
+          added++;
+        }
+      }
+      store.write('pages.json', pages);
+      meta.clearCache();
+      audit.log(session.user.username, 'discover_pages', `ค้นพบและซิงค์เพจจาก Meta: เพิ่ม ${added} เพจ, อัปเดต ${updated} เพจ`, clientIp(req));
+      return send(res, 200, { ok: true, pages, added, updated, totalFound: fbPages.length });
+    } catch (e) {
+      return send(res, 500, { error: e.message || 'ไม่สามารถดึงข้อมูลเพจจาก Meta ได้ (ตรวจสิทธิ์ pages_show_list และ pages_read_engagement)' });
+    }
+  }
+
+  if (route === 'POST /api/import/facebook-conversations-all') {
+    if (!auth.isAdmin(session.user)) return send(res, 403, { error: 'เฉพาะผู้ดูแล (admin) เท่านั้น' });
+    const b = await readJson(req).catch(() => ({}));
+    const limit = Number(b.limit) || 30;
+    const pages = store.read('pages.json', []);
+    const fbPages = pages.filter((p) => (!p.platform || p.platform === 'Facebook') && !p.id.startsWith('P-'));
+    if (!fbPages.length) return send(res, 400, { error: 'ไม่พบเพจ Facebook ในระบบ กรุณากดดึงเพจจาก Meta ก่อน' });
+
+    let leads = store.read('leads.json', []);
+    let messages = store.read('messages.json', {});
+    let totalImportedLeads = 0;
+    let totalImportedMsgs = 0;
+    const results = [];
+
+    for (const page of fbPages) {
+      try {
+        const convs = await meta.fetchFbConversations(page.id, limit);
+        let pLeads = 0;
+        let pMsgs = 0;
+        for (const c of convs) {
+          const parts = (c.participants && c.participants.data) || [];
+          const customerPart = parts.find((p) => String(p.id) !== String(page.id)) || parts[0];
+          if (!customerPart) continue;
+          const psid = String(customerPart.id);
+          const custName = customerPart.name || ('ลูกค้า ' + psid.slice(-4));
+
+          let lead = leads.find((l) => l.psid === psid && (!l.pageId || l.pageId === page.id));
+          if (!lead) {
+            lead = ops.findOrCreateLead({
+              psid,
+              pageId: page.id,
+              name: custName,
+              platform: 'Facebook',
+              pageName: page.name,
+              channel: 'Messenger',
+            }).lead;
+            pLeads++;
+          } else if (!lead.name || lead.name.includes('ลูกค้า')) {
+            lead.name = custName;
+          }
+
+          const msgList = (c.messages && c.messages.data) || [];
+          for (const m of msgList) {
+            const fromPage = m.from && String(m.from.id) === String(page.id);
+            const text = m.message || '';
+            if (!text) continue;
+            const at = ops.nowStamp(m.created_time ? new Date(m.created_time).getTime() : Date.now());
+            const leadMsgs = messages[lead.id] || [];
+            if (!leadMsgs.some((x) => x.text === text && Math.abs(new Date(x.at) - new Date(at)) < 60000)) {
+              ops.addMessage(lead.id, {
+                from: fromPage ? 'staff' : 'customer',
+                text,
+                mid: m.id || undefined,
+                at,
+                via: 'import',
+              });
+              pMsgs++;
+            }
+          }
+        }
+        totalImportedLeads += pLeads;
+        totalImportedMsgs += pMsgs;
+        results.push({ pageId: page.id, pageName: page.name, leads: pLeads, msgs: pMsgs, success: true });
+      } catch (err) {
+        results.push({ pageId: page.id, pageName: page.name, error: err.message, success: false });
+      }
+    }
+    audit.log(session.user.username, 'import_fb_all', `นำเข้าบทสนทนาทุกเพจ: ${totalImportedLeads} ลีด, ${totalImportedMsgs} ข้อความ`, clientIp(req));
+    return send(res, 200, { ok: true, totalImportedLeads, totalImportedMsgs, results });
+  }
+
   if (route === 'PUT /api/settings/meta') {
     const b = await readJson(req);
     const cur = meta.getSettings().meta || {};
