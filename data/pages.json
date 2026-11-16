@@ -1,7 +1,14 @@
 [
-  { "id": "1018075398296404", "name": "เพจรักเพื่อน", "platform": "Facebook", "color": "#1877f2" },
-  { "id": "P-FB-2", "name": "เพจที่ 2 (Facebook)", "platform": "Facebook", "color": "#e91e63" },
-  { "id": "P-FB-3", "name": "เพจที่ 3 (Facebook)", "platform": "Facebook", "color": "#9b59b6" },
-  { "id": "P-LINE", "name": "LINE Official Account", "platform": "LINE", "color": "#25D366" },
-  { "id": "P-WhatsApp", "name": "WhatsApp Business", "platform": "WhatsApp", "color": "#128C7E" }
+  {
+    "id": "P-LINE",
+    "name": "LINE Official Account",
+    "platform": "LINE",
+    "color": "#25D366"
+  },
+  {
+    "id": "P-WhatsApp",
+    "name": "WhatsApp Business",
+    "platform": "WhatsApp",
+    "color": "#128C7E"
+  }
 ]
