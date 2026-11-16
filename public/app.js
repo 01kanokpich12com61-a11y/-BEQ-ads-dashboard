@@ -1152,12 +1152,31 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
   // ตัวเลือกช่วงวัน ใช้ร่วมกันใน Inbox และ Board (นับจากวันที่เริ่มคุย)
   function rangeBar(scope) {
     const s = S[scope];
-    return `<section class="card filters">
+    const curPlatform = S.dash.platform || '';
+    const curPage = S.dash.page || '';
+    const allPages = (S.filters && S.filters.pages) || [];
+    const filteredPages = curPlatform ? allPages.filter((p) => (p.platform || 'Facebook') === curPlatform) : allPages;
+
+    return `<section class="card filters" style="display:flex;align-items:center;flex-wrap:wrap;gap:10px">
       <div class="seg">${[['all', 'ทั้งหมด'], ['30d', '30 วัน'], ['90d', '90 วัน'], ['7d', '7 วัน'], ['custom', 'กำหนดเอง']]
         .map(([k, l]) => `<button data-act="lrange" data-scope="${scope}" data-range="${k}" class="${s.range === k ? 'active' : ''}">${l}</button>`).join('')}</div>
       ${s.range === 'custom' ? `<input class="date-in" type="date" data-bind="lfrom" data-scope="${scope}" value="${esc(s.from)}" aria-label="ตั้งแต่วันที่">
         <span class="vs">ถึง</span><input class="date-in" type="date" data-bind="lto" data-scope="${scope}" value="${esc(s.to)}" aria-label="ถึงวันที่">` : ''}
-      <span class="vs">${icon('cal')}นับจากวันที่เริ่มคุย</span></section>`;
+      <div style="display:flex;align-items:center;gap:8px;margin-left:auto">
+        <span class="label" style="margin:0">🔍 คัดแยก:</span>
+        <div class="pill-select"><select data-bind="header-platform" aria-label="แพลตฟอร์ม" style="font-weight:600">
+          <option value="">🌐 ทุกช่องทาง</option>
+          <option value="Facebook" ${curPlatform === 'Facebook' ? 'selected' : ''}>🔵 Facebook</option>
+          <option value="Instagram" ${curPlatform === 'Instagram' ? 'selected' : ''}>📸 Instagram</option>
+          <option value="LINE" ${curPlatform === 'LINE' ? 'selected' : ''}>📱 LINE</option>
+          <option value="WhatsApp" ${curPlatform === 'WhatsApp' ? 'selected' : ''}>💚 WhatsApp</option>
+        </select></div>
+        <div class="pill-select"><select data-bind="header-page" aria-label="เลือกเพจ" style="font-weight:600">
+          <option value="">${curPlatform ? `📄 ทุกเพจ (${esc(curPlatform)})` : '📄 ทุกเพจ / ทุกบัญชี'}</option>
+          ${filteredPages.map((p) => `<option value="${esc(p.id)}" ${curPage === p.id ? "selected" : ""}>${p.platform === "Facebook" ? "🔵 " : p.platform === "Instagram" ? "📸 " : p.platform === "LINE" ? "📱 " : p.platform === "WhatsApp" ? "💚 " : ""}${esc(p.name)}</option>`).join("")}
+        </select></div>
+      </div>
+    </section>`;
   }
 
   function loadList(scope) { return scope === 'inbox' ? loadInbox() : scope === 'review' ? loadReview() : loadBoard(); }
@@ -2153,13 +2172,23 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
       } else if (type === 'meta') {
         const after = (ev.submitter && ev.submitter.dataset.after) || 'save';
         S.settings = await api('/api/settings/meta', { method: 'PUT', body: fd });
-        S.flash = { type: 'ok', text: 'บันทึกแล้ว' };
         if (after === 'test') {
-          const r = await api('/api/settings/meta/test', { method: 'POST' });
-          if (r.ok) { S.settings = r.settings; S.flash = { type: 'ok', text: `เชื่อมต่อสำเร็จ: ${r.account.name}. กด “ใช้ข้อมูล Meta” เพื่อเริ่มดึงข้อมูลจริง` }; }
-          else S.flash = { type: 'err', text: 'เชื่อมต่อไม่สำเร็จ: ' + r.error };
+          try {
+            const r = await api('/api/settings/meta/test', { method: 'POST' });
+            if (r.ok) {
+              S.settings = r.settings;
+              S.flash = { type: 'ok', text: `✅ เชื่อมต่อสำเร็จ: ${r.account.name} (${r.account.currency || 'THB'}). กด “ใช้ข้อมูล Meta API” ที่กล่องด้านบนเพื่อแสดงยอดจริง` };
+            } else {
+              S.flash = { type: 'err', text: '❌ เชื่อมต่อไม่สำเร็จ: ' + (r.error || 'ตรวจสอบ Access Token และ Ad Account ID') };
+            }
+          } catch (err) {
+            S.flash = { type: 'err', text: '❌ ข้อผิดพลาด: ' + (err.message || 'ไม่สามารถทดสอบได้') };
+          }
+        } else {
+          S.flash = { type: 'ok', text: 'บันทึกการตั้งค่าเรียบร้อยแล้ว' };
         }
-        S.me = await api('/api/me'); render();
+        S.me = await api('/api/me');
+        render();
       } else if (type === 'sheets-sync') {
         const btn = document.getElementById('btn-sync-sheets');
         if (btn) { btn.disabled = true; btn.textContent = 'กำลังดึงข้อมูลจาก Google Sheet…'; }
