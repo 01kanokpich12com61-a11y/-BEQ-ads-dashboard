@@ -1726,18 +1726,18 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
 
     return `<section class="card panel">
       <h3>🏢 จัดการเพจและบัญชีโซเชียล (Facebook / LINE / WhatsApp)</h3>
-      <p class="sub">เพิ่มเพจ Facebook ได้หลายเพจ (เช่น เพจ 1, เพจ 2, เพจ 3) เพื่อแยกดูยอดโฆษณา แชท และลูกค้าของแต่ละเพจได้อิสระ</p>
+      <p class="sub">✨ <b>ระบบดึงอัตโนมัติ:</b> เมื่อเชื่อมต่อ Webhook แล้ว หากมีลูกค้าทักเข้ามาในเพจใด เพจและ Page ID จะถูกบันทึกเข้าระบบให้โดยอัตโนมัติทันที ไม่จำเป็นต้องกรอกเองล่วงหน้า</p>
       <div class="tscroll" style="margin:14px 0">
         <table style="min-width:540px">
           <thead><tr><th>ชื่อเพจ</th><th>แพลตฟอร์ม</th><th>Page ID (แชท)</th><th>Meta Ad Account ID (โฆษณา)</th><th class="nosort">จัดการ</th></tr></thead>
-          <tbody>${rows || '<tr><td colspan="4" class="empty">ยังไม่มีเพจในระบบ</td></tr>'}</tbody>
+          <tbody>${rows || '<tr><td colspan="5" class="empty">ยังไม่มีเพจในระบบ (จะปรากฏอัตโนมัติเมื่อมีลูกค้าทักเข้ามาผ่าน Webhook)</td></tr>'}</tbody>
         </table>
       </div>
       <form class="form" data-form="pages-add" style="margin-top:16px;background:#f9f8f4;padding:16px;border-radius:12px;border:1px solid var(--line-soft)">
-        <h4 style="margin:0 0 10px">➕ เพิ่มหรืออัปเดตเพจ</h4>
+        <h4 style="margin:0 0 10px">➕ เพิ่มหรือแก้ไขเพจด้วยตนเอง (ไม่บังคับ)</h4>
         <div style="display:grid;grid-template-columns:1fr 1fr 1fr 130px;gap:12px">
-          <div class="field" style="margin:0"><label>ชื่อเพจ (เช่น เพจรักเพื่อน)</label><input type="text" name="name" placeholder="ชื่อเพจ..." required></div>
-          <div class="field" style="margin:0"><label>Facebook Page ID (แชท)</label><input type="text" name="id" placeholder="เช่น 1018075398296404" required></div>
+          <div class="field" style="margin:0"><label>ชื่อเพจ</label><input type="text" name="name" placeholder="ชื่อเพจ..." required></div>
+          <div class="field" style="margin:0"><label>Page ID</label><input type="text" name="id" placeholder="เว้นว่างได้ หรือใส่ ID"></div>
           <div class="field" style="margin:0"><label>Meta Ad Account ID (โฆษณา)</label><input type="text" name="adAccountId" placeholder="เช่น act_12345 หรือตัวเลข"></div>
           <div class="field" style="margin:0"><label>แพลตฟอร์ม</label>
             <div class="sel" style="width:100%"><select name="platform" style="width:100%">
@@ -1747,7 +1747,7 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
             </select></div>
           </div>
         </div>
-        <p class="rv-hint" style="margin:8px 0 0">💡 ผูก 1 เพจ = 1 Page ID (แชท) + 1 Ad Account (โฆษณา) เมื่อเลือกเพจนี้ที่แถบเมนูด้านบน ยอดเงินและแชทจะแสดงเฉพาะของเพจนี้โดยตรง</p>
+        <p class="rv-hint" style="margin:8px 0 0">💡 หากทักผ่าน Webhook เพจจะเข้ามาเองอัตโนมัติ ช่องฟอร์มนี้มีไว้เพื่อกำหนดชื่อเพจหรือใส่ Ad Account ID เพิ่มเติมเท่านั้น</p>
         <div class="row-actions" style="margin-top:12px">
           <button class="btn primary" type="submit">บันทึกเพจ</button>
         </div>

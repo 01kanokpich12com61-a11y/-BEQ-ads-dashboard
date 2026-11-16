@@ -122,25 +122,29 @@ async function handleWebhook(body) {
       const psid = String(echo ? ev.recipient.id : ev.sender.id);
       const ref = msg.referral || ev.referral || {};
 
-      // ตรวจสอบและลงทะเบียน Page พร้อมผูกชื่อเพจ (เช่น เพจรักเพื่อน)
+      // ตรวจสอบและลงทะเบียน Page อัตโนมัติจาก Webhook
+      // — ถ้ายังไม่รู้จัก pageId นี้ จะดึงชื่อจาก Graph API แล้วบันทึกลง pages.json ทันที
       let pages = store.read('pages.json', []);
       let matchedPage = pages.find((p) => p.id === pageId);
       let pageName = matchedPage ? matchedPage.name : '';
 
       if (!matchedPage) {
+        // พยายามดึงชื่อเพจจริงจาก Graph API (ต้องมี accessToken)
         const pageInfo = await meta.fetchPageInfo(pageId).catch(() => null);
         if (pageInfo && pageInfo.name) pageName = pageInfo.name;
 
+        // ตรวจว่ามีเพจ placeholder (id ขึ้นต้น P-) ที่ยังไม่มี real pageId หรือไม่
         const fbPages = pages.filter((p) => (!p.platform || p.platform === 'Facebook'));
-        const rakPhuean = fbPages.find((p) => p.name.includes('รักเพื่อน') || p.id.includes('RakPhuean'));
-        const targetFb = rakPhuean || (fbPages.length === 1 ? fbPages[0] : null);
-        if (targetFb && targetFb.id.startsWith('P-')) {
-          targetFb.id = pageId;
-          if (pageName && !targetFb.name) targetFb.name = pageName;
-          else if (!pageName) pageName = targetFb.name;
+        const placeholder = fbPages.find((p) => p.id.startsWith('P-'));
+        if (placeholder) {
+          // อัปเดต placeholder ให้ใช้ pageId จริง
+          placeholder.id = pageId;
+          if (pageName) placeholder.name = pageName;
+          else pageName = placeholder.name;
           store.write('pages.json', pages);
         } else {
-          recordPage(pageId, pageName || 'Facebook เพจหลัก', 'Facebook');
+          // บันทึกเพจใหม่ลง pages.json อัตโนมัติ
+          recordPage(pageId, pageName || `Facebook Page ${pageId}`, 'Facebook');
         }
       }
 
@@ -181,8 +185,7 @@ function syncLegacyData() {
   try {
     const pages = store.read('pages.json', []);
     const fbPages = pages.filter((p) => (!p.platform || p.platform === 'Facebook'));
-    const rakPhuean = fbPages.find((p) => p.name.includes('รักเพื่อน') || p.id.includes('RakPhuean'));
-    const singleFbPage = rakPhuean || (fbPages.length === 1 ? fbPages[0] : null);
+    const singleFbPage = fbPages.length === 1 ? fbPages[0] : null;
 
     const leads = store.read('leads.json', []);
     let changed = false;
@@ -194,7 +197,7 @@ function syncLegacyData() {
         else l.platform = 'Facebook';
         changed = true;
       }
-      if ((!l.pageName || l.pageName.includes('เพจหลัก')) && singleFbPage && l.platform === 'Facebook') {
+      if (!l.pageName && singleFbPage && l.platform === 'Facebook') {
         l.pageName = singleFbPage.name;
         changed = true;
       }
@@ -213,14 +216,16 @@ function recordPage(pageId, pageName, platform = 'Facebook') {
   const pages = store.read('pages.json', []);
   const name = clean(pageName, 80) || clean(pageId, 80);
   const id = clean(pageId, 50) || `PAGE-${name.replace(/[^a-zA-Z0-9ก-๙]/g, '_')}`;
-  const idx = pages.findIndex((p) => p.id === id || p.name === name);
+  const idx = pages.findIndex((p) => p.id === id);
   if (idx >= 0) {
     if (platform && (!pages[idx].platform || pages[idx].platform === 'Facebook')) {
       pages[idx].platform = platform;
     }
-    if (name && !pages[idx].name) pages[idx].name = name;
+    if (name && (!pages[idx].name || pages[idx].name.startsWith('Facebook Page ') || pages[idx].name === id)) {
+      pages[idx].name = name;
+    }
   } else {
-    pages.push({ id, name, platform: platform || 'Facebook' });
+    pages.push({ id, name, platform: platform || 'Facebook', color: '#1877f2' });
   }
   store.write('pages.json', pages);
 }
