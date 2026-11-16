@@ -20,7 +20,7 @@
     upload: { data: null, err: null, loading: false, rows: [], result: null, tab: 'leads', detectedType: 'leads', summary: null },
     quality: { data: null, err: null, loading: false, campaign: '', minQuality: '', sort: 'leads', sortDir: 'desc' },
   };
-  const PAGE_SIZE = 8;
+  const PAGE_SIZE = 25;
   const INBOX_PAGE = 15;
   // ความคืบหน้าของแชท เรียงตามคอลัมน์ใน Board ตามลำดับที่ผู้ใช้กำหนด (12 คอลัมน์)
   const STATUS_ORDER = [
