@@ -55,7 +55,7 @@ function readJson(req, maxBytes = 5_000_000) {
   });
 }
 
-const clean = (v, max = 400) => String(v ?? '').trim().slice(0, max);
+const clean = (v, max = 5000) => String(v ?? '').trim().slice(0, max);
 
 function clientIp(req) {
   if (config.trustProxy) {
@@ -1324,8 +1324,12 @@ async function api(req, res, url, session) {
       apiVersion: /^v\d+\.\d+$/.test(clean(b.apiVersion, 10)) ? clean(b.apiVersion, 10) : config.metaApiVersion,
     };
     // ค่าลับจะถูกเขียนทับเฉพาะเมื่อกรอกค่าใหม่เท่านั้น
-    if (clean(b.appSecret, 200)) next.appSecret = clean(b.appSecret, 200);
-    if (clean(b.accessToken, 1000)) next.accessToken = clean(b.accessToken, 1000);
+    if (clean(b.appSecret, 1000)) next.appSecret = clean(b.appSecret, 1000);
+    if (clean(b.accessToken, 4000)) {
+      next.accessToken = clean(b.accessToken, 4000);
+    } else if (cur.accessToken) {
+      next.accessToken = cur.accessToken;
+    }
     if (next.accessToken && next.accessToken !== cur.accessToken) { next.connectedAt = null; next.accountName = ''; }
     meta.saveSettings({ clinicName: clean(b.clinicName, 80) || undefined, meta: next });
     meta.clearCache();
@@ -1338,7 +1342,8 @@ async function api(req, res, url, session) {
     const m = meta.getSettings().meta || {};
     try {
       const info = await meta.testConnection(m);
-      meta.saveSettings({ meta: { accountName: info.name, currency: info.currency, connectedAt: new Date().toISOString() } });
+      // เมื่อทดสอบสำเร็จ บันทึกสถานะเชื่อมต่อ และสลับ mode เป็น 'meta' ให้อัตโนมัติทันที
+      meta.saveSettings({ mode: 'meta', meta: { accountName: info.name, currency: info.currency, connectedAt: new Date().toISOString() } });
       audit.log(session.user.username, 'meta_test', `สำเร็จ: ${info.name}`, clientIp(req));
       return send(res, 200, { ok: true, account: info, settings: publicSettings() });
     } catch (e) {
