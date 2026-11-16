@@ -1542,7 +1542,8 @@ const server = http.createServer(async (req, res) => {
   } catch (e) {
     const status = e.status || 500;
     if (status === 500) console.error(e);
-    send(res, status, { error: status === 500 ? 'เกิดข้อผิดพลาดภายในระบบ' : e.message });
+    const errMsg = e && e.message ? e.message : 'เกิดข้อผิดพลาดภายในระบบ';
+    send(res, status, { error: errMsg });
   }
 });
 
