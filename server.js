@@ -1,4 +1,29 @@
 'use strict';
+function detectFbConvStatus(c) {
+  // 1. ตรวจสอบจาก tags หรือ custom_labels ของ Facebook Leads Centre / Inbox
+  const labels = [];
+  if (c.custom_labels && Array.isArray(c.custom_labels.data)) {
+    for (const l of c.custom_labels.data) if (l.name) labels.push(l.name);
+  }
+  if (c.tags && Array.isArray(c.tags.data)) {
+    for (const t of c.tags.data) if (t.name) labels.push(t.name);
+  }
+  const labelStr = labels.join(' ');
+  const statusFromLabel = ops.normalizeStatus('', labelStr);
+  if (statusFromLabel && statusFromLabel !== 'talked') return statusFromLabel;
+
+  // 2. ถ้าไม่มี label แยกตามการตอบกลับ: ลูกค้าทักมาแต่แอดมินยังไม่ตอบ = ไม่ตอบ (no_reply)
+  const msgList = (c.messages && c.messages.data) || [];
+  if (msgList.length > 0) {
+    const parts = (c.participants && c.participants.data) || [];
+    const custId = parts[0] ? String(parts[0].id) : '';
+    const hasStaffReply = msgList.some((m) => m.from && String(m.from.id) !== custId);
+    if (!hasStaffReply) return 'no_reply';
+  }
+
+  return statusFromLabel || 'talked';
+}
+
 const http = require('node:http');
 const https = require('node:https');
 const fs = require('node:fs');
@@ -1158,6 +1183,11 @@ async function api(req, res, url, session) {
           const convDate = new Date(c.updated_time).toISOString().slice(0, 10);
           if (convDate) lead.date = convDate;
         }
+        const detectedStatus1 = detectFbConvStatus(c);
+        if (detectedStatus1) {
+          lead.status = detectedStatus1;
+          lead.quality = ops.QUALITY[detectedStatus1] || lead.quality;
+        }
 
         const msgList = (c.messages && c.messages.data) || [];
         for (const m of msgList) {
@@ -1295,6 +1325,11 @@ async function api(req, res, url, session) {
           if (c.updated_time) {
             const convDate = new Date(c.updated_time).toISOString().slice(0, 10);
             if (convDate) lead.date = convDate;
+          }
+          const detectedStatus2 = detectFbConvStatus(c);
+          if (detectedStatus2) {
+            lead.status = detectedStatus2;
+            lead.quality = ops.QUALITY[detectedStatus2] || lead.quality;
           }
 
           const msgList = (c.messages && c.messages.data) || [];
