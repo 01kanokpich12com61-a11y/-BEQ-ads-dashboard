@@ -1728,39 +1728,20 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
     return `<section class="card panel">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
         <div>
-          <h3 style="margin:0">🏢 รายการเพจและช่องทางโซเชียล</h3>
-          <p class="sub" style="margin:4px 0 0">กด <b>"ดึงเพจจาก Meta"</b> ด้านบน เพื่อโหลด 3 เพจของคุณเข้ามาอัตโนมัติ หรือจัดการด้านล่างได้ทันที</p>
+          <h3 style="margin:0">🏢 ตารางเพจและช่องทางในระบบ</h3>
+          <p class="sub" style="margin:4px 0 0">กด <b>"✏️ แก้ไข"</b> ที่เพจใดเพื่อโหลดขึ้นไปแก้ไขในกล่องด้านบน หรือกด <b>"ลบ"</b> ได้ทันที</p>
         </div>
         <div style="display:flex;gap:8px">
           <button class="btn primary" type="button" data-act="meta-discover" style="font-size:13px">🔄 ดึงเพจทั้งหมดจาก Token</button>
           <button class="btn" type="button" data-act="fb-import-all" style="font-size:13px">📥 ดึงแชทย้อนหลังทุกเพจ</button>
         </div>
       </div>
-      <div class="tscroll" style="margin:14px 0">
+      <div class="tscroll" style="margin:14px 0 0">
         <table style="min-width:540px">
           <thead><tr><th>ชื่อเพจ</th><th>แพลตฟอร์ม</th><th>Page ID (แชท)</th><th>Meta Ad Account ID (โฆษณา)</th><th class="nosort">จัดการ</th></tr></thead>
-          <tbody>${rows || '<tr><td colspan="5" class="empty">ยังไม่มีเพจในระบบ (กดปุ่ม "ดึงเพจทั้งหมดจาก Token" ด้านบนได้เลย)</td></tr>'}</tbody>
+          <tbody>${rows || '<tr><td colspan="5" class="empty">ยังไม่มีเพจในระบบ (กดปุ่ม "ดึงเพจทั้งหมดจาก Token" เพื่อนำเข้าอัตโนมัติ)</td></tr>'}</tbody>
         </table>
       </div>
-      <form class="form" id="page-edit-form" data-form="pages-add" style="margin-top:16px;background:#f9f8f4;padding:16px;border-radius:12px;border:1px solid var(--line-soft)">
-        <h4 id="page-edit-heading" style="margin:0 0 10px">➕ เพิ่มหรือแก้ไขข้อมูลเพจ</h4>
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr 140px;gap:12px">
-          <div class="field" style="margin:0"><label>ชื่อเพจ (แก้ไขได้ตามต้องการ)</label><input type="text" id="p-name" name="name" placeholder="ชื่อเพจ..." required></div>
-          <div class="field" style="margin:0"><label>Page ID</label><input type="text" id="p-id" name="id" placeholder="รหัสเพจ เช่น 1018075398296404" required></div>
-          <div class="field" style="margin:0"><label>Meta Ad Account ID (โฆษณา)</label><input type="text" id="p-adAccountId" name="adAccountId" placeholder="เช่น act_12345 หรือตัวเลข"></div>
-          <div class="field" style="margin:0"><label>แพลตฟอร์ม</label>
-            <div class="sel" style="width:100%"><select id="p-platform" name="platform" style="width:100%">
-              <option value="Facebook">Facebook</option>
-              <option value="LINE">LINE</option>
-              <option value="WhatsApp">WhatsApp</option>
-            </select></div>
-          </div>
-        </div>
-        <div class="row-actions" style="margin-top:12px;display:flex;gap:8px">
-          <button class="btn primary" type="submit" id="p-submit-btn">บันทึกข้อมูลเพจ</button>
-          <button class="btn" type="button" id="p-cancel-btn" style="display:none" onclick="document.getElementById('page-edit-form').reset();document.getElementById('page-edit-heading').textContent='➕ เพิ่มหรือแก้ไขข้อมูลเพจ';this.style.display='none';">ยกเลิก</button>
-        </div>
-      </form>
     </section>`;
   }
 
@@ -1799,7 +1780,7 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
     const box = document.getElementById('setting-body'); const s = S.settings; if (!box || !s) return;
     const m = s.meta; const connected = Boolean(m.connectedAt);
     const verNum = parseInt(String(m.apiVersion || '').replace(/^v/, ''), 10);
-    box.innerHTML = `${flash()}${verNum && verNum < 25 ? `<div class="notice warn" style="margin-bottom:16px;max-width:900px">Graph API เวอร์ชัน <b>${esc(m.apiVersion)}</b> ค่อนข้างเก่า — Meta กำหนดอายุของ Marketing API สั้นกว่า Graph API ทั่วไป และเก่ากว่านี้อาจถูกอัปเกรดอัตโนมัติ แนะนำเปลี่ยนเป็น <b>v25.0</b> ขึ้นไป แล้วกด “บันทึกและทดสอบ”</div>` : ''}<div class="stack" style="max-width:900px">
+    box.innerHTML = `${flash()}${verNum && verNum < 25 ? `<div class="notice warn" style="margin-bottom:16px;max-width:900px">Graph API เวอร์ชัน <b>${esc(m.apiVersion)}</b> ค่อนข้างเก่า — Meta กำหนดอายุของ Marketing API สั้นกว่า Graph API ทั่วไป และเก่ากว่านี้อาจถูกอัปเกรดอัตโนมัติ แนะนำเปลี่ยนเป็น <b>v25.0</b> ขึ้นไป แล้วกด “บันทึกและทดสอบ”</div>` : ''}<div class="stack" style="max-width:1150px">
       <section class="card panel"><h3>แหล่งข้อมูล</h3>
         <p class="sub">ตอนนี้แสดงข้อมูล: <b>${s.mode === 'meta' ? 'Meta API (ข้อมูลสดจาก Meta)' : s.mode === 'demo' ? 'Demo (ข้อมูลตัวอย่าง)' : 'ข้อมูลจริง (ว่างพร้อมรับข้อมูลใหม่และนำเข้า)'}</b>${connected ? ` · เชื่อมกับบัญชี <b>${esc(m.accountName)}</b>${m.currency ? ' (' + esc(m.currency) + ')' : ''}` : ''}</p>
         <div class="row-actions">
@@ -1807,41 +1788,65 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
           <button class="btn ${s.mode === 'demo' ? 'primary' : ''}" data-act="mode" data-mode="demo">ใช้ข้อมูลเดโม</button>
           <button class="btn ${s.mode === 'meta' ? 'primary' : ''}" data-act="mode" data-mode="meta" ${connected ? '' : 'disabled'}>ใช้ข้อมูล Meta API</button></div></section>
 
-      <section class="card panel">
-        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
-          <div>
-            <h3 style="margin:0">🔗 เชื่อมต่อ Meta (Marketing & Messenger)</h3>
-            <p class="sub" style="margin:4px 0 0">วาง Access Token ตัวเดียวที่มีสิทธิ์ดูแลทั้ง 3 เพจ แล้วกด <b>"บันทึกและดึงเพจทันที"</b></p>
-          </div>
-          <div style="display:flex;gap:8px">
-            <button class="btn primary" type="button" data-act="meta-discover" style="font-size:13px">🔄 ดึง 3 เพจจาก Token อัตโนมัติ</button>
-          </div>
-        </div>
-        <form class="form" data-form="meta" autocomplete="off" style="margin-top:16px">
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
-            <div class="field"><label>ชื่อคลินิก / องค์กร</label><input type="text" name="clinicName" value="${esc(s.clinicName)}" placeholder="เช่น BEQ GROUP" maxlength="80"></div>
-            <div class="field"><label>Meta Ad Account ID หลัก</label><input type="text" name="adAccountId" value="${esc(m.adAccountId)}" placeholder="เช่น 1234567890 หรือ act_1234567890" inputmode="numeric"><small>ดูได้ที่ Ads Manager (ตัวเลขหลัง act_) หรือเว้นไว้แยกตามเพจได้</small></div>
-          </div>
-          <div class="field"><label>Access Token (โทเคนที่คุมทั้ง 3 เพจ) ${m.hasToken ? `<span class="chip good" style="margin-left:6px">บันทึกแล้ว ${esc(m.tokenHint)}</span>` : ''}</label>
-            <input type="password" name="accessToken" placeholder="${m.hasToken ? 'เว้นว่างไว้ถ้าไม่ต้องการเปลี่ยน' : 'วาง System User Token ที่นี่'}" autocomplete="new-password">
-            <small>✅ แนะนำ System User Token ที่มีสิทธิ์ <code>pages_show_list</code>, <code>pages_messaging</code>, <code>ads_read</code>, <code>read_insights</code></small>
-          </div>
-          <details style="margin:12px 0;background:#f9f8f4;padding:12px 16px;border-radius:10px;border:1px solid var(--line-soft)">
-            <summary style="cursor:pointer;font-weight:600;color:var(--text-soft)">⚙️ ตัวเลือกขั้นสูง (App ID / App Secret / API Version)</summary>
-            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-top:12px">
-              <div class="field" style="margin:0"><label>App ID (ไม่บังคับ)</label><input type="text" name="appId" value="${esc(m.appId)}" placeholder="App ID"></div>
-              <div class="field" style="margin:0"><label>App Secret (ไม่บังคับ)</label><input type="password" name="appSecret" placeholder="${m.hasSecret ? 'บันทึกแล้ว' : 'App Secret'}" autocomplete="new-password"></div>
-              <div class="field" style="margin:0"><label>API Version</label><input type="text" name="apiVersion" value="${esc(m.apiVersion)}" placeholder="v21.0"></div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(380px, 1fr));gap:16px;align-items:start">
+        <!-- กล่อง 1: เชื่อมต่อ Meta -->
+        <section class="card panel" style="margin:0;height:100%">
+          <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+            <div>
+              <h3 style="margin:0">🔗 เชื่อมต่อ Meta API</h3>
+              <p class="sub" style="margin:4px 0 0">วาง Token ดูแลทั้ง 3 เพจ แล้วกดบันทึกหรือดึงเพจ</p>
             </div>
-          </details>
-          <div class="row-actions" style="margin-top:14px">
-            <button class="btn primary" type="submit" data-after="test">บันทึกและทดสอบการเชื่อมต่อ</button>
-            <button class="btn" type="submit" data-after="save">บันทึกข้อมูล</button>
-            <button class="btn" type="button" data-act="extend" ${m.hasToken && m.hasSecret && m.appId ? '' : 'disabled'}>แลกเป็น token อายุยาว</button>
-            <button class="btn danger" type="button" data-act="disconnect">ตัดการเชื่อมต่อ</button>
+            <button class="btn primary" type="button" data-act="meta-discover" style="font-size:12px;padding:6px 12px">🔄 ดึง 3 เพจทันที</button>
           </div>
-        </form>
-      </section>
+          <form class="form" data-form="meta" autocomplete="off" style="margin-top:14px">
+            <div class="field"><label>ชื่อคลินิก / องค์กร</label><input type="text" name="clinicName" value="${esc(s.clinicName)}" placeholder="เช่น BEQ GROUP" maxlength="80"></div>
+            <div class="field"><label>Meta Ad Account ID หลัก</label><input type="text" name="adAccountId" value="${esc(m.adAccountId)}" placeholder="เช่น 1234567890 หรือ act_1234567890" inputmode="numeric"><small>ดูได้ที่ Ads Manager (ตัวเลขหลัง act_)</small></div>
+            <div class="field"><label>Access Token ${m.hasToken ? `<span class="chip good" style="margin-left:6px">บันทึกแล้ว ${esc(m.tokenHint)}</span>` : ''}</label>
+              <input type="password" name="accessToken" placeholder="${m.hasToken ? 'เว้นว่างไว้ถ้าไม่ต้องการเปลี่ยน' : 'วาง System User Token ที่นี่'}" autocomplete="new-password">
+              <small>สิทธิ์: <code>pages_show_list</code>, <code>pages_messaging</code>, <code>ads_read</code></small>
+            </div>
+            <details style="margin:10px 0;background:#f9f8f4;padding:10px 14px;border-radius:8px;border:1px solid var(--line-soft)">
+              <summary style="cursor:pointer;font-weight:600;font-size:13px;color:var(--text-soft)">⚙️ ตัวเลือกขั้นสูง (App ID / Secret)</summary>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px">
+                <div class="field" style="margin:0"><label>App ID</label><input type="text" name="appId" value="${esc(m.appId)}" placeholder="App ID"></div>
+                <div class="field" style="margin:0"><label>App Secret</label><input type="password" name="appSecret" placeholder="${m.hasSecret ? 'บันทึกแล้ว' : 'App Secret'}" autocomplete="new-password"></div>
+              </div>
+              <div class="field" style="margin:10px 0 0"><label>API Version</label><input type="text" name="apiVersion" value="${esc(m.apiVersion)}" placeholder="v21.0"></div>
+            </details>
+            <div class="row-actions" style="margin-top:14px">
+              <button class="btn primary" type="submit" data-after="test">บันทึก & ทดสอบ</button>
+              <button class="btn" type="submit" data-after="save">บันทึก</button>
+              <button class="btn danger" type="button" data-act="disconnect">ตัดการเชื่อมต่อ</button>
+            </div>
+          </form>
+        </section>
+
+        <!-- กล่อง 2: เพิ่มหรือแก้ไขข้อมูลเพจ (อยู่เคียงข้างกัน) -->
+        <section class="card panel" style="margin:0;height:100%;background:#fbfaf6;border:1px solid var(--line)">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <h3 id="page-edit-heading" style="margin:0">➕ เพิ่มหรือแก้ไขข้อมูลเพจ</h3>
+            <button class="btn" type="button" id="p-cancel-btn" style="display:none;font-size:12px;padding:4px 8px" onclick="document.getElementById('page-edit-form').reset();document.getElementById('page-edit-heading').textContent='➕ เพิ่มหรือแก้ไขข้อมูลเพจ';this.style.display='none';">ล้างฟอร์ม</button>
+          </div>
+          <p class="sub" style="margin:4px 0 14px">ตั้งชื่อเล่นเพจ, แก้ไข Page ID, ผูก Ad Account หรือเปลี่ยนแพลตฟอร์ม</p>
+          <form class="form" id="page-edit-form" data-form="pages-add" autocomplete="off">
+            <div class="field"><label>ชื่อเพจ (เช่น เพจปลูกผมหลัก, สาขา 2)</label><input type="text" id="p-name" name="name" placeholder="ชื่อเพจที่ต้องการแสดง..." required></div>
+            <div style="display:grid;grid-template-columns:1.2fr 1fr;gap:10px">
+              <div class="field"><label>Page ID (แชท)</label><input type="text" id="p-id" name="id" placeholder="เช่น 1018075398296404" required></div>
+              <div class="field"><label>แพลตฟอร์ม</label>
+                <div class="sel" style="width:100%"><select id="p-platform" name="platform" style="width:100%">
+                  <option value="Facebook">🔵 Facebook</option>
+                  <option value="LINE">📱 LINE</option>
+                  <option value="WhatsApp">💚 WhatsApp</option>
+                </select></div>
+              </div>
+            </div>
+            <div class="field"><label>Meta Ad Account ID สำหรับเพจนี้ (ไม่บังคับ)</label><input type="text" id="p-adAccountId" name="adAccountId" placeholder="เช่น act_12345 หรือตัวเลข"><small>หากไม่ใส่ จะใช้ Ad Account หลักจากกล่องซ้ายมือ</small></div>
+            <div class="row-actions" style="margin-top:16px">
+              <button class="btn primary" type="submit" id="p-submit-btn" style="width:100%;justify-content:center">💾 บันทึกข้อมูลเพจ</button>
+            </div>
+          </form>
+        </section>
+      </div>
 
       <section class="card panel"><h3>Webhook รับข้อความ Messenger</h3>
         <p class="sub">ให้ Meta ส่งข้อความลูกค้าเข้ามาที่ระบบนี้ (และใช้ตอบกลับจากหน้า Inbox ได้) — ต้องเป็น URL แบบ HTTPS ที่ Meta เรียกถึงได้</p>
