@@ -1152,7 +1152,8 @@ async function api(req, res, url, session) {
     const pageName = matched ? matched.name : ('เพจ ' + pageId);
 
     try {
-      const convs = await meta.fetchFbConversations(pageId, Number(b.limit) || 50);
+      const plat = (matched && matched.platform) || 'Facebook';
+    const convs = await meta.fetchFbConversations(pageId, Number(b.limit) || 50, plat);
       let leads = store.read('leads.json', []);
       let messages = store.read('messages.json', {});
       let importedLeads = 0;
@@ -1171,7 +1172,8 @@ async function api(req, res, url, session) {
             psid,
             pageId,
             name: custName,
-            platform: 'Facebook',
+            platform: plat,
+          channel: plat === 'Instagram' ? 'Instagram' : 'Messenger',
             pageName,
             channel: 'Messenger',
           });
@@ -1291,8 +1293,8 @@ async function api(req, res, url, session) {
     const b = await readJson(req).catch(() => ({}));
     const limit = Number(b.limit) || 30;
     const pages = store.read('pages.json', []);
-    const fbPages = pages.filter((p) => (!p.platform || p.platform === 'Facebook') && !p.id.startsWith('P-'));
-    if (!fbPages.length) return send(res, 400, { error: 'ไม่พบเพจ Facebook ในระบบ กรุณากดดึงเพจจาก Meta ก่อน' });
+    const targetPages = pages.filter((p) => (!p.platform || p.platform === 'Facebook' || p.platform === 'Instagram') && !p.id.startsWith('P-'));
+    if (!targetPages.length) return send(res, 400, { error: 'ไม่พบเพจ Facebook หรือ Instagram ในระบบ กรุณากดดึงเพจจาก Meta ก่อน' });
 
     let leads = store.read('leads.json', []);
     let messages = store.read('messages.json', {});
@@ -1300,9 +1302,10 @@ async function api(req, res, url, session) {
     let totalImportedMsgs = 0;
     const results = [];
 
-    for (const page of fbPages) {
+    for (const page of targetPages) {
+      const pPlat = page.platform || 'Facebook';
       try {
-        const convs = await meta.fetchFbConversations(page.id, limit);
+        const convs = await meta.fetchFbConversations(page.id, limit, pPlat);
         let pLeads = 0;
         let pMsgs = 0;
         for (const c of convs) {
@@ -1318,9 +1321,9 @@ async function api(req, res, url, session) {
               psid,
               pageId: page.id,
               name: custName,
-              platform: 'Facebook',
+              platform: pPlat,
               pageName: page.name,
-              channel: 'Messenger',
+              channel: pPlat === 'Instagram' ? 'Instagram' : 'Messenger',
             });
             lead = res.lead;
             leads.push(lead);
