@@ -1069,6 +1069,21 @@ async function api(req, res, url, session) {
     let pages = store.read('pages.json', []);
     pages = pages.filter((p) => p.id !== id && String(p.id) !== String(id));
     store.write('pages.json', pages);
+
+    // ปลด pageId ออกจาก leads ที่เคยผูกกับเพจนี้ เพื่อไม่ให้ providers.js auto-inject เพจนี้กลับเข้ามา
+    try {
+      let leads = store.read('leads.json', []);
+      let leadsChanged = false;
+      for (const l of leads) {
+        if (l.pageId === id || String(l.pageId) === String(id)) {
+          l.pageId = '';
+          l.pageName = '';
+          leadsChanged = true;
+        }
+      }
+      if (leadsChanged) store.write('leads.json', leads);
+    } catch (_) {}
+
     meta.clearCache();
     audit.log(session.user.username, 'page_delete', `ลบเพจ ID: ${id}`, clientIp(req));
     return send(res, 200, { ok: true, pages });
