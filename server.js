@@ -1167,18 +1167,22 @@ async function api(req, res, url, session) {
 
         let lead = leads.find((l) => l.psid === psid && (!l.pageId || l.pageId === pageId));
         if (!lead) {
-          lead = ops.findOrCreateLead({
+          const res = ops.findOrCreateLead({
             psid,
             pageId,
             name: custName,
             platform: 'Facebook',
             pageName,
             channel: 'Messenger',
-          }).lead;
+          });
+          lead = res.lead;
+          leads.push(lead);
           importedLeads++;
         } else if (!lead.name || lead.name.includes('ลูกค้า')) {
           lead.name = custName;
         }
+        lead.pageId = pageId;
+        lead.pageName = pageName;
         if (c.updated_time) {
           const convDate = new Date(c.updated_time).toISOString().slice(0, 10);
           if (convDate) lead.date = convDate;
@@ -1310,18 +1314,22 @@ async function api(req, res, url, session) {
 
           let lead = leads.find((l) => l.psid === psid && (!l.pageId || l.pageId === page.id));
           if (!lead) {
-            lead = ops.findOrCreateLead({
+            const res = ops.findOrCreateLead({
               psid,
               pageId: page.id,
               name: custName,
               platform: 'Facebook',
               pageName: page.name,
               channel: 'Messenger',
-            }).lead;
+            });
+            lead = res.lead;
+            leads.push(lead);
             pLeads++;
           } else if (!lead.name || lead.name.includes('ลูกค้า')) {
             lead.name = custName;
           }
+          lead.pageId = page.id;
+          lead.pageName = page.name;
           if (c.updated_time) {
             const convDate = new Date(c.updated_time).toISOString().slice(0, 10);
             if (convDate) lead.date = convDate;
