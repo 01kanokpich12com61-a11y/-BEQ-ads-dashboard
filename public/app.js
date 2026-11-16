@@ -1711,7 +1711,7 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
     const pages = (S.filters && S.filters.pages) || [];
     const rows = pages.map((p) => {
       const colorDot = `<span class="page-dot" style="background:${p.color || '#1877f2'};margin-right:6px"></span>`;
-      const platformIcon = p.platform === 'LINE' ? '📱' : p.platform === 'WhatsApp' ? '💚' : '🔵';
+      const platformIcon = p.platform === 'LINE' ? '📱' : p.platform === 'WhatsApp' ? '💚' : p.platform === 'Instagram' ? '📸' : '🔵';
       return `<tr>
         <td><b>${colorDot}${esc(p.name)}</b></td>
         <td><span class="chip" style="font-size:12px">${platformIcon} ${esc(p.platform || 'Facebook')}</span></td>
@@ -1835,8 +1835,9 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
               <div class="field"><label>แพลตฟอร์ม</label>
                 <div class="sel" style="width:100%"><select id="p-platform" name="platform" style="width:100%">
                   <option value="Facebook">🔵 Facebook</option>
-                  <option value="LINE">📱 LINE</option>
+                  <option value="Instagram">📸 Instagram</option>
                   <option value="WhatsApp">💚 WhatsApp</option>
+                  <option value="LINE">📱 LINE</option>
                 </select></div>
               </div>
             </div>
@@ -1848,15 +1849,15 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
         </section>
       </div>
 
-      <section class="card panel"><h3>Webhook รับข้อความ Messenger</h3>
-        <p class="sub">ให้ Meta ส่งข้อความลูกค้าเข้ามาที่ระบบนี้ (และใช้ตอบกลับจากหน้า Inbox ได้) — ต้องเป็น URL แบบ HTTPS ที่ Meta เรียกถึงได้</p>
+      <section class="card panel"><h3>Webhook รับข้อความ Facebook Messenger & Instagram Direct</h3>
+        <p class="sub">ให้ Meta ส่งข้อความลูกค้าทั้งจาก Facebook และ Instagram เข้ามาที่ระบบนี้อัตโนมัติ (URL เดียวกัน)</p>
         <div class="form">
           <div class="field"><label>Callback URL</label><input type="text" readonly value="${esc(location.origin + s.webhook.path)}" onclick="this.select()"><small>ถ้ายังรันบนเครื่องตัวเอง ให้ใช้ tunnel เช่น Cloudflare Tunnel / ngrok แล้วใช้ URL ที่ได้ + <code>/webhook</code></small></div>
           <div class="field"><label>Verify Token</label><input type="text" readonly value="${esc(s.webhook.verifyToken)}" onclick="this.select()"><small>นำไปกรอกช่อง Verify token ตอนตั้ง Webhook ที่ Meta</small></div>
           <div class="field"><label>สถานะ App Secret</label><div>${s.webhook.hasSecret ? '<span class="chip good">บันทึกแล้ว — ตรวจลายเซ็น Webhook ได้</span>' : '<span class="chip">ยังไม่ได้บันทึก — ระบบจะปฏิเสธทุกข้อความจากเพจจนกว่าจะกรอก App Secret ด้านบน</span>'}</div></div></div>
-        <ol class="steps"><li>ที่ Meta App → Messenger → Webhooks กรอก Callback URL และ Verify Token ด้านบน</li>
-          <li>Subscribe ฟิลด์ <code>messages</code>, <code>message_echoes</code>, <code>messaging_referrals</code></li>
-          <li>ผูกเพจเข้ากับ Webhook (Add subscriptions) และให้ System User มีสิทธิ์ <code>pages_messaging</code> ในเพจนั้น</li></ol></section>
+        <ol class="steps"><li>ที่ Meta App → Messenger (หรือ Instagram Graph API) → Webhooks กรอก Callback URL และ Verify Token ด้านบน</li>
+          <li>Subscribe ฟิลด์ <code>messages</code>, <code>message_echoes</code>, <code>messaging_referrals</code> (สำหรับ Facebook) และ <code>messages</code> (สำหรับ Instagram)</li>
+          <li>ผูกเพจและบัญชี IG เข้ากับ Webhook (Add subscriptions) และให้สิทธิ์ <code>pages_messaging</code>, <code>instagram_basic</code>, <code>instagram_manage_messages</code></li></ol></section>
 
       <section class="card panel"><h3>เชื่อมต่อ LINE Official Account (Messaging API)</h3>
         <p class="sub">เชื่อมต่อกับ LINE Developers เพื่อดึงข้อความจากลูกค้า LINE OA เข้ามาในระบบ</p>

@@ -112,7 +112,8 @@ async function pushToSheets(lead, latestMsg) {
 
 // รับข้อความจาก Meta Webhook (Messenger) แล้วบันทึกเป็นแชท
 async function handleWebhook(body) {
-  if (body.object !== 'page') return;
+  if (body.object !== 'page' && body.object !== 'instagram') return;
+  const isInstagram = body.object === 'instagram';
   for (const entry of body.entry || []) {
     for (const ev of entry.messaging || []) {
       const msg = ev.message;
@@ -144,10 +145,12 @@ async function handleWebhook(body) {
           store.write('pages.json', pages);
         } else {
           // บันทึกเพจใหม่ลง pages.json อัตโนมัติ
-          recordPage(pageId, pageName || `Facebook Page ${pageId}`, 'Facebook');
+          const defaultPlatform = isInstagram ? 'Instagram' : 'Facebook';
+          recordPage(pageId, pageName || `${defaultPlatform} ${pageId}`, defaultPlatform);
         }
       }
 
+      const currentPlatform = isInstagram ? 'Instagram' : ((matchedPage && matchedPage.platform) || 'Facebook');
       let leads = store.read('leads.json', []);
       let lead = leads.find((l) => l.psid === psid && (!pageId || !l.pageId || l.pageId === pageId));
       if (!lead) {
@@ -157,13 +160,14 @@ async function handleWebhook(body) {
           pageId,
           name,
           adId: ref.ad_id ? String(ref.ad_id) : '',
-          platform: 'Facebook',
-          pageName: pageName || 'Facebook เพจหลัก',
+          platform: currentPlatform,
+          pageName: pageName || `${currentPlatform} หลัก`,
+          channel: currentPlatform === 'Instagram' ? 'Instagram' : 'Messenger',
         }).lead;
       } else {
         let changed = false;
         if (!lead.pageId || lead.pageId !== pageId) { lead.pageId = pageId; changed = true; }
-        if (!lead.platform) { lead.platform = 'Facebook'; changed = true; }
+        if (!lead.platform || lead.platform !== currentPlatform) { lead.platform = currentPlatform; changed = true; }
         if (!lead.pageName && pageName) { lead.pageName = pageName; changed = true; }
         if (changed) {
           const idx = leads.findIndex((x) => x.id === lead.id);
@@ -1191,6 +1195,29 @@ async function api(req, res, url, session) {
             ...(pageToken ? { pageToken } : {}),
           });
           added++;
+        }
+
+        // ตรวจสอบว่า Facebook เพจนี้เชื่อมกับ Instagram Business Account หรือไม่
+        if (fp.instagram_business_account && fp.instagram_business_account.id) {
+          const ig = fp.instagram_business_account;
+          const igId = String(ig.id);
+          const igName = clean(ig.username || ig.name || `IG - ${name}`, 120);
+          const igIdx = pages.findIndex((p) => p.id === igId || String(p.id) === igId);
+          if (igIdx >= 0) {
+            pages[igIdx].name = igName;
+            pages[igIdx].platform = 'Instagram';
+            if (pageToken) pages[igIdx].pageToken = pageToken;
+            updated++;
+          } else {
+            pages.push({
+              id: igId,
+              name: igName,
+              platform: 'Instagram',
+              color: '#e1306c',
+              ...(pageToken ? { pageToken } : {}),
+            });
+            added++;
+          }
         }
       }
       store.write('pages.json', pages);
