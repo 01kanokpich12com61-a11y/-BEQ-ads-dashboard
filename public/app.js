@@ -1621,20 +1621,16 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
     const d = s.data; const st = d.stats;
     const rows = d.rows.filter((r) => (!s.rep || r.repId === s.rep) && (!s.state || (s.state === 'done' ? r.reviewed : !r.reviewed)));
     box.innerHTML = `<div class="grid-4" style="margin-bottom:16px">
-        <div class="stat"><div class="k-label">แชททั้งหมดในช่วงนี้</div><div class="k-value">${num(st.total)}</div></div>
-        <div class="stat"><div class="k-label">ตรวจแล้ว</div><div class="k-value">${num(st.reviewed)}</div></div>
-        <div class="stat"><div class="k-label">รอตรวจ</div><div class="k-value">${num(st.pending)}</div></div>
-        <div class="stat"><div class="k-label">คะแนนเฉลี่ย</div><div class="k-value">${st.avgScore === null ? '—' : st.avgScore + '%'}</div></div></div>
+        <div class="stat"><div class="k-label">แชททั้งหมดในช่วงนี้</div><div class="k-value">${num(st.total)}</div></div></div>
       ${d.byRep.some((r) => r.reviewed) ? `<section class="card panel" style="margin-bottom:16px"><h3>คะแนนเฉลี่ยตามเซลส์</h3><p class="sub">เฉพาะแชทที่ตรวจแล้ว</p>
         <div class="bars">${d.byRep.filter((r) => r.reviewed).map((r) => `<div class="row"><span>${esc(r.rep)} <small>(${r.reviewed}/${r.total})</small></span><div class="bar"><i style="width:${r.avgScore}%;background:${{ excellent: '#44602f', good: '#6f8f4e', average: '#e0a100', poor: '#d6204b' }[scoreClass(r.avgScore)]}"></i></div><b>${r.avgScore}%</b></div>`).join('')}</div></section>` : ''}
-      <section class="card filters"><div class="pills">${[['', 'ทั้งหมด'], ['pending', 'รอตรวจ'], ['done', 'ตรวจแล้ว']].map(([k, l]) => `<button class="pill ${s.state === k ? 'active' : ''}" data-act="rstate" data-state="${k}">${l}</button>`).join('')}</div>
+      <section class="card filters">
         <span class="label">ทีมขาย</span>${repSelect('rrep', s.rep)}</section>
-      <section class="card table-card"><div class="tscroll"><table style="min-width:860px"><thead><tr><th class="nosort">ลูกค้า</th><th class="nosort">วันเริ่มคุย</th><th class="nosort">ผู้ดูแล</th><th class="nosort">ความคืบหน้า</th><th class="nosort">ตอบครั้งแรก</th><th class="nosort">คะแนนรีวิว</th><th class="nosort">ผู้ตรวจ</th></tr></thead><tbody>
+      <section class="card table-card"><div class="tscroll"><table style="min-width:860px"><thead><tr><th class="nosort">ลูกค้า</th><th class="nosort">วันเริ่มคุย</th><th class="nosort">ผู้ดูแล</th><th class="nosort">ความคืบหน้า</th><th class="nosort">ตอบครั้งแรก</th></tr></thead><tbody>
       ${rows.length ? rows.map((r) => `<tr class="click-row" data-act="open-chat" data-id="${esc(r.id)}">
         <td><div class="ad-name">${esc(r.name)}</div><div class="ad-sub">${chanHtml(r.channel)}</div></td><td>${esc(r.date)}</td><td>${esc(r.rep || '—')}</td><td>${statusHtml(r.status)}</td>
-        <td>${r.firstResponseMin === null ? '—' : r.firstResponseMin + ' นาที'}</td>
-        <td>${r.reviewed ? `<span class="q-badge q-${scoreClass(r.score)}">${r.score}%</span>` : '<span class="q-badge q-none">รอตรวจ</span>'}</td><td>${esc(r.reviewer || '—')}</td></tr>`).join('')
-        : '<tr><td colspan="7"><div class="empty">ไม่พบแชทตามเงื่อนไข</div></td></tr>'}</tbody></table></div>
+        <td>${r.firstResponseMin === null ? '—' : r.firstResponseMin + ' นาที'}</td></tr>`).join('')
+        : '<tr><td colspan="5"><div class="empty">ไม่พบแชทตามเงื่อนไข</div></td></tr>'}</tbody></table></div>
       ${d.total > d.rows.length ? `<div class="ad-sub" style="padding:10px;text-align:center">แสดง ${d.rows.length} จาก ${num(d.total)} แชท (เรียงใหม่สุดก่อน)</div>` : ''}</section>`;
   }
 

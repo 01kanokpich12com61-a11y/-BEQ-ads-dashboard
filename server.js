@@ -1154,6 +1154,10 @@ async function api(req, res, url, session) {
         } else if (!lead.name || lead.name.includes('ลูกค้า')) {
           lead.name = custName;
         }
+        if (c.updated_time) {
+          const convDate = new Date(c.updated_time).toISOString().slice(0, 10);
+          if (convDate) lead.date = convDate;
+        }
 
         const msgList = (c.messages && c.messages.data) || [];
         for (const m of msgList) {
@@ -1177,6 +1181,7 @@ async function api(req, res, url, session) {
           }
         }
       }
+      store.write('leads.json', leads);
       audit.log(session.user.username, 'import_fb', 'นำเข้าบทสนทนาเพจ ' + pageName + ': ' + importedLeads + ' ลีด, ' + importedMsgs + ' ข้อความ', clientIp(req));
       return send(res, 200, { ok: true, importedLeads, importedMsgs, pageId, pageName });
     } catch (e) {
@@ -1287,6 +1292,10 @@ async function api(req, res, url, session) {
           } else if (!lead.name || lead.name.includes('ลูกค้า')) {
             lead.name = custName;
           }
+          if (c.updated_time) {
+            const convDate = new Date(c.updated_time).toISOString().slice(0, 10);
+            if (convDate) lead.date = convDate;
+          }
 
           const msgList = (c.messages && c.messages.data) || [];
           for (const m of msgList) {
@@ -1307,6 +1316,7 @@ async function api(req, res, url, session) {
             }
           }
         }
+        store.write('leads.json', leads);
         totalImportedLeads += pLeads;
         totalImportedMsgs += pMsgs;
         results.push({ pageId: page.id, pageName: page.name, leads: pLeads, msgs: pMsgs, success: true });
