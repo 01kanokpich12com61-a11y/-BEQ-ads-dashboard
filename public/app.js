@@ -24,18 +24,18 @@
   const INBOX_PAGE = 15;
   // ความคืบหน้าของแชท เรียงตามคอลัมน์ใน Board ตามลำดับที่ผู้ใช้กำหนด (12 คอลัมน์)
   const STATUS_ORDER = [
-    'no_reply',     // 1. ไม่ตอบ (กล่องสีแดง)
-    'very_poor',    // 2. แย่มาก (กล่องสีแดง)
-    'talked',       // 3. พอได้คุย (กล่องสีเขียว)
-    'in_progress',  // 4. กำลังดำเนินการ (กล่องสีเขียว)
-    'qualified',    // 5. มีคุณสมบัติ
-    'appointment',  // 6. นัดแล้ว
-    'conv_created', // 7. สร้างคอนเวอร์ชั่นแล้ว
-    'new',          // 8. มาใหม่
-    'inprogress',   // 9. In-progress
-    'intake',       // 10. In-take
-    'qualifile',    // 11. Qualifile
-    'converted',    // 12. Converted
+    'new',          // 1. มาใหม่ (New Leads)
+    'intake',       // 2. In-take (รับเรื่อง/คัดกรอง)
+    'talked',       // 3. พอได้คุย (Contacted)
+    'in_progress',  // 4. กำลังดำเนินการ (In Progress)
+    'inprogress',   // 5. In-progress (สำรอง)
+    'qualified',    // 6. มีคุณสมบัติ (Qualified)
+    'qualifile',    // 7. Qualifile (สำรอง)
+    'appointment',  // 8. นัดแล้ว (Appointment Booked)
+    'conv_created', // 9. สร้างคอนเวอร์ชั่นแล้ว
+    'converted',    // 10. สำเร็จ/ปิดการขาย (Won / Converted)
+    'no_reply',     // 11. ไม่ตอบ (Unresponsive)
+    'very_poor',    // 12. แย่มาก/หลุด (Lost / Unqualified)
   ];
   const STATUS_TH = {
     no_reply: 'ไม่ตอบ',

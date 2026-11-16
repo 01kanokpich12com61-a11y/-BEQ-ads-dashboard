@@ -1163,13 +1163,16 @@ async function api(req, res, url, session) {
           const at = ops.nowStamp(m.created_time ? new Date(m.created_time).getTime() : Date.now());
           const leadMsgs = messages[lead.id] || [];
           if (!leadMsgs.some((x) => x.text === text && Math.abs(new Date(x.at) - new Date(at)) < 60000)) {
+            const staffName = fromPage ? ((m.from && m.from.name) || 'Staff') : null;
             ops.addMessage(lead.id, {
               from: fromPage ? 'staff' : 'customer',
               text,
               mid: m.id || undefined,
               at,
               via: 'import',
+              ...(staffName ? { by: staffName } : {}),
             });
+            if (fromPage && staffName && !lead.repId) { lead.repId = staffName; }
             importedMsgs++;
           }
         }
@@ -1318,9 +1321,11 @@ async function api(req, res, url, session) {
   if (route === 'PUT /api/settings/meta') {
     const b = await readJson(req);
     const cur = meta.getSettings().meta || {};
+    let cleanAdAccount = clean(b.adAccountId, 40).replace(/^act_/, "");
+    if (!cleanAdAccount && cur.adAccountId) cleanAdAccount = cur.adAccountId;
     const next = {
       appId: clean(b.appId, 40),
-      adAccountId: clean(b.adAccountId, 40),
+      adAccountId: cleanAdAccount,
       apiVersion: /^v\d+\.\d+$/.test(clean(b.apiVersion, 10)) ? clean(b.apiVersion, 10) : config.metaApiVersion,
     };
     // ค่าลับจะถูกเขียนทับเฉพาะเมื่อกรอกค่าใหม่เท่านั้น
@@ -1340,6 +1345,8 @@ async function api(req, res, url, session) {
 
   if (route === 'POST /api/settings/meta/test') {
     const m = meta.getSettings().meta || {};
+    if (!m.adAccountId) return send(res, 200, { ok: false, error: 'กรุณาระบุ Meta Ad Account ID ก่อนกดทดสอบ' });
+    if (!m.accessToken) return send(res, 200, { ok: false, error: 'กรุณาระบุ Access Token ก่อนกดทดสอบ' });
     try {
       const info = await meta.testConnection(m);
       // เมื่อทดสอบสำเร็จ บันทึกสถานะเชื่อมต่อ และสลับ mode เป็น 'meta' ให้อัตโนมัติทันที
