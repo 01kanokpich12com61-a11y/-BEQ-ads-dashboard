@@ -1162,7 +1162,8 @@ async function api(req, res, url, session) {
 
       for (const c of convs) {
         const parts = (c.participants && c.participants.data) || [];
-        const customerPart = parts.find((p) => String(p.id) !== String(pageId)) || parts[0];
+        const isSelf = (pid) => String(pid) === String(pageId) || (fbPageId && String(pid) === String(fbPageId));
+        const customerPart = parts.find((p) => !isSelf(p.id)) || parts[0];
         if (!customerPart) continue;
         const psid = String(customerPart.id);
         const custName = customerPart.name || ('ลูกค้า ' + psid.slice(-4));
@@ -1197,7 +1198,7 @@ async function api(req, res, url, session) {
 
         const msgList = (c.messages && c.messages.data) || [];
         for (const m of msgList) {
-          const fromPage = m.from && String(m.from.id) === String(pageId);
+          const fromPage = m.from && (String(m.from.id) === String(pageId) || (fbPageId && String(m.from.id) === String(fbPageId)));
           const text = m.message || '';
           if (!text) continue;
           const at = ops.nowStamp(m.created_time ? new Date(m.created_time).getTime() : Date.now());
@@ -1312,7 +1313,8 @@ async function api(req, res, url, session) {
         let pMsgs = 0;
         for (const c of convs) {
           const parts = (c.participants && c.participants.data) || [];
-          const customerPart = parts.find((p) => String(p.id) !== String(page.id)) || parts[0];
+          const isSelf = (pid) => String(pid) === String(page.id) || (page.fbPageId && String(pid) === String(page.fbPageId));
+          const customerPart = parts.find((p) => !isSelf(p.id)) || parts[0];
           if (!customerPart) continue;
           const psid = String(customerPart.id);
           const custName = customerPart.name || ('ลูกค้า ' + psid.slice(-4));
@@ -1347,7 +1349,7 @@ async function api(req, res, url, session) {
 
           const msgList = (c.messages && c.messages.data) || [];
           for (const m of msgList) {
-            const fromPage = m.from && String(m.from.id) === String(page.id);
+            const fromPage = m.from && (String(m.from.id) === String(page.id) || (page.fbPageId && String(m.from.id) === String(page.fbPageId)));
             const text = m.message || '';
             if (!text) continue;
             const at = ops.nowStamp(m.created_time ? new Date(m.created_time).getTime() : Date.now());
