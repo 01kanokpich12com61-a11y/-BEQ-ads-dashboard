@@ -746,9 +746,24 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
 
     let allComments = [];
     posts.forEach(p => {
-      (p.comments || []).forEach(com => {
-        allComments.push({ ...com, post: p });
-      });
+      const pComms = p.comments || [];
+      if (pComms.length > 0) {
+        pComms.forEach(com => {
+          allComments.push({ ...com, post: p });
+        });
+      } else {
+        // หากโพสต์นี้ยังไม่มีคอมเมนต์ ให้แสดงแถวโพสต์ไว้ด้วย เพื่อให้ทราบว่ามี 15 โพสต์
+        allComments.push({
+          id: 'no-comm-' + p.id,
+          from: '—',
+          text: '(ยังไม่มีคอมเมนต์ใต้โพสต์นี้)',
+          timestamp: p.timestamp || '',
+          replied: false,
+          replies: [],
+          noComments: true,
+          post: p
+        });
+      }
     });
 
     const repliedCount = allComments.filter(x => x.replied).length;
@@ -801,10 +816,10 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
               const platIcon = p.platform === 'Instagram' ? '📸 Instagram' : '🔵 Facebook';
               return `<tr>
                 <td class="nowrap"><b>${platIcon}</b><br><small style="color:var(--muted)">${esc(p.pageName || p.pageId)}</small></td>
-                <td style="max-width:240px;font-size:13px">${esc(p.content.slice(0, 60))}${p.content.length > 60 ? '…' : ''}${p.permalink ? `<br><a href="${esc(p.permalink)}" target="_blank" style="font-size:11px;color:var(--brand)">🔗 เปิดโพสต์จริง</a>` : ''}</td>
-                <td><b>${esc(x.from)}</b><div style="font-size:13.5px;margin-top:2px;color:var(--ink-2)">${esc(x.text)}</div></td>
+                <td style="max-width:240px;font-size:13px">${esc(String(p.content || '').slice(0, 60))}${(p.content || '').length > 60 ? '…' : ''}${p.permalink ? `<br><a href="${esc(p.permalink)}" target="_blank" style="font-size:11px;color:var(--brand)">🔗 เปิดโพสต์จริง</a>` : ''}</td>
+                <td>${x.noComments ? '<i style="color:var(--muted)">ยังไม่มีคอมเมนต์</i>' : `<b>${esc(x.from)}</b><div style="font-size:13.5px;margin-top:2px;color:var(--ink-2)">${esc(x.text)}</div>`}</td>
                 <td class="nowrap" style="font-size:12.5px">${esc(x.timestamp ? x.timestamp.slice(0, 16).replace('T', ' ') : '—')}</td>
-                <td><span class="q-badge ${isReplied ? 'q-good' : 'q-poor'}">${isReplied ? '🟢 ตอบแล้ว' : '🔴 ยังไม่ตอบ'}</span></td>
+                <td>${x.noComments ? '<span class="rv-hint">ไม่มีคอมเมนต์</span>' : `<span class="q-badge ${isReplied ? 'q-good' : 'q-poor'}">${isReplied ? '🟢 ตอบแล้ว' : '🔴 ยังไม่ตอบ'}</span>`}</td>
                 <td>${reply ? `<div style="font-size:12.5px"><b>${esc(reply.from)}:</b> ${esc(reply.text)}</div><small style="color:var(--muted)">${esc(reply.timestamp ? reply.timestamp.slice(0, 16).replace('T', ' ') : '')}</small>` : '<span style="color:var(--muted);font-size:12px">—</span>'}</td>
               </tr>`;
             }).join('')}
@@ -2273,6 +2288,8 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
       if (S.route === 'dashboard') { render(); loadDash(); }
       else if (S.route === 'board') { render(); loadBoard(); }
       else if (S.route === 'inbox') { render(); loadInbox(); }
+      else if (S.route === 'post-comment') { render(); loadComments(); }
+      else if (S.route === 'post-comment') { render(); loadComments(); }
       else render();
       return;
     }
