@@ -722,13 +722,15 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
     const c = S.comments;
     c.loading = true; c.err = null; renderCommentsBody();
     try {
-      const q = new URLSearchParams({ range: c.range });
+      const q = new URLSearchParams({ range: c.range || '30d' });
       if (c.range === 'custom') { q.set('from', c.from); q.set('to', c.to); }
       if (S.dash.platform) q.set('platform', S.dash.platform);
       if (S.dash.page) q.set('pageId', S.dash.page);
-      c.data = await api('/api/posts-comments?' + q.toString());
+      const res = await api('/api/posts-comments?' + q.toString());
+      c.data = res || { posts: [], sla: {} };
       c.loading = false;
     } catch (e) {
+      console.error('loadComments error:', e);
       c.err = e.message || 'โหลดข้อมูลคอมเมนต์ไม่สำเร็จ';
       c.loading = false;
     }
@@ -739,7 +741,8 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
     const box = document.getElementById('comments-body'); if (!box) return;
     const c = S.comments;
     if (c.err) { box.innerHTML = `<div class="notice err">${esc(c.err)}</div>`; return; }
-    if (c.loading || !c.data) { box.innerHTML = '<div class="loading">Loading…</div>'; return; }
+    if (c.loading && !c.data) { box.innerHTML = '<div class="loading">Loading…</div>'; return; }
+    if (!c.data) { box.innerHTML = '<div class="empty">กำลังโหลดข้อมูล หรือกด "🔄 ดึงโพสต์ & คอมเมนต์ล่าสุด"</div>'; return; }
 
     const { posts = [], sla = {} } = c.data;
     const totals = sla.totals || { turns: 0, onTime: 0, late: 0, deducted: 0, points: 0 };
