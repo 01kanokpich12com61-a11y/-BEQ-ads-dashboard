@@ -550,7 +550,7 @@ async function api(req, res, url, session) {
   }
 
   if (route === 'GET /api/posts-comments') {
-    const range = dateRange(url.searchParams.get('range'), url.searchParams.get('from'), url.searchParams.get('to'));
+    const range = resolveRange({ range: url.searchParams.get('range') || '30d', from: url.searchParams.get('from'), to: url.searchParams.get('to') });
     const pageIdFilter = url.searchParams.get('pageId') || '';
     const platformFilter = url.searchParams.get('platform') || '';
 
