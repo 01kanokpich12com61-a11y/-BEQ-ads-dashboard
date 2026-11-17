@@ -1153,7 +1153,8 @@ async function api(req, res, url, session) {
 
     try {
       const plat = (matched && matched.platform) || 'Facebook';
-    const convs = await meta.fetchFbConversations(pageId, Number(b.limit) || 50, plat);
+    const fbPageId = matched ? matched.fbPageId : null;
+    const convs = await meta.fetchFbConversations(pageId, Number(b.limit) || 100, plat, fbPageId);
       let leads = store.read('leads.json', []);
       let messages = store.read('messages.json', {});
       let importedLeads = 0;
@@ -1265,6 +1266,7 @@ async function api(req, res, url, session) {
           if (igIdx >= 0) {
             pages[igIdx].name = igName;
             pages[igIdx].platform = 'Instagram';
+            pages[igIdx].fbPageId = id;
             if (pageToken) pages[igIdx].pageToken = pageToken;
             updated++;
           } else {
@@ -1272,6 +1274,7 @@ async function api(req, res, url, session) {
               id: igId,
               name: igName,
               platform: 'Instagram',
+              fbPageId: id,
               color: '#e1306c',
               ...(pageToken ? { pageToken } : {}),
             });
@@ -1305,7 +1308,7 @@ async function api(req, res, url, session) {
     for (const page of targetPages) {
       const pPlat = page.platform || 'Facebook';
       try {
-        const convs = await meta.fetchFbConversations(page.id, limit, pPlat);
+        const convs = await meta.fetchFbConversations(page.id, limit || 100, pPlat, page.fbPageId || null);
         let pLeads = 0;
         let pMsgs = 0;
         for (const c of convs) {
