@@ -1174,9 +1174,8 @@ async function api(req, res, url, session) {
             pageId,
             name: custName,
             platform: plat,
-          channel: plat === 'Instagram' ? 'Instagram' : 'Messenger',
+            channel: plat === 'Instagram' ? 'Instagram' : 'Messenger',
             pageName,
-            channel: 'Messenger',
           });
           lead = res.lead;
           leads.push(lead);
