@@ -1735,7 +1735,7 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
         <td>${p.adAccountId ? `<span class="chip good" style="font-size:12px;font-family:monospace">📊 ${esc(p.adAccountId)}</span>` : '<span class="rv-hint">ใช้ Ad กลาง</span>'}</td>
         <td class="nowrap" style="display:flex;gap:6px">
           <button class="btn" type="button" data-act="page-edit" data-page='${esc(JSON.stringify(p))}' style="padding:4px 10px;font-size:12px">✏️ แก้ไข</button>
-          ${p.platform === 'Facebook' ? `<button class="btn" type="button" data-act="fb-import-conv" data-page-id="${esc(p.id)}" data-page-name="${esc(p.name)}" style="padding:4px 10px;font-size:12px">📥 ดึงแชท</button>` : ''}
+          ${(p.platform === 'Facebook' || p.platform === 'Instagram') ? `<button class="btn" type="button" data-act="fb-import-conv" data-page-id="${esc(p.id)}" data-page-name="${esc(p.name)}" style="padding:4px 10px;font-size:12px">📥 ดึงแชท</button>` : ''}
           <button class="btn danger" type="button" data-act="page-delete" data-page-id="${esc(p.id)}" style="padding:4px 10px;font-size:12px">ลบ</button>
         </td>
       </tr>`;
@@ -1812,7 +1812,7 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
               <h3 style="margin:0">🔗 เชื่อมต่อ Meta API</h3>
               <p class="sub" style="margin:4px 0 0">วาง Token ดูแลทั้ง 3 เพจ แล้วกดบันทึกหรือดึงเพจ</p>
             </div>
-            <button class="btn primary" type="button" data-act="meta-discover" style="font-size:12px;padding:6px 12px">🔄 ดึง 3 เพจทันที</button>
+            <button class="btn primary" type="button" data-act="meta-discover" style="font-size:12px;padding:6px 12px">🔄 ดึงเพจทั้งหมด</button>
           </div>
           <form class="form" data-form="meta" autocomplete="off" style="margin-top:14px">
             <div class="field"><label>ชื่อคลินิก / องค์กร</label><input type="text" name="clinicName" value="${esc(s.clinicName)}" placeholder="เช่น BEQ GROUP" maxlength="80"></div>
