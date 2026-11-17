@@ -145,8 +145,8 @@
 
   function topbar() {
     const nav = [['dashboard', 'Dashboard', 'grid'], ['inbox', 'Inbox', 'chat'], ['board', 'Board', 'grid'],
-      ['comments', '💬 คอมเมนต์ & SLA', 'chat'],
-      ['followup', 'ตามลูกค้า', 'clock'], ['review', 'Review', 'check'], ['audit', 'Audit', 'list'],
+      ['post-comment', '💬 Post & comment', 'chat'],
+      ['followup', 'ตามลูกค้า', 'clock'], ['review', '⏱️ SLA', 'check'], ['audit', 'Audit', 'list'],
       ['upload', 'Upload', 'upload'], ['quality', 'Quality', 'shield'], ['setting', 'ตั้งค่า', 'gear']];
     const platforms = (S.filters && S.filters.platforms) || ['Facebook', 'LINE', 'WhatsApp', 'Instagram'];
     const allPages = (S.filters && S.filters.pages) || [];
@@ -706,7 +706,7 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
   function commentsShell() {
     return `<div class="page-head">
       <div>
-        <h1>💬 โพสต์ & คอมเมนต์ (Posts & Comments)</h1>
+        <h1>💬 Post & comment</h1>
         <div class="meta-line"><span>ตรวจสอบคอมเมนต์ใต้โพสต์ Facebook & Instagram พร้อมคิดคะแนน SLA การตอบกลับ (แยกกับแชท)</span></div>
       </div>
       <div style="display:flex;gap:8px">
@@ -1733,7 +1733,7 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
   /* --- รีวิวแชท --- */
   async function loadReview() { ensureFilters(); loadSla(); if (await fetchList('review', '/api/review')) renderReviewBody(); }
   function reviewShell() {
-    return `<div class="page-head"><div><h1>Review</h1><div class="meta-line"><span>หัวหน้าทีมตรวจและให้คะแนนแชทของเซลส์ (คลิกแถวเพื่อเปิดแชทและให้คะแนน)</span></div></div></div>
+    return `<div class="page-head"><div><h1>⏱️ รายงาน SLA (SLA Performance)</h1><div class="meta-line"><span>ประเมินคะแนน SLA การตอบแชทและคอมเมนต์ของเซลส์และแอดมิน (เกณฑ์ 15 นาที)</span></div></div></div>
       <div id="sla-body" style="margin-bottom:16px"></div>${rangeBar('review')}<div id="review-body"><div class="loading">Loading…</div></div>`;
   }
   function renderReviewBody() {
@@ -1856,7 +1856,7 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
         <td>${p.adAccountId ? `<span class="chip good" style="font-size:12px;font-family:monospace">📊 ${esc(p.adAccountId)}</span>` : '<span class="rv-hint">ใช้ Ad กลาง</span>'}</td>
         <td class="nowrap" style="display:flex;gap:6px">
           <button class="btn" type="button" data-act="page-edit" data-page='${esc(JSON.stringify(p))}' style="padding:4px 10px;font-size:12px">✏️ แก้ไข</button>
-          ${(p.platform === 'Facebook' || p.platform === 'Instagram') ? `<button class="btn" type="button" data-act="fb-import-conv" data-page-id="${esc(p.id)}" data-page-name="${esc(p.name)}" style="padding:4px 10px;font-size:12px">📥 ดึงแชท</button>` : ''}
+          ${(p.platform === 'Facebook' || p.platform === 'Instagram') ? `<button class="btn" type="button" data-act="fb-import-conv" data-page-id="${esc(p.id)}" data-page-name="${esc(p.name)}" style="padding:4px 10px;font-size:12px">📥 ดึงแชท</button><button class="btn" type="button" data-act="sync-page-posts" data-page-id="${esc(p.id)}" data-page-name="${esc(p.name)}" style="padding:4px 10px;font-size:12px;background:#eaf2e8;color:#244c1d">💬 ดึงโพสต์</button>` : ''}
           <button class="btn danger" type="button" data-act="page-delete" data-page-id="${esc(p.id)}" style="padding:4px 10px;font-size:12px">ลบ</button>
         </td>
       </tr>`;
@@ -1871,6 +1871,7 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
         <div style="display:flex;gap:8px">
           <button class="btn primary" type="button" data-act="meta-discover" style="font-size:13px">🔄 ดึงเพจทั้งหมดจาก Token</button>
           <button class="btn" type="button" data-act="fb-import-all" style="font-size:13px">📥 ดึงแชทย้อนหลังทุกเพจ</button>
+          <button class="btn" type="button" data-act="meta-posts-sync-all" style="font-size:13px;background:#2d5022;color:#fff">💬 ดึง Post & comment ทุกเพจ</button>
         </div>
       </div>
       <div class="tscroll" style="margin:14px 0 0">
@@ -2210,6 +2211,23 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
       else if (act === 'upload-confirm') { await doUploadData(); }
       else if (act === 'upload-cancel' || act === 'upload-reset') { S.upload.rows = []; S.upload.result = null; S.upload.err = null; await loadUpload(); }
       else if (act === 'upload-tab') { S.upload.tab = el.dataset.tab; S.upload.rows = []; S.upload.result = null; S.upload.err = null; renderUploadBody(); }
+      else if (act === 'meta-posts-sync-all' || act === 'sync-page-posts') {
+        const pageId = el.dataset.pageId;
+        el.disabled = true;
+        const orig = el.textContent;
+        el.textContent = 'กำลังดึง Post & comment…';
+        try {
+          const res = await api('/api/posts-comments/sync', { method: 'POST', body: pageId ? { pageId } : {} });
+          S.flash = { type: 'ok', text: 'ดึง Post & comment สำเร็จแล้ว (' + (res.count || 0) + ' โพสต์)' };
+          if (S.route === 'post-comment' || S.route === 'comments') await loadComments();
+        } catch (e) {
+          S.flash = { type: 'err', text: e.message || 'ดึง Post & comment ไม่สำเร็จ' };
+        } finally {
+          el.disabled = false;
+          el.textContent = orig;
+          render();
+        }
+      }
       else if (act === 'clear-data') {
         const target = el.dataset.target;
         const labels = { leads: 'Leads ทั้งหมด', campaigns: 'ข้อมูลแคมเปญ Ads ทั้งหมด', all: 'ข้อมูลทั้งหมดในระบบ (Leads + Ads)' };
