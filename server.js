@@ -605,6 +605,9 @@ async function api(req, res, url, session) {
 
     store.write('posts_comments.json', allPosts);
     audit.log(session.user.username, 'posts_sync', `ดึงโพสต์ & คอมเมนต์ ${fetchedCount} โพสต์`, clientIp(req));
+    if (errors.length > 0 && fetchedCount === 0) {
+      return send(res, 500, { error: 'ดึงโพสต์ไม่สำเร็จ: ' + errors.join(' | ') });
+    }
     return send(res, 200, { ok: true, count: fetchedCount, errors: errors.length ? errors : undefined });
   }
 
