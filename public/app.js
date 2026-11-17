@@ -1138,8 +1138,15 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
     qualifile: '#047857',
     converted: '#15803d',
   };
-  const CHAN_COLOR = { Messenger: '#2a56b8', LINE: '#2f9e44', Instagram: '#c13584', WhatsApp: '#25a244' };
-  const chanHtml = (c) => `<span class="chan"><i style="background:${CHAN_COLOR[c] || '#8a948f'}"></i>${esc(c)}</span>`;
+  const CHAN_COLOR = { Messenger: '#1877f2', Facebook: '#1877f2', LINE: '#06c755', Instagram: '#e1306c', WhatsApp: '#25d366' };
+  const CHAN_ICON = { Messenger: '🔵', Facebook: '🔵', Instagram: '📸', LINE: '📱', WhatsApp: '💚' };
+  const chanHtml = (c) => {
+    const norm = (c === 'Facebook' || c === 'Messenger') ? 'Facebook' : c;
+    const iconSym = CHAN_ICON[norm] || CHAN_ICON[c] || '💬';
+    const col = CHAN_COLOR[norm] || CHAN_COLOR[c] || '#8a948f';
+    const bgCol = norm === 'Instagram' ? '#fdf2f8' : norm === 'Facebook' ? '#eff6ff' : norm === 'LINE' ? '#f0fdf4' : '#f4f6f8';
+    return `<span class="chan" style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:6px;font-size:12px;font-weight:600;background:${bgCol};color:${col};border:1px solid ${col}33"><span>${iconSym}</span>${esc(norm)}</span>`;
+  };
   const statusHtml = (s) => `<span class="q-badge ${STATUS_CLASS[s] || 'q-none'}">${esc(STATUS_TH[s] || s)}</span>`;
 
   function listQuery(s) {
@@ -1348,7 +1355,7 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
     list.innerHTML = rows.slice(0, MAX).map((r) => {
       const pv = r.last ? `${r.last.from === 'staff' ? 'คุณ: ' : ''}${esc(r.last.text)} · ${ago(r.last.at)}` : `ยังไม่มีข้อความ · ${esc(r.date)}`;
       return `<button class="conv ${r.id === S.chat.id ? 'active' : ''}" data-act="select-chat" data-id="${esc(r.id)}">${avatarHtml(r.name, r.id, 48)}
-        <span class="conv-main"><b><span style="font-size:13px;opacity:0.85">${r.channel === "LINE" ? "📱" : r.channel === "WhatsApp" ? "💚" : "💬"}</span> ${esc(r.name)}${r.pageName ? `<small style="display:inline;font-size:11px;color:var(--brand-deep);background:#e4eedc;padding:1px 6px;border-radius:4px;margin-left:6px">${esc(r.pageName)}</small>` : ""}</b><small>${pv}</small></span>
+        <span class="conv-main"><b>${(r.platform === 'Instagram' || r.channel === 'Instagram') ? '<span style="font-size:13px" title="Instagram">📸</span>' : (r.platform === 'LINE' || r.channel === 'LINE') ? '<span style="font-size:13px" title="LINE">📱</span>' : (r.platform === 'WhatsApp' || r.channel === 'WhatsApp') ? '<span style="font-size:13px" title="WhatsApp">💚</span>' : '<span style="font-size:13px" title="Facebook Messenger">🔵</span>'} ${esc(r.name)}${(r.platform === 'Instagram' || r.channel === 'Instagram') ? '<small style="display:inline;font-size:11px;color:#c13584;background:#fce7f3;padding:1px 6px;border-radius:4px;margin-left:5px;font-weight:700">Instagram</small>' : '<small style="display:inline;font-size:11px;color:#1877f2;background:#e0f2fe;padding:1px 6px;border-radius:4px;margin-left:5px;font-weight:700">Facebook</small>'}${r.pageName ? `<small style="display:inline;font-size:11px;color:var(--brand-deep);background:#e4eedc;padding:1px 6px;border-radius:4px;margin-left:5px">${esc(r.pageName)}</small>` : ""}</b><small>${pv}</small></span>
         <i class="s-dot" style="background:${STATUS_COLOR[r.status] || '#8a948f'}" title="${esc(STATUS_TH[r.status] || r.status)}"></i></button>`;
     }).join('') + (rows.length > MAX ? `<div class="ad-sub" style="text-align:center;padding:10px">แสดง ${MAX} จาก ${num(rows.length)} แชท ใช้ช่องค้นหาเพื่อกรอง</div>` : '');
   }
