@@ -145,6 +145,7 @@
 
   function topbar() {
     const nav = [['dashboard', 'Dashboard', 'grid'], ['inbox', 'Inbox', 'chat'], ['board', 'Board', 'grid'],
+      ['comments', '💬 คอมเมนต์ & SLA', 'chat'],
       ['followup', 'ตามลูกค้า', 'clock'], ['review', 'Review', 'check'], ['audit', 'Audit', 'list'],
       ['upload', 'Upload', 'upload'], ['quality', 'Quality', 'shield'], ['setting', 'ตั้งค่า', 'gear']];
     const platforms = (S.filters && S.filters.platforms) || ['Facebook', 'LINE', 'WhatsApp', 'Instagram'];
@@ -696,6 +697,119 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
         </tr>`).join('')}
       </tbody></table></div>
     </section>`;
+  }
+
+  
+  /* ═══════════════════════════════════════════
+     COMMENTS & SLA PAGE — โพสต์และคอมเมนต์ + คำนวณ SLA
+  ═══════════════════════════════════════════ */
+  function commentsShell() {
+    return `<div class="page-head">
+      <div>
+        <h1>💬 โพสต์ & คอมเมนต์ (Posts & Comments)</h1>
+        <div class="meta-line"><span>ตรวจสอบคอมเมนต์ใต้โพสต์ Facebook & Instagram พร้อมคิดคะแนน SLA การตอบกลับ (แยกกับแชท)</span></div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn primary" data-act="sync-comments-api" style="background:#2d5022">🔄 ดึงโพสต์ & คอมเมนต์ล่าสุด</button>
+      </div>
+    </div>
+    <div id="comments-body"><div class="loading">Loading…</div></div>`;
+  }
+
+  async function loadComments() {
+    const c = S.comments;
+    c.loading = true; c.err = null; renderCommentsBody();
+    try {
+      const q = new URLSearchParams({ range: c.range });
+      if (c.range === 'custom') { q.set('from', c.from); q.set('to', c.to); }
+      if (S.dash.platform) q.set('platform', S.dash.platform);
+      if (S.dash.page) q.set('pageId', S.dash.page);
+      c.data = await api('/api/posts-comments?' + q.toString());
+      c.loading = false;
+    } catch (e) {
+      c.err = e.message || 'โหลดข้อมูลคอมเมนต์ไม่สำเร็จ';
+      c.loading = false;
+    }
+    renderCommentsBody();
+  }
+
+  function renderCommentsBody() {
+    const box = document.getElementById('comments-body'); if (!box) return;
+    const c = S.comments;
+    if (c.err) { box.innerHTML = `<div class="notice err">${esc(c.err)}</div>`; return; }
+    if (c.loading || !c.data) { box.innerHTML = '<div class="loading">Loading…</div>'; return; }
+
+    const { posts = [], sla = {} } = c.data;
+    const totals = sla.totals || { turns: 0, onTime: 0, late: 0, deducted: 0, points: 0 };
+
+    let allComments = [];
+    posts.forEach(p => {
+      (p.comments || []).forEach(com => {
+        allComments.push({ ...com, post: p });
+      });
+    });
+
+    const repliedCount = allComments.filter(x => x.replied).length;
+    const pendingCount = allComments.filter(x => !x.replied).length;
+
+    let filtered = allComments;
+    if (c.filterStatus === 'pending') filtered = allComments.filter(x => !x.replied);
+    else if (c.filterStatus === 'replied') filtered = allComments.filter(x => x.replied);
+
+    box.innerHTML = `
+      <!-- SLA Score Card -->
+      <section class="card panel" style="margin-bottom:16px;background:linear-gradient(135deg,#fafffa 0%,#f0fdf4 100%);border:1.5px solid #bbf7d0">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+          <h3 style="margin:0;color:#166534;display:flex;align-items:center;gap:8px">⏱️ ผลงานตอบคอมเมนต์ (Comment SLA) — เกณฑ์ 15 นาที</h3>
+          <span class="chip good">SLA แยกเฉพาะคอมเมนต์</span>
+        </div>
+        <div class="grid-4">
+          <div class="stat"><div class="k-label">คอมเมนต์ทั้งหมด</div><div class="k-value">${num(totals.turns || allComments.length)}</div></div>
+          <div class="stat"><div class="k-label">ตอบทันเวลา (≤ 15 น.)</div><div class="k-value" style="color:#16a34a">${num(totals.onTime || repliedCount)}</div></div>
+          <div class="stat"><div class="k-label">ตอบช้า / หลุด SLA</div><div class="k-value" style="color:${totals.late ? '#dc2626' : 'var(--muted)'}">${num(totals.late)}</div></div>
+          <div class="stat"><div class="k-label">แต้ม SLA โดนหัก (10–19 น.)</div><div class="k-value" style="color:${totals.points < 0 ? '#dc2626' : '#16a34a'}">${totals.points || 0} แต้ม</div></div>
+        </div>
+      </section>
+
+      <!-- Filter Tabs -->
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:10px">
+        <div class="seg">
+          <button class="${c.filterStatus === 'all' ? 'active' : ''}" data-act="c-filter" data-val="all">ทั้งหมด (${allComments.length})</button>
+          <button class="${c.filterStatus === 'pending' ? 'active' : ''}" data-act="c-filter" data-val="pending" style="color:#b91c1c">🔴 ยังไม่ตอบ (${pendingCount})</button>
+          <button class="${c.filterStatus === 'replied' ? 'active' : ''}" data-act="c-filter" data-val="replied" style="color:#15803d">🟢 ตอบแล้ว (${repliedCount})</button>
+        </div>
+      </div>
+
+      <!-- Comments Table -->
+      <div class="card panel">
+        <h3>📝 รายการคอมเมนต์ล่าสุด</h3>
+        ${!filtered.length ? '<div class="empty">ยังไม่มีคอมเมนต์ในหมวดนี้ หรือกด "🔄 ดึงโพสต์ & คอมเมนต์ล่าสุด" ด้านบนเพื่อดูดข้อมูลจริงจาก Meta</div>' : `
+          <div class="tscroll"><table><thead><tr>
+            <th>แพลตฟอร์ม / เพจ</th>
+            <th>โพสต์</th>
+            <th>ลูกค้า / คอมเมนต์</th>
+            <th>เวลาที่คอมเมนต์</th>
+            <th>สถานะการตอบ</th>
+            <th>การตอบกลับของทีมงาน</th>
+          </tr></thead><tbody>
+            ${filtered.map(x => {
+              const p = x.post;
+              const isReplied = x.replied;
+              const reply = x.replies && x.replies[0];
+              const platIcon = p.platform === 'Instagram' ? '📸 Instagram' : '🔵 Facebook';
+              return `<tr>
+                <td class="nowrap"><b>${platIcon}</b><br><small style="color:var(--muted)">${esc(p.pageName || p.pageId)}</small></td>
+                <td style="max-width:240px;font-size:13px">${esc(p.content.slice(0, 60))}${p.content.length > 60 ? '…' : ''}${p.permalink ? `<br><a href="${esc(p.permalink)}" target="_blank" style="font-size:11px;color:var(--brand)">🔗 เปิดโพสต์จริง</a>` : ''}</td>
+                <td><b>${esc(x.from)}</b><div style="font-size:13.5px;margin-top:2px;color:var(--ink-2)">${esc(x.text)}</div></td>
+                <td class="nowrap" style="font-size:12.5px">${esc(x.timestamp ? x.timestamp.slice(0, 16).replace('T', ' ') : '—')}</td>
+                <td><span class="q-badge ${isReplied ? 'q-good' : 'q-poor'}">${isReplied ? '🟢 ตอบแล้ว' : '🔴 ยังไม่ตอบ'}</span></td>
+                <td>${reply ? `<div style="font-size:12.5px"><b>${esc(reply.from)}:</b> ${esc(reply.text)}</div><small style="color:var(--muted)">${esc(reply.timestamp ? reply.timestamp.slice(0, 16).replace('T', ' ') : '')}</small>` : '<span style="color:var(--muted);font-size:12px">—</span>'}</td>
+              </tr>`;
+            }).join('')}
+          </tbody></table></div>
+        `}
+      </div>
+    `;
   }
 
   /* ═══════════════════════════════════════════

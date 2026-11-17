@@ -521,6 +521,65 @@ async function api(req, res, url, session) {
     return send(res, 200, { mode: providers.currentMode(), ...buildBoard(data, range, { messagesMap, platform: q.platform, page: q.page }) });
   }
 
+  if (route === 'GET /api/posts-comments') {
+    const range = dateRange(url.searchParams.get('range'), url.searchParams.get('from'), url.searchParams.get('to'));
+    const pageIdFilter = url.searchParams.get('pageId') || '';
+    const platformFilter = url.searchParams.get('platform') || '';
+
+    let posts = store.read('posts_comments.json', []);
+    if (pageIdFilter) {
+      posts = posts.filter(p => p.pageId === pageIdFilter || String(p.pageId) === String(pageIdFilter));
+    }
+    if (platformFilter) {
+      posts = posts.filter(p => (p.platform || 'Facebook').toLowerCase() === platformFilter.toLowerCase());
+    }
+
+    const commentSla = sla.buildCommentSla(posts, range);
+    return send(res, 200, {
+      posts,
+      sla: commentSla,
+      range,
+    });
+  }
+
+  if (route === 'POST /api/posts-comments/sync') {
+    if (!auth.isAdmin(session.user)) return send(res, 403, { error: 'เฉพาะผู้ดูแล (admin) เท่านั้น' });
+    const b = await readJson(req).catch(() => ({}));
+    const pages = store.read('pages.json', []);
+    const targetPageId = b.pageId;
+
+    let targetPages = pages.filter(p => (!p.platform || p.platform === 'Facebook' || p.platform === 'Instagram') && !p.id.startsWith('P-'));
+    if (targetPageId) {
+      targetPages = targetPages.filter(p => p.id === targetPageId || String(p.id) === String(targetPageId));
+    }
+
+    if (!targetPages.length) return send(res, 400, { error: 'ไม่พบเพจสำหรับดึงโพสต์ กรุณากดดึงเพจจาก Meta ก่อน' });
+
+    let allPosts = store.read('posts_comments.json', []);
+    let fetchedCount = 0;
+    const errors = [];
+
+    for (const p of targetPages) {
+      try {
+        const pPlat = p.platform || 'Facebook';
+        const pPosts = await meta.fetchPostsAndComments(p.id, pPlat, p.fbPageId || null, 15);
+        pPosts.forEach(post => {
+          post.pageName = p.name;
+          const exIdx = allPosts.findIndex(x => x.id === post.id);
+          if (exIdx >= 0) allPosts[exIdx] = post;
+          else allPosts.unshift(post);
+          fetchedCount++;
+        });
+      } catch (err) {
+        errors.push(`${p.name}: ${err.message}`);
+      }
+    }
+
+    store.write('posts_comments.json', allPosts);
+    audit.log(session.user.username, 'posts_sync', `ดึงโพสต์ & คอมเมนต์ ${fetchedCount} โพสต์`, clientIp(req));
+    return send(res, 200, { ok: true, count: fetchedCount, errors: errors.length ? errors : undefined });
+  }
+
   if (route === 'GET /api/sla') {
     const range = resolveRange(q);
     const data = await providers.load(range);
