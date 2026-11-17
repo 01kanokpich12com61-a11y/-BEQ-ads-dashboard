@@ -1,4 +1,32 @@
 'use strict';
+
+function detectConvPlatform(c, defaultPlat = 'Facebook') {
+  // 1. ตรวจสอบจาก tags ของ Meta
+  const tags = (c.tags && c.tags.data) || [];
+  for (const t of tags) {
+    const name = String(t.name || '').toLowerCase();
+    if (name.includes('instagram')) return 'Instagram';
+    if (name.includes('messenger') || name.includes('facebook')) return 'Facebook';
+    if (name.includes('whatsapp')) return 'WhatsApp';
+  }
+
+  // 2. ตรวจสอบจาก custom_labels หรือ platform field ของ conversation
+  if (c.platform) {
+    const p = String(c.platform).toLowerCase();
+    if (p.includes('instagram')) return 'Instagram';
+    if (p.includes('facebook') || p.includes('messenger')) return 'Facebook';
+  }
+
+  // 3. ตรวจสอบจาก id หรือ participant id (Instagram scoped IDs หรือ IG username ในชื่อ)
+  const parts = (c.participants && c.participants.data) || [];
+  for (const part of parts) {
+    if (part.username || (part.name && part.name.startsWith('@'))) return 'Instagram';
+    if (part.email && part.email.includes('instagram')) return 'Instagram';
+  }
+
+  return defaultPlat;
+}
+
 function detectFbConvStatus(c) {
   // 1. ตรวจสอบจาก tags หรือ custom_labels ของ Facebook Leads Centre / Inbox
   const labels = [];
@@ -1227,14 +1255,15 @@ async function api(req, res, url, session) {
         const psid = String(customerPart.id);
         const custName = customerPart.name || ('ลูกค้า ' + psid.slice(-4));
 
+        const actualPlat = detectConvPlatform(c, plat);
         let lead = leads.find((l) => l.psid === psid && (!l.pageId || l.pageId === pageId));
         if (!lead) {
           const res = ops.findOrCreateLead({
             psid,
             pageId,
             name: custName,
-            platform: plat,
-            channel: plat === 'Instagram' ? 'Instagram' : 'Messenger',
+            platform: actualPlat,
+            channel: actualPlat === 'Instagram' ? 'Instagram' : 'Messenger',
             pageName,
           });
           lead = res.lead;
@@ -1245,6 +1274,8 @@ async function api(req, res, url, session) {
         }
         lead.pageId = pageId;
         lead.pageName = pageName;
+        lead.platform = actualPlat;
+        lead.channel = actualPlat === 'Instagram' ? 'Instagram' : 'Messenger';
         if (c.updated_time) {
           const convDate = new Date(c.updated_time).toISOString().slice(0, 10);
           if (convDate) lead.date = convDate;
@@ -1378,15 +1409,16 @@ async function api(req, res, url, session) {
           const psid = String(customerPart.id);
           const custName = customerPart.name || ('ลูกค้า ' + psid.slice(-4));
 
+          const actualPlat = detectConvPlatform(c, pPlat);
           let lead = leads.find((l) => l.psid === psid && (!l.pageId || l.pageId === page.id));
           if (!lead) {
             const res = ops.findOrCreateLead({
               psid,
               pageId: page.id,
               name: custName,
-              platform: pPlat,
+              platform: actualPlat,
               pageName: page.name,
-              channel: pPlat === 'Instagram' ? 'Instagram' : 'Messenger',
+              channel: actualPlat === 'Instagram' ? 'Instagram' : 'Messenger',
             });
             lead = res.lead;
             leads.push(lead);
@@ -1396,6 +1428,8 @@ async function api(req, res, url, session) {
           }
           lead.pageId = page.id;
           lead.pageName = page.name;
+          lead.platform = actualPlat;
+          lead.channel = actualPlat === 'Instagram' ? 'Instagram' : 'Messenger';
           if (c.updated_time) {
             const convDate = new Date(c.updated_time).toISOString().slice(0, 10);
             if (convDate) lead.date = convDate;
