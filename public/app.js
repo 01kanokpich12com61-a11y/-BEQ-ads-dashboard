@@ -145,7 +145,7 @@
 
   function topbar() {
     const nav = [['dashboard', 'Dashboard', 'grid'], ['inbox', 'Inbox', 'chat'], ['board', 'Board', 'grid'],
-      ['post-comment', '💬 Post & comment', 'chat'],
+      ['post-comment', 'Post & comment', 'chat'],
       ['followup', 'ตามลูกค้า', 'clock'], ['review', '⏱️ SLA', 'check'], ['audit', 'Audit', 'list'],
       ['upload', 'Upload', 'upload'], ['quality', 'Quality', 'shield'], ['setting', 'ตั้งค่า', 'gear']];
     const platforms = (S.filters && S.filters.platforms) || ['Facebook', 'LINE', 'WhatsApp', 'Instagram'];
@@ -706,7 +706,7 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
   function commentsShell() {
     return `<div class="page-head">
       <div>
-        <h1>💬 Post & comment</h1>
+        <h1>Post & comment</h1>
         <div class="meta-line"><span>ตรวจสอบคอมเมนต์ใต้โพสต์ Facebook & Instagram พร้อมคิดคะแนน SLA การตอบกลับ (แยกกับแชท)</span></div>
       </div>
       <div style="display:flex;gap:8px">
