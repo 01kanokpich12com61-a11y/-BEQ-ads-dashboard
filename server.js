@@ -1373,7 +1373,8 @@ async function api(req, res, url, session) {
       }
     }
     audit.log(session.user.username, 'import_fb_all', `นำเข้าบทสนทนาทุกเพจ: ${totalImportedLeads} ลีด, ${totalImportedMsgs} ข้อความ`, clientIp(req));
-    return send(res, 200, { ok: true, totalImportedLeads, totalImportedMsgs, results });
+    const errors = results.filter((r) => !r.success).map((r) => `${r.pageName}: ${r.error}`);
+    return send(res, 200, { ok: true, totalImportedLeads, totalImportedMsgs, results, errors });
   }
 
   if (route === 'PUT /api/settings/meta') {

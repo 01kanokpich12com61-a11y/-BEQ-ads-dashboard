@@ -2027,7 +2027,8 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
         try {
           const r = await api('/api/import/facebook-conversations-all', { method: 'POST', body: { limit: 50 } });
           if (r.ok) {
-            S.flash = { type: 'ok', text: `ดึงประวัติแชททุกเพจสำเร็จ! เพิ่มลูกค้าใหม่ ${r.totalImportedLeads} ราย, ${r.totalImportedMsgs} ข้อความ` };
+            const errText = r.errors && r.errors.length ? (' (⚠️ มีข้อผิดพลาด: ' + r.errors.join('; ') + ')') : '';
+            S.flash = { type: r.errors && r.errors.length && !r.totalImportedLeads ? 'err' : 'ok', text: `ดึงประวัติแชทสำเร็จ! เพิ่มลูกค้าใหม่ ${r.totalImportedLeads} ราย, ${r.totalImportedMsgs} ข้อความ${errText}` };
             S.filters = await api('/api/filters').catch(() => null);
             render();
           }
