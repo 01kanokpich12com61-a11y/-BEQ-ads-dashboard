@@ -114,7 +114,7 @@
   }
 
   /* ---------------- routing ---------------- */
-  const ROUTES = ['dashboard', 'inbox', 'board', 'followup', 'review', 'audit', 'upload', 'quality', 'setting'];
+  const ROUTES = ['dashboard', 'inbox', 'board', 'post-comment', 'followup', 'review', 'audit', 'upload', 'quality', 'setting'];
   function routeFromHash() {
     const r = location.hash.replace(/^#\/?/, '');
     return ROUTES.includes(r) ? r : 'dashboard';
@@ -133,6 +133,7 @@
     if (S.route === 'setting') loadSettings();
     if (S.route === 'upload') loadUpload();
     if (S.route === 'quality') loadQuality();
+    if (S.route === 'post-comment') loadComments();
   }
 
   /* ---------------- shell ---------------- */
@@ -177,7 +178,7 @@
   function render() {
     if (!S.booted) { $app.innerHTML = '<div class="loading">Loading…</div>'; return; }
     if (!S.me) return renderLogin();
-    const views = { dashboard: dashShell, inbox: inboxShell, board: boardShell, followup: followShell, review: reviewShell, audit: auditShell, setting: settingShell, upload: uploadShell, quality: qualityShell };
+    const views = { dashboard: dashShell, inbox: inboxShell, board: boardShell, 'post-comment': commentsShell, followup: followShell, review: reviewShell, audit: auditShell, setting: settingShell, upload: uploadShell, quality: qualityShell };
     const body = (views[S.route] || soonShell)();
     $app.innerHTML = topbar() + `<main class="page">${S.me.mustChange && S.route !== 'setting'
       ? '<div class="notice warn banner">ยังใช้รหัสผ่านเริ่มต้นอยู่ — <a href="#/setting">เปลี่ยนรหัสผ่านที่ Setting</a></div>' : ''}${body}</main><div id="drawer-root"></div>`;
@@ -195,6 +196,7 @@
     if (S.route === 'setting') renderSettingBody();
     if (S.route === 'upload') renderUploadBody();
     if (S.route === 'quality') renderQualityBody();
+    if (S.route === 'post-comment') renderCommentsBody();
   }
 
   function soonShell() {
