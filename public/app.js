@@ -2166,12 +2166,12 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
         }
       }
       else if (act === 'fb-import-all') {
-        if (!confirm('ต้องการดึงแชทและลูกค้าย้อนหลังของทุกเพจ Facebook พร้อมกันหรือไม่?')) return;
+        if (!confirm('ต้องการดึงแชทและลูกค้าย้อนหลังของทุกเพจ (เพจละ 100 แชท) พร้อมกันหรือไม่?')) return;
         el.disabled = true;
         const originalText = el.textContent;
         el.textContent = '⏳ กำลังดึงแชททุกเพจ...';
         try {
-          const r = await api('/api/import/facebook-conversations-all', { method: 'POST', body: { limit: 50 } });
+          const r = await api('/api/import/facebook-conversations-all', { method: 'POST', body: { limit: 100 } });
           if (r.ok) {
             const errText = r.errors && r.errors.length ? (' (⚠️ มีข้อผิดพลาด: ' + r.errors.join('; ') + ')') : '';
             S.flash = { type: r.errors && r.errors.length && !r.totalImportedLeads ? 'err' : 'ok', text: `ดึงประวัติแชทสำเร็จ! เพิ่มลูกค้าใหม่ ${r.totalImportedLeads} ราย, ${r.totalImportedMsgs} ข้อความ${errText}` };
@@ -2189,11 +2189,11 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
       else if (act === 'fb-import-conv') {
         const pageId = el.dataset.pageId;
         const pageName = el.dataset.pageName;
-        if (!confirm(`ต้องการดึงข้อมูลแชทและลูกค้าเก่าย้อนหลังของเพจ "${pageName}" (ID: ${pageId}) หรือไม่?`)) return;
+        if (!confirm(`ต้องการดึงข้อมูลแชทและลูกค้าเก่าย้อนหลัง 100 แชทของเพจ "${pageName}" (ID: ${pageId}) หรือไม่?`)) return;
         el.disabled = true;
         el.textContent = '⏳ กำลังดึงแชท...';
         try {
-          const r = await api('/api/import/facebook-conversations', { method: 'POST', body: { pageId, limit: 50 } });
+          const r = await api('/api/import/facebook-conversations', { method: 'POST', body: { pageId, limit: 100 } });
           if (r.ok) {
             S.flash = { type: 'ok', text: `นำเข้าบทสนทนาเพจ ${r.pageName} สำเร็จ: เพิ่มลูกค้าใหม่ ${r.importedLeads} ราย, ${r.importedMsgs} ข้อความ` };
             S.filters = await api('/api/filters').catch(() => null);
