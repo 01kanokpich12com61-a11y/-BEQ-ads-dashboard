@@ -1478,8 +1478,10 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
   function renderInboxTools() {
     const el = $id('mess-tools'); const s = S.inbox; if (!el || !s.data) return;
     const channels = [...new Set(s.data.rows.map((r) => r.channel))].sort();
-    el.innerHTML = `<div class="pills">${[['', 'ทั้งหมด'], ...STATUS_ORDER.map((k) => [k, STATUS_TH[k]])]
-      .map(([k, l]) => `<button class="pill ${s.status === k ? 'active' : ''}" data-act="istatus" data-status="${k}">${l}</button>`).join('')}</div>
+    const statusOpts = [['', 'ทั้งหมด'], ...STATUS_ORDER.map((k) => [k, STATUS_TH[k]])];
+    el.innerHTML = `<div class="sel"><select data-bind="istatus-sel" aria-label="สถานะ">
+      ${statusOpts.map(([k, l]) => `<option value="${k}" ${s.status === k ? 'selected' : ''}>${l}</option>`).join('')}
+      </select></div>
       <div class="sel"><select data-bind="ichannel" aria-label="ช่องแชต"><option value="">ทุกช่องแชต</option>
       ${channels.map((c) => `<option value="${esc(c)}" ${c === s.channel ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select></div>`;
   }
@@ -2324,6 +2326,7 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
     if (b === 'aaction') { S.audit.action = ev.target.value; S.audit.limit = 100; loadAudit(); return; }
     if (b === 'afrom' || b === 'ato') { S.audit[b === 'afrom' ? 'from' : 'to'] = ev.target.value; S.audit.limit = 100; loadAudit(); return; }
     if (b === 'ichannel') { S.inbox.channel = ev.target.value; renderInboxTools(); renderInboxList(); return; }
+    if (b === 'istatus-sel') { S.inbox.status = ev.target.value; renderInboxTools(); renderInboxList(); return; }
     if (b === 'header-platform') {
       d.platform = ev.target.value;
       d.page = '';
