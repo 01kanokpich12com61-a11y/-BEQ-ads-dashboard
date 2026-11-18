@@ -197,9 +197,11 @@ async function handleWebhook(body) {
           else pageName = placeholder.name;
           store.write('pages.json', pages);
         } else {
-          // บันทึกเพจใหม่ลง pages.json อัตโนมัติ
-          const defaultPlatform = isInstagram ? 'Instagram' : 'Facebook';
-          recordPage(pageId, pageName || `${defaultPlatform} ${pageId}`, defaultPlatform);
+          // ไม่สร้างเพจขยะอัตโนมัติถ้าไม่มีชื่อเพจที่ชัดเจน
+          if (pageName && !pageName.startsWith('Facebook ') && !pageName.startsWith('Instagram ') && pageId !== '111432947713900' && pageId !== '1040829309417229') {
+            const defaultPlatform = isInstagram ? 'Instagram' : 'Facebook';
+            recordPage(pageId, pageName, defaultPlatform);
+          }
         }
       }
 
@@ -1343,6 +1345,8 @@ async function api(req, res, url, session) {
       for (const fp of fbPages) {
         const id = String(fp.id);
         const name = clean(fp.name, 120);
+        // กรองไม่เอาเพจที่ไม่มีชื่อ หรือเป็นเพจตัวเลขขยะ
+        if (!name || name.startsWith('Page ') || id === '111432947713900' || id === '1040829309417229') continue;
         const pageToken = fp.access_token || '';
         const idx = pages.findIndex((p) => p.id === id || String(p.id) === id);
         if (idx >= 0) {
