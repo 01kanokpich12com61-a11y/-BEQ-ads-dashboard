@@ -151,7 +151,8 @@
       ['followup', 'ตามลูกค้า', 'clock'], ['review', '⏱️ SLA', 'check'], ['audit', 'Audit', 'list'],
       ['upload', 'Upload', 'upload'], ['quality', 'Quality', 'shield'], ['setting', 'ตั้งค่า', 'gear']];
     const platforms = (S.filters && S.filters.platforms) || ['Facebook', 'LINE', 'WhatsApp', 'Instagram'];
-    const allPages = (S.filters && S.filters.pages) || [];
+    const rawAllPages = (S.filters && S.filters.pages) || [];
+    const allPages = rawAllPages.filter((p) => p && p.id && !p.id.startsWith('PAGE-') && p.name && !p.name.startsWith('Page ') && p.id !== '111432947713900' && p.id !== '1040829309417229');
     const curPlatform = S.dash.platform || '';
     const filteredPages = curPlatform ? allPages.filter((p) => !p.platform || p.platform.toLowerCase() === curPlatform.toLowerCase()) : allPages;
     const list = notices();
@@ -510,7 +511,8 @@
   }
 
   function renderPlatformPageInputs(u) {
-    const pages = (S.filters && S.filters.pages) || [];
+    const rawPages = (S.filters && S.filters.pages) || [];
+    const pages = rawPages.filter((p) => p && p.id && !p.id.startsWith('PAGE-') && p.name && !p.name.startsWith('Page ') && p.id !== '111432947713900' && p.id !== '1040829309417229');
     const curPlatform = u.platform || 'Facebook';
     const curPage = u.pageName || '';
     return `<div class="grid-2" style="margin:14px 0 16px;background:#f8faf6;padding:14px 16px;border-radius:12px;border:1px solid var(--line-soft)">
@@ -1300,7 +1302,8 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
     const s = S[scope];
     const curPlatform = S.dash.platform || '';
     const curPage = S.dash.page || '';
-    const allPages = (S.filters && S.filters.pages) || [];
+    const rawAllPages = (S.filters && S.filters.pages) || [];
+    const allPages = rawAllPages.filter((p) => p && p.id && !p.id.startsWith('PAGE-') && p.name && !p.name.startsWith('Page ') && p.id !== '111432947713900' && p.id !== '1040829309417229');
     const filteredPages = curPlatform ? allPages.filter((p) => (p.platform || 'Facebook') === curPlatform) : allPages;
 
     return `<section class="card filters" style="display:flex;align-items:center;flex-wrap:wrap;gap:10px">
