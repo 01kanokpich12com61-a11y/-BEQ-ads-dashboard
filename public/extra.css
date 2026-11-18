@@ -544,6 +544,129 @@
   vertical-align: middle;
 }
 
+/* ═══════════════════════════════════════════
+   HI-TECH & AI ENHANCEMENTS + BRAND LOGOS
+   ═══════════════════════════════════════════ */
+.brand-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+.brand-icon svg {
+  display: block;
+}
+
+/* Hi-tech AI Chip */
+.ai-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: linear-gradient(135deg, #10b981 0%, #3b82f6 50%, #8b5cf6 100%);
+  color: #fff !important;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 999px;
+  box-shadow: 0 2px 6px rgba(59, 130, 246, 0.35);
+  letter-spacing: 0.3px;
+  animation: aiGlowPulse 3s infinite ease-in-out;
+}
+@keyframes aiGlowPulse {
+  0%, 100% { box-shadow: 0 2px 6px rgba(59, 130, 246, 0.35); }
+  50% { box-shadow: 0 2px 14px rgba(139, 92, 246, 0.6); }
+}
+
+/* AI Suggestion Bar */
+.ai-suggest-bar {
+  margin: 10px 0 8px;
+  padding: 10px 14px;
+  background: linear-gradient(135deg, #f0fdf4 0%, #eff6ff 50%, #faf5ff 100%);
+  border: 1px solid #c7d2fe;
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+.ai-suggest-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  color: #4338ca;
+  font-weight: 600;
+}
+.ai-suggest-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.ai-chip-btn {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  color: #1e293b;
+  font-size: 12.5px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all .15s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+}
+.ai-chip-btn:hover {
+  background: #f8fafc;
+  border-color: #3b82f6;
+  color: #1d4ed8;
+  transform: translateY(-1px);
+  box-shadow: 0 3px 8px rgba(59,130,246,0.15);
+}
+.ai-chip-btn:active {
+  transform: translateY(0);
+}
+
+/* AI Lead Card Tag */
+.ai-lead-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 6px;
+  background: #f1f5f9;
+  color: #334155;
+  border: 1px solid #e2e8f0;
+}
+.ai-lead-tag.hot {
+  background: #fef2f2;
+  color: #dc2626;
+  border-color: #fecaca;
+}
+.ai-lead-tag.warm {
+  background: #fffbeb;
+  color: #d97706;
+  border-color: #fde68a;
+}
+.ai-lead-tag.cool {
+  background: #f0fdf4;
+  color: #16a34a;
+  border-color: #bbf7d0;
+}
+
+/* Channel badge polish */
+.chan {
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  transition: transform .12s ease;
+}
+.chan:hover {
+  transform: scale(1.02);
+}
+
+
 
 
 

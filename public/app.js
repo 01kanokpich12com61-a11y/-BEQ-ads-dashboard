@@ -87,7 +87,79 @@
     clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
     list: '<path d="M8 6h13M8 12h13M8 18h13"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/>',
     send: '<path d="M21 3L10 14"/><path d="M21 3l-7 18-4-7-7-4z"/>',
+    ai: '<path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>',
   };
+
+  // โลโก้เวกเตอร์แท้จริง คมชัดระดับ Hi-tech (Messenger, Instagram, LINE, WhatsApp)
+  const BRAND_LOGOS = {
+    Messenger: (s = 18) => `<span class="brand-icon" style="width:${s}px;height:${s}px"><svg width="${s}" height="${s}" viewBox="0 0 24 24"><defs><linearGradient id="msgGrad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#00C6FF"/><stop offset="50%" stop-color="#0078FF"/><stop offset="100%" stop-color="#A033FF"/></linearGradient></defs><path fill="url(#msgGrad)" d="M12 2C6.36 2 2 6.13 2 11.7c0 2.91 1.19 5.43 3.14 7.15.16.14.26.35.26.57l-.07 1.78c-.04.88.93 1.45 1.68 1l1.97-1.18c.18-.11.4-.14.61-.1.77.21 1.58.33 2.41.33 5.64 0 10-4.13 10-9.7S17.64 2 12 2z"/><path fill="#ffffff" d="M6.8 14.2l3.4-5.4a.8.8 0 0 1 1.1-.25l2.7 2 3.6-2.7c.5-.4 1.1.2.7.7l-3.4 5.4a.8.8 0 0 1-1.1.25l-2.7-2-3.6 2.7c-.5.4-1.1-.2-.7-.7z"/></svg></span>`,
+    Facebook: (s = 18) => `<span class="brand-icon" style="width:${s}px;height:${s}px"><svg width="${s}" height="${s}" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#1877F2"/><path fill="#ffffff" d="M13.5 18v-5.2h1.8l.3-2.1h-2.1V9.4c0-.6.2-1 .1.1-.1 0 1-.1 1-.1V7.3s-.9-.1-1.8-.1c-1.8 0-3 1.1-3 3.1v1.4H8v2.1h1.9V18h3.6z"/></svg></span>`,
+    Instagram: (s = 18) => `<span class="brand-icon" style="width:${s}px;height:${s}px"><svg width="${s}" height="${s}" viewBox="0 0 24 24"><defs><radialGradient id="igRad" cx="25%" cy="105%" r="120%"><stop offset="0%" stop-color="#FFDD55"/><stop offset="15%" stop-color="#FF543E"/><stop offset="50%" stop-color="#C837AB"/><stop offset="100%" stop-color="#3771C8"/></radialGradient></defs><rect width="20" height="20" x="2" y="2" rx="5.5" fill="url(#igRad)"/><path fill="#ffffff" d="M12 7a5 5 0 1 0 0 10 5 5 0 0 0 0-10zm0 8.2a3.2 3.2 0 1 1 0-6.4 3.2 3.2 0 0 1 0 6.4zm5.2-8.6a1.2 1.2 0 1 1-2.4 0 1.2 1.2 0 0 1 2.4 0z"/></svg></span>`,
+    LINE: (s = 18) => `<span class="brand-icon" style="width:${s}px;height:${s}px"><svg width="${s}" height="${s}" viewBox="0 0 24 24"><rect width="20" height="20" x="2" y="2" rx="4.5" fill="#06C755"/><path fill="#ffffff" d="M19 11.2c0-3.9-3.6-7-8-7s-8 3.1-8 7c0 3.5 3.1 6.4 7.2 6.9.3 0 .7.2.8.5l.3 1.7c.1.4.4.5.7.3l2.3-1.4c.2-.1.5-.2.8-.2 2.3 0 3.9-3.2 3.9-7.8z"/></svg></span>`,
+    WhatsApp: (s = 18) => `<span class="brand-icon" style="width:${s}px;height:${s}px"><svg width="${s}" height="${s}" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#25D366"/><path fill="#ffffff" d="M16.5 14.3c-.2-.1-1.3-.6-1.5-.7-.2-.1-.4-.1-.5.1-.2.2-.6.7-.7.9-.1.1-.3.2-.5.1-.2-.1-1-.4-1.9-1.2-.7-.6-1.2-1.4-1.3-1.6-.1-.2 0-.4.1-.5l.4-.4c.1-.1.2-.3.2-.4 0-.1 0-.3-.1-.4-.1-.1-.5-1.3-.7-1.7-.2-.5-.4-.4-.5-.4h-.5c-.2 0-.5.1-.7.3-.2.3-.9.9-.9 2.1 0 1.3.9 2.5 1 2.6.1.2 1.8 2.8 4.4 3.9.6.3 1.1.4 1.5.3.5-.1 1.5-.6 1.7-1.2.2-.6.2-1.1.1-1.2z"/></svg></span>`
+  };
+
+  function getBrandLogo(plat, s = 18) {
+    const p = String(plat || '').trim();
+    if (p.toLowerCase().includes('instagram')) return BRAND_LOGOS.Instagram(s);
+    if (p.toLowerCase().includes('line')) return BRAND_LOGOS.LINE(s);
+    if (p.toLowerCase().includes('whatsapp')) return BRAND_LOGOS.WhatsApp(s);
+    if (p.toLowerCase().includes('messenger')) return BRAND_LOGOS.Messenger(s);
+    return BRAND_LOGOS.Facebook(s);
+  }
+
+  // ระบบ AI ให้คำตอบอัจฉริยะ (AI Smart Assistant for Hair Clinic)
+  function generateAiSuggestions(lead, messages) {
+    const lastCustMsg = [...(messages || [])].reverse().find(m => m.from !== 'staff')?.text || lead?.customerMsg || '';
+    const txt = lastCustMsg.toLowerCase();
+    const name = (lead?.name || 'ลูกค้า').replace(/^คุณ\s*/, '');
+
+    const suggestions = [];
+
+    if (txt.includes('ราคา') || txt.includes('โปร') || txt.includes('กี่บาท') || txt.includes('เท่าไหร่') || txt.includes('คอร์ส')) {
+      suggestions.push({
+        label: '💡 เสนอโปรโมชั่นปลูกผม',
+        text: `สวัสดีครับคุณ${name} 🙏 ตอนนี้คลินิกมีโปรโมชั่นพิเศษปลูกผมเทคนิค FUE/DHI กราฟละราคาพิเศษ พร้อมแถมฟรีตรวจประเมินกราฟและเลเซอร์ LLLT 3 ครั้งครับ สนใจให้คุณหมอประเมินจำนวนกราฟให้เบื้องต้นก่อนได้เลยนะครับ`
+      });
+      suggestions.push({
+        label: '📸 ขอรูปถ่ายประเมินกราฟ',
+        text: `รบกวนคุณ${name} ถ่ายรูปมุมตรงด้านหน้าและก้มศีรษะให้เห็นบริเวณที่กังวลชัดเจน ส่งเข้ามาในนี้ได้เลยนะครับ เดี๋ยวหมอช่วยประเมินจำนวนกราฟที่เหมาะสมให้ครับผม 😊`
+      });
+    } else if (txt.includes('นัด') || txt.includes('จอง') || txt.includes('สะดวก') || txt.includes('เข้าไป') || txt.includes('ปรึกษา')) {
+      suggestions.push({
+        label: '📅 ชวนล็อกคิวนัดตรวจ',
+        text: `ยินดีเลยครับคุณ${name} ทางคลินิกเปิดให้บริการทุกวัน 10:00 - 19:00 น. คุณ${name} สะดวกเป็นวันธรรมดาหรือช่วงเสาร์-อาทิตย์ดีครับ เดี๋ยวทางเราเช็กคิวคุณหมอให้ทันทีครับ`
+      });
+    } else if (txt.includes('เจ็บ') || txt.includes('พักฟื้น') || txt.includes('แผล') || txt.includes('สระผม')) {
+      suggestions.push({
+        label: '🛡️ ข้อมูลดูแลหลังปลูกผม',
+        text: `เทคนิคปลูกผมของทางเราใช้หัวเจาะขนาดเล็กพิเศษ แผลมีขนาดจิ๋วมาก หายไว ไม่ต้องพักฟื้นยาว วันรุ่งขึ้นสามารถเข้ามาสระผมที่คลินิกและใช้ชีวิตประจำวันได้ตามปกติเลยครับคุณ${name}`
+      });
+    } else {
+      suggestions.push({
+        label: '✨ ทักทายพร้อมประเมิน',
+        text: `สวัสดีครับคุณ${name} ทีมงาน BEQ Hair Clinic ยินดีให้บริการครับ ไม่ทราบว่าคุณ${name} มีความกังวลเรื่องผมร่วง ผมบาง หรือบริเวณไรผมเว้าด้านหน้า สามารถเล่าให้ฟังเพื่อช่วยแนะนำแนวทางการรักษาได้เลยนะครับ 🙏`
+      });
+      suggestions.push({
+        label: '📋 ส่งข้อมูลโปรแกรม',
+        text: `สำหรับปัญหาผม ทางคลินิกเรามีทั้งการปลูกผมถาวร FUE และการฟื้นฟูรากผม PRP / Stem Cell ครับ สะดวกให้เจ้าหน้าที่โทรแจ้งรายละเอียดเพิ่มเติมไหมครับผม?`
+      });
+    }
+
+    return suggestions;
+  }
+
+  // ระบบ AI คาดการณ์โอกาสปิดการขาย (Lead Intent Scoring)
+  function predictLeadIntent(lead) {
+    const custMsg = (lead.customerMsg || lead.reason || '').toLowerCase();
+    if (custMsg.includes('จอง') || custMsg.includes('นัด') || custMsg.includes('เบอร์') || custMsg.includes('โอน') || custMsg.includes('มัดจำ')) {
+      return { score: 'HOT 🔥', intent: 'สนใจสูงมาก นัดหมาย/ซื้อ', cls: 'hot' };
+    }
+    if (custMsg.includes('ราคา') || custMsg.includes('โปร') || custMsg.includes('กราฟ') || custMsg.includes('เท่าไหร่') || custMsg.includes('สนใจ')) {
+      return { score: 'WARM ⚡', intent: 'สนใจราคา/โปรโมชั่น', cls: 'warm' };
+    }
+    return { score: 'COOL 💬', intent: 'สอบถามข้อมูลทั่วไป', cls: 'cool' };
+  }
 
   // เส้นผมแบบนามธรรม ใช้เป็นพื้นหลังของแถบสรุปและหน้าล็อกอิน
   function strandsSvg(count, opacity) {
@@ -830,9 +902,10 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
               const p = x.post;
               const isReplied = x.replied;
               const reply = x.replies && x.replies[0];
-              const platIcon = p.platform === 'Instagram' ? '📸 Instagram' : '🔵 Facebook';
+              const platName = p.platform === 'Instagram' ? 'Instagram' : 'Facebook';
+              const logoSvg = getBrandLogo(platName, 15);
               return `<tr>
-                <td class="nowrap"><b>${platIcon}</b><br><small style="color:var(--muted)">${esc(p.pageName || p.pageId)}</small></td>
+                <td class="nowrap"><span style="display:inline-flex;align-items:center;gap:4px;font-weight:700">${logoSvg} ${esc(platName)}</span><br><small style="color:var(--muted)">${esc(p.pageName || p.pageId)}</small></td>
                 <td style="max-width:240px;font-size:13px">${esc(String(p.content || '').slice(0, 60))}${(p.content || '').length > 60 ? '…' : ''}${p.permalink ? `<br><a href="${esc(p.permalink)}" target="_blank" style="font-size:11px;color:var(--brand)">🔗 เปิดโพสต์จริง</a>` : ''}</td>
                 <td>${x.noComments ? '<i style="color:var(--muted)">ยังไม่มีคอมเมนต์</i>' : `<b>${esc(x.from)}</b><div style="font-size:13.5px;margin-top:2px;color:var(--ink-2)">${esc(x.text)}</div>`}</td>
                 <td class="nowrap" style="font-size:12.5px">${esc(x.timestamp ? x.timestamp.slice(0, 16).replace('T', ' ') : '—')}</td>
@@ -1290,10 +1363,10 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
   const CHAN_ICON = { Messenger: '🔵', Facebook: '🔵', Instagram: '📸', LINE: '📱', WhatsApp: '💚' };
   const chanHtml = (c) => {
     const norm = (c === 'Facebook' || c === 'Messenger') ? 'Facebook' : c;
-    const iconSym = CHAN_ICON[norm] || CHAN_ICON[c] || '💬';
+    const logoSvg = getBrandLogo(c, 16);
     const col = CHAN_COLOR[norm] || CHAN_COLOR[c] || '#8a948f';
-    const bgCol = norm === 'Instagram' ? '#fdf2f8' : norm === 'Facebook' ? '#eff6ff' : norm === 'LINE' ? '#f0fdf4' : '#f4f6f8';
-    return `<span class="chan" style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:6px;font-size:12px;font-weight:600;background:${bgCol};color:${col};border:1px solid ${col}33"><span>${iconSym}</span>${esc(norm)}</span>`;
+    const bgCol = norm === 'Instagram' ? '#fdf2f8' : norm === 'Facebook' ? '#eff6ff' : norm === 'LINE' ? '#f0fdf4' : norm === 'WhatsApp' ? '#f0fdf4' : '#f4f6f8';
+    return `<span class="chan" style="display:inline-flex;align-items:center;gap:5px;padding:3px 8px;border-radius:7px;font-size:12px;font-weight:600;background:${bgCol};color:${col};border:1px solid ${col}33">${logoSvg}<span>${esc(norm)}</span></span>`;
   };
   const statusHtml = (s) => `<span class="q-badge ${STATUS_CLASS[s] || 'q-none'}">${esc(STATUS_TH[s] || s)}</span>`;
 
@@ -1370,11 +1443,34 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
   }
   function closeChat() { S.chat.id = null; renderDrawer(); }
 
-  // ช่องพิมพ์ตอบลูกค้า ใช้ทั้งใน Inbox และ drawer
+  // ช่องพิมพ์ตอบลูกค้า ใช้ทั้งใน Inbox และ drawer พร้อมระบบ AI Smart Suggest
   function composerHtml(d) {
     const c = S.chat;
-    return `<form class="reply-form" data-form="reply"><textarea name="text" rows="2" maxlength="2000" placeholder="พิมพ์ข้อความตอบลูกค้า… (Enter ส่ง · Shift+Enter ขึ้นบรรทัดใหม่)" ${c.sending ? 'disabled' : ''}></textarea>
-      <button class="btn primary" type="submit" ${c.sending ? 'disabled' : ''}>${icon('send')}${c.sending ? 'กำลังส่ง…' : 'ส่ง'}</button></form>
+    const l = (d && d.lead) || currentLead();
+    const suggestions = generateAiSuggestions(l, d && d.messages);
+
+    return `
+      <!-- AI Smart Assistant Bar -->
+      <div class="ai-suggest-bar">
+        <div class="ai-suggest-head">
+          <span style="display:flex;align-items:center;gap:6px">
+            <span class="ai-badge">✨ AI Co-pilot</span>
+            <span>แนะนำข้อความตอบกลับอัจฉริยะ (คลิกเพื่อนำข้อความไปใส่ในกล่องพิมพ์)</span>
+          </span>
+        </div>
+        <div class="ai-suggest-chips">
+          ${suggestions.map(sg => `
+            <button type="button" class="ai-chip-btn" data-act="ai-fill" data-text="${esc(sg.text)}" title="${esc(sg.text)}">
+              ${esc(sg.label)}
+            </button>
+          `).join('')}
+        </div>
+      </div>
+
+      <form class="reply-form" data-form="reply">
+        <textarea name="text" rows="2" maxlength="2000" placeholder="พิมพ์ข้อความตอบลูกค้า หรือคลิกคำแนะนำ AI ด้านบน… (Enter ส่ง · Shift+Enter ขึ้นบรรทัดใหม่)" ${c.sending ? 'disabled' : ''}></textarea>
+        <button class="btn primary" type="submit" ${c.sending ? 'disabled' : ''}>${icon('send')}${c.sending ? 'กำลังส่ง…' : 'ส่ง'}</button>
+      </form>
       ${c.msg ? `<div class="notice ${c.msg.type} reply-msg">${esc(c.msg.text)}</div>` : ''}
       <div class="reply-note">${d && d.demo ? 'โหมดเดโม: ข้อความจะถูกบันทึกในระบบเท่านั้น ไม่ได้ส่งถึงลูกค้าจริง' : 'ส่งผ่าน Meta Messenger Platform · ตอบได้ภายใน 24 ชม. หลังลูกค้าทักล่าสุด'}</div>`;
   }
@@ -1511,15 +1607,15 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
     list.innerHTML = rows.slice(0, MAX).map((r) => {
       const pv = r.last ? `${r.last.from === 'staff' ? 'คุณ: ' : ''}${esc(r.last.text)} · ${ago(r.last.at)}` : `ยังไม่มีข้อความ · ${esc(r.date)}`;
       const ch = r.platform || r.channel || 'Facebook';
-      const chIcon = ch === 'Instagram' ? '📸' : ch === 'LINE' ? '📱' : ch === 'WhatsApp' ? '💚' : '🔵';
+      const logoSvg = getBrandLogo(ch, 14);
       const chColor = ch === 'Instagram' ? '#c13584' : ch === 'LINE' ? '#06c755' : ch === 'WhatsApp' ? '#25d366' : '#1877f2';
       const chBg   = ch === 'Instagram' ? '#fce7f3' : ch === 'LINE' ? '#f0fdf4' : ch === 'WhatsApp' ? '#f0fdf4' : '#e0f2fe';
       const pageLabel = r.pageName ? `<span style="font-size:11px;color:var(--brand-deep);background:#e4eedc;padding:1px 6px;border-radius:4px;white-space:nowrap">${esc(r.pageName)}</span>` : '';
       return `<button class="conv ${r.id === S.chat.id ? 'active' : ''}" data-act="select-chat" data-id="${esc(r.id)}">${avatarHtml(r.name, r.id, 48)}
         <span class="conv-main" style="display:flex;flex-direction:column;min-width:0;flex:1;overflow:hidden">
           <b style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:14px;line-height:1.3">${esc(r.name)}</b>
-          <span style="display:flex;align-items:center;gap:3px;flex-wrap:nowrap;overflow:hidden">
-            <span style="font-size:11px;font-weight:600;color:${chColor};background:${chBg};padding:1px 5px;border-radius:4px;white-space:nowrap;flex-shrink:0">${chIcon} ${esc(ch)}</span>
+          <span style="display:flex;align-items:center;gap:4px;flex-wrap:nowrap;overflow:hidden">
+            <span style="display:inline-flex;align-items:center;gap:3px;font-size:11px;font-weight:600;color:${chColor};background:${chBg};padding:1px 6px;border-radius:4px;white-space:nowrap;flex-shrink:0">${logoSvg} ${esc(ch)}</span>
             ${pageLabel}
           </span>
           <small style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--muted);font-size:12px">${pv}</small>
@@ -1642,10 +1738,14 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
     const avgText = l.avgReply !== null && l.avgReply !== undefined ? `${num(l.avgReply)} นาที` : (l.firstResponseMin ? `${num(l.firstResponseMin)} นาที` : '—');
     const slaText = l.slaLabel || (l.status === 'no_reply' ? 'ยังไม่ตอบ' : 'ทันเวลา');
     const slaCls = l.slaStatus === 'late' || l.status === 'no_reply' || l.status === 'very_poor' ? 'q-poor' : 'q-excellent';
+    const aiIntent = predictLeadIntent(l);
 
     return `<div class="lead" draggable="true" data-lead-id="${esc(l.id)}" data-lead-status="${esc(l.status)}" data-act="open-chat" data-id="${esc(l.id)}">
-      <div class="lead-head" style="flex-direction:column;align-items:flex-start;gap:2px">
-        <b style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:100%">${esc(l.name)}</b>
+      <div class="lead-head" style="flex-direction:column;align-items:flex-start;gap:3px">
+        <div style="display:flex;align-items:center;justify-content:space-between;width:100%;gap:4px">
+          <b style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:14px">${esc(l.name)}</b>
+          <span class="ai-lead-tag ${aiIntent.cls}" title="AI วิเคราะห์: ${esc(aiIntent.intent)}">${esc(aiIntent.score)}</span>
+        </div>
         <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">
           ${l.pageName ? `<span class="ad-sub" style="font-size:11px;color:var(--muted)">${esc(l.pageName)}</span>` : ''}
           ${chanHtml(l.channel)}
@@ -2101,7 +2201,17 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
     if (!el) { if (S.menu && !ev.target.closest('.popover')) { S.menu = null; render(); } return; }
     const act = el.dataset.act; const d = S.dash;
     try {
-      if (act === 'menu') { S.menu = S.menu === el.dataset.menu ? null : el.dataset.menu; render(); }
+      if (act === 'ai-fill') {
+        const textToFill = el.dataset.text || '';
+        const ta = document.querySelector('.reply-form textarea');
+        if (ta) {
+          ta.value = textToFill;
+          ta.focus();
+          ta.style.height = 'auto';
+          ta.style.height = (ta.scrollHeight) + 'px';
+        }
+      }
+      else if (act === 'menu') { S.menu = S.menu === el.dataset.menu ? null : el.dataset.menu; render(); }
       else if (act === 'goto') { S.menu = null; location.hash = '#/' + el.dataset.to; }
       else if (act === 'logout') { await api('/api/logout', { method: 'POST' }); S.me = null; S.filters = null; S.menu = null; render(); }
       else if (act === 'refresh') loadDash(true);
