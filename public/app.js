@@ -2137,6 +2137,23 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
     const m = s.meta; const connected = Boolean(m.connectedAt);
     const verNum = parseInt(String(m.apiVersion || '').replace(/^v/, ''), 10);
     box.innerHTML = `${flash()}${verNum && verNum < 25 ? `<div class="notice warn" style="margin-bottom:16px;max-width:900px">Graph API เวอร์ชัน <b>${esc(m.apiVersion)}</b> ค่อนข้างเก่า — Meta กำหนดอายุของ Marketing API สั้นกว่า Graph API ทั่วไป และเก่ากว่านี้อาจถูกอัปเกรดอัตโนมัติ แนะนำเปลี่ยนเป็น <b>v25.0</b> ขึ้นไป แล้วกด “บันทึกและทดสอบ”</div>` : ''}<div class="stack" style="max-width:1150px">
+      <section class="card panel" style="background:linear-gradient(135deg, #f0fdf4 0%, #ffffff 100%);border:1.5px solid #86efac">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px">
+          <div>
+            <h3 style="margin:0;display:flex;align-items:center;gap:8px;color:#166534">
+              ⚡ ฐานข้อมูล Supabase Cloud (kv table)
+              ${(s.supabase && s.supabase.connected) ? '<span class="chip good" style="font-size:11px">เชื่อมต่อแล้ว (Active)</span>' : '<span class="chip" style="font-size:11px">ไม่ได้เชื่อมต่อ</span>'}
+            </h3>
+            <p class="sub" style="margin:4px 0 0">
+              สถานะ: <b>${(s.supabase && s.supabase.connected) ? `เชื่อมโยงกับโปรเจกต์ (${esc(s.supabase.url)}) เรียบร้อย` : 'ระบบใช้ Local SQLite'}</b> · ข้อมูลซิงค์อัตโนมัติ Real-time ตลอดเวลา
+            </p>
+          </div>
+          <button class="btn primary" type="button" data-act="supabase-sync-now" style="background:#16a34a;border-color:#15803d;display:inline-flex;align-items:center;gap:6px">
+            🔄 ดึงข้อมูลล่าสุดจาก Supabase เดี๋ยวนี้
+          </button>
+        </div>
+      </section>
+
       <section class="card panel"><h3>แหล่งข้อมูล</h3>
         <p class="sub">ตอนนี้แสดงข้อมูล: <b>${s.mode === 'meta' ? 'Meta API (ข้อมูลสดจาก Meta)' : s.mode === 'demo' ? 'Demo (ข้อมูลตัวอย่าง)' : 'ข้อมูลจริง (ว่างพร้อมรับข้อมูลใหม่และนำเข้า)'}</b>${connected ? ` · เชื่อมกับบัญชี <b>${esc(m.accountName)}</b>${m.currency ? ' (' + esc(m.currency) + ')' : ''}` : ''}</p>
         <div class="row-actions">
@@ -2274,6 +2291,28 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
       else if (act === 'menu') { S.menu = S.menu === el.dataset.menu ? null : el.dataset.menu; render(); }
       else if (act === 'goto') { S.menu = null; location.hash = '#/' + el.dataset.to; }
       else if (act === 'logout') { await api('/api/logout', { method: 'POST' }); S.me = null; S.filters = null; S.menu = null; render(); }
+      else if (act === 'supabase-sync-now') {
+        const btn = el;
+        const oldText = btn.textContent;
+        btn.textContent = 'กำลังดึงข้อมูล...';
+        btn.disabled = true;
+        try {
+          const res = await api('/api/settings/supabase/sync', { method: 'POST' });
+          S.flash = { type: 'ok', text: res.message || 'ดึงข้อมูลล่าสุดจาก Supabase สำเร็จแล้ว' };
+          // Refresh current view data
+          S.filters = await api('/api/filters').catch(() => null);
+          if (S.route === 'dashboard') loadDash(true);
+          else if (S.route === 'inbox') loadInbox();
+          else if (S.route === 'board') loadBoard();
+          else render();
+        } catch (err) {
+          S.flash = { type: 'err', text: err.message || 'ดึงข้อมูลไม่สำเร็จ' };
+          render();
+        } finally {
+          btn.textContent = oldText;
+          btn.disabled = false;
+        }
+      }
       else if (act === 'refresh') loadDash(true);
       else if (act === 'range') { d.range = el.dataset.range; if (d.range === 'custom' && !d.from) { const t = new Date(); d.to = ymd(t); t.setDate(t.getDate() - 29); d.from = ymd(t); } render(); loadDash(); }
       else if (act === 'tab') { d.tab = el.dataset.tab; render(); }

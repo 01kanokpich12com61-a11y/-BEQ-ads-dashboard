@@ -479,6 +479,11 @@ function publicSettings() {
       lastSyncAt: sh.lastSyncAt || null,
       hasAppsScript: Boolean(sh.appsScriptUrl),
     },
+    supabase: {
+      connected: store.hasSupabase,
+      url: config.supabaseUrl ? config.supabaseUrl.replace(/^https?:\/\//, '').split('.')[0] : '',
+      backend: store.backend,
+    },
   };
 }
 
@@ -1553,6 +1558,18 @@ async function api(req, res, url, session) {
     meta.clearCache();
     audit.log(session.user.username, 'meta_disconnect', 'ลบ token และกลับโหมดเดโม', clientIp(req));
     return send(res, 200, publicSettings());
+  }
+
+  if (route === 'POST /api/settings/supabase/sync') {
+    if (!auth.isAdmin(session.user)) return send(res, 403, { error: 'เฉพาะผู้ดูแล (admin) เท่านั้น' });
+    if (!store.hasSupabase) return send(res, 400, { error: 'ยังไม่ได้เชื่อมต่อ Supabase ใน .env' });
+    try {
+      await store.initFromSupabase();
+      audit.log(session.user.username, 'supabase_sync', 'ดึงข้อมูลล่าสุดจาก Supabase Cloud สำเร็จ', clientIp(req));
+      return send(res, 200, { ok: true, message: 'ดึงข้อมูลล่าสุดจาก Supabase สำเร็จแล้ว' });
+    } catch (err) {
+      return send(res, 500, { error: 'ดึงข้อมูลไม่สำเร็จ: ' + err.message });
+    }
   }
 
   if (route === 'POST /api/settings/mode') {
