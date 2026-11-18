@@ -1890,7 +1890,9 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
   const ROLE_TH = { admin: 'ผู้ดูแล (admin)', staff: 'ทีมขาย (staff)' };
   
   function pagesPanelHtml() {
-    const pages = (S.filters && S.filters.pages) || [];
+    const rawPages = (S.filters && S.filters.pages) || [];
+    // กรองไม่แสดงเพจขยะ / เพจที่ไม่มีชื่อจริง / เพจตัวเลข
+    const pages = rawPages.filter((p) => p && p.id && !p.id.startsWith('PAGE-') && p.name && !p.name.startsWith('Page ') && p.id !== '111432947713900' && p.id !== '1040829309417229');
     const rows = pages.map((p) => {
       const colorDot = `<span class="page-dot" style="background:${p.color || '#1877f2'};margin-right:6px"></span>`;
       const platformIcon = p.platform === 'LINE' ? '📱' : p.platform === 'WhatsApp' ? '💚' : p.platform === 'Instagram' ? '📸' : '🔵';
