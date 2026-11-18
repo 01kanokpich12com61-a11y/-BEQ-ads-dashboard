@@ -1772,7 +1772,7 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
   async function loadReview() { ensureFilters(); loadSla(); if (await fetchList('review', '/api/review')) renderReviewBody(); }
   function reviewShell() {
     return `<div class="page-head"><div><h1>⏱️ รายงาน SLA (SLA Performance)</h1><div class="meta-line"><span>ประเมินคะแนน SLA การตอบแชทและคอมเมนต์ของเซลส์และแอดมิน (เกณฑ์ 15 นาที)</span></div></div></div>
-      <div id="sla-body" style="margin-bottom:16px"></div>${rangeBar('review')}<div id="review-body"><div class="loading">Loading…</div></div>`;
+      <div id="sla-body" style="margin-bottom:16px"></div>`;
   }
   function renderReviewBody() {
     const box = $id('review-body'); const s = S.review; if (!box) return;
