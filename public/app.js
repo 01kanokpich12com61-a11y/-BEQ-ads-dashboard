@@ -217,6 +217,17 @@
     return list;
   }
 
+
+  function isValidPage(p) {
+    if (!p || !p.id || !p.name) return false;
+    const name = String(p.name).trim();
+    if (name.startsWith('PAGE-')) return false;
+    if (/^page\s*\d+$/i.test(name)) return false;
+    if (/^\d{6,}$/.test(name)) return false;
+    if (p.id === '111432947713900' || p.id === '1040829309417229') return false;
+    return true;
+  }
+
   function topbar() {
     const nav = [['dashboard', 'Dashboard', 'grid'], ['inbox', 'Inbox', 'chat'], ['board', 'Board', 'grid'],
       ['post-comment', 'Post & comment', 'chat'],
@@ -224,7 +235,7 @@
       ['upload', 'Upload', 'upload'], ['quality', 'Quality', 'shield'], ['setting', 'ตั้งค่า', 'gear']];
     const platforms = (S.filters && S.filters.platforms) || ['Facebook', 'LINE', 'WhatsApp', 'Instagram'];
     const rawAllPages = (S.filters && S.filters.pages) || [];
-    const allPages = rawAllPages.filter((p) => p && p.id && !p.id.startsWith('PAGE-') && p.name && !p.name.startsWith('Page ') && p.id !== '111432947713900' && p.id !== '1040829309417229');
+    const allPages = rawAllPages.filter(isValidPage);
     const curPlatform = S.dash.platform || '';
     const filteredPages = curPlatform ? allPages.filter((p) => !p.platform || p.platform.toLowerCase() === curPlatform.toLowerCase()) : allPages;
     const list = notices();
@@ -235,11 +246,11 @@
       <div class="topbar-selectors" style="display:inline-flex;gap:8px;align-items:center">
         <div class="pill-select"><select data-bind="header-platform" aria-label="แพลตฟอร์ม">
           <option value="">🌐 ทุกแพลตฟอร์ม</option>
-          ${platforms.map((p) => `<option value="${esc(p)}" ${curPlatform.toLowerCase() === p.toLowerCase() ? 'selected' : ''}>${esc(p)}</option>`).join('')}
+          ${platforms.map((p) => `<option value="${esc(p)}" ${curPlatform.toLowerCase() === p.toLowerCase() ? 'selected' : ''}>${p === "Facebook" ? "🔵 " : p === "Instagram" ? "📸 " : p === "LINE" ? "🟢 " : p === "WhatsApp" ? "💚 " : ""}${esc(p)}</option>`).join('')}
         </select></div>
         <div class="pill-select"><select data-bind="header-page" aria-label="เลือกเพจ">
           <option value="">${curPlatform ? `📄 ทุกเพจ (${esc(curPlatform)})` : '📄 ทุกเพจ / บัญชี'}</option>
-          ${filteredPages.map((p) => `<option value="${esc(p.id)}" ${S.dash.page === p.id ? "selected" : ""}>${p.platform === "Facebook" ? "🔵 " : p.platform === "LINE" ? "🟢 " : p.platform === "WhatsApp" ? "💚 " : ""}${esc(p.name)}</option>`).join("")}
+          ${filteredPages.map((p) => `<option value="${esc(p.id)}" ${S.dash.page === p.id ? "selected" : ""}>${p.platform === "Facebook" ? "🔵 " : p.platform === "Instagram" ? "📸 " : p.platform === "LINE" ? "🟢 " : p.platform === "WhatsApp" ? "💚 " : ""}${esc(p.name)}</option>`).join("")}
         </select></div>
       </div>
       <div class="rel"><button class="icon-btn" data-act="menu" data-menu="bell" aria-label="Notifications">${icon('bell')}${list.length ? '<span class="dot"></span>' : ''}</button>
@@ -584,7 +595,7 @@
 
   function renderPlatformPageInputs(u) {
     const rawPages = (S.filters && S.filters.pages) || [];
-    const pages = rawPages.filter((p) => p && p.id && !p.id.startsWith('PAGE-') && p.name && !p.name.startsWith('Page ') && p.id !== '111432947713900' && p.id !== '1040829309417229');
+    const pages = rawPages.filter(isValidPage);
     const curPlatform = u.platform || 'Facebook';
     const curPage = u.pageName || '';
     return `<div class="grid-2" style="margin:14px 0 16px;background:#f8faf6;padding:14px 16px;border-radius:12px;border:1px solid var(--line-soft)">
@@ -825,41 +836,32 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
     const { posts = [], sla = {} } = c.data;
     const totals = sla.totals || { turns: 0, onTime: 0, late: 0, deducted: 0, points: 0 };
 
-    let allComments = [];
-    let realComments = [];
-    posts.forEach(p => {
-      const pComms = p.comments || [];
-      if (pComms.length > 0) {
-        pComms.forEach(com => {
-          const item = { ...com, post: p };
-          allComments.push(item);
-          realComments.push(item);
-        });
+    let totalComments = 0;
+    let repliedCount = 0;
+    let pendingCount = 0;
+    let noCommCount = 0;
+
+    posts.forEach((p) => {
+      const comms = p.comments || [];
+      if (comms.length === 0) {
+        noCommCount++;
       } else {
-        // หากโพสต์นี้ยังไม่มีคอมเมนต์ แสดงแถวโพสต์ไว้ด้วย (ระบุชัดเจนว่ายังไม่มีคอมเมนต์)
-        allComments.push({
-          id: 'no-comm-' + p.id,
-          from: '—',
-          text: '(ยังไม่มีคอมเมนต์ใต้โพสต์นี้)',
-          timestamp: p.timestamp || '',
-          replied: false,
-          replies: [],
-          noComments: true,
-          post: p
+        comms.forEach((cm) => {
+          totalComments++;
+          if (cm.replied) repliedCount++;
+          else pendingCount++;
         });
       }
     });
 
-    // ยอดตัวเลข SLA และสถานะตอบกลับ จะคิดเฉพาะคอมเมนต์จริงที่มีคนคอมเมนต์เท่านั้น ไม่นับโพสต์ที่ไม่มีคอมเมนต์เป็นยังไม่ตอบ
-    const repliedCount = realComments.filter(x => x.replied).length;
-    const pendingCount = realComments.filter(x => !x.replied).length;
-
-    let filtered = allComments;
-    if (c.filterStatus === 'pending') filtered = allComments.filter(x => !x.noComments && !x.replied);
-    else if (c.filterStatus === 'replied') filtered = allComments.filter(x => !x.noComments && x.replied);
-    else if (c.filterStatus === 'no-comment') filtered = allComments.filter(x => x.noComments);
-
-    const noCommCount = allComments.filter(x => x.noComments).length;
+    let filteredPosts = posts;
+    if (c.filterStatus === 'pending') {
+      filteredPosts = posts.filter((p) => (p.comments || []).some((cm) => !cm.replied));
+    } else if (c.filterStatus === 'replied') {
+      filteredPosts = posts.filter((p) => (p.comments || []).some((cm) => cm.replied));
+    } else if (c.filterStatus === 'no-comment') {
+      filteredPosts = posts.filter((p) => !(p.comments || []).length);
+    }
 
     box.innerHTML = `
       <!-- SLA Score Card -->
@@ -870,7 +872,7 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
         </div>
         <div class="grid-4">
           <div class="stat"><div class="k-label">โพสต์ทั้งหมดที่ดึงมา</div><div class="k-value">${num(posts.length)}</div></div>
-          <div class="stat"><div class="k-label">คอมเมนต์จริงทั้งหมด</div><div class="k-value">${num(realComments.length)}</div></div>
+          <div class="stat"><div class="k-label">คอมเมนต์จริงทั้งหมด</div><div class="k-value">${num(totalComments)}</div></div>
           <div class="stat"><div class="k-label">ตอบแล้ว</div><div class="k-value" style="color:#16a34a">${num(repliedCount)}</div></div>
           <div class="stat"><div class="k-label">ยังไม่ตอบ</div><div class="k-value" style="color:${pendingCount ? '#dc2626' : 'var(--muted)'}">${num(pendingCount)}</div></div>
         </div>
@@ -879,42 +881,93 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
       <!-- Filter Tabs -->
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:10px">
         <div class="seg">
-          <button class="${c.filterStatus === 'all' ? 'active' : ''}" data-act="c-filter" data-val="all">โพสต์/คอมเมนต์ทั้งหมด (${allComments.length})</button>
+          <button class="${c.filterStatus === 'all' ? 'active' : ''}" data-act="c-filter" data-val="all">โพสต์ทั้งหมด (${posts.length})</button>
           <button class="${c.filterStatus === 'pending' ? 'active' : ''}" data-act="c-filter" data-val="pending" style="color:#b91c1c">🔴 คอมเมนต์ยังไม่ตอบ (${pendingCount})</button>
           <button class="${c.filterStatus === 'replied' ? 'active' : ''}" data-act="c-filter" data-val="replied" style="color:#15803d">🟢 คอมเมนต์ตอบแล้ว (${repliedCount})</button>
           <button class="${c.filterStatus === 'no-comment' ? 'active' : ''}" data-act="c-filter" data-val="no-comment" style="color:var(--muted)">⚪ โพสต์ที่ยังไม่มีคอมเมนต์ (${noCommCount})</button>
         </div>
       </div>
 
-      <!-- Comments Table -->
-      <div class="card panel">
-        <h3>📝 รายการคอมเมนต์ล่าสุด</h3>
-        ${!filtered.length ? '<div class="empty">ยังไม่มีคอมเมนต์ในหมวดนี้ หรือกด "🔄 ดึงโพสต์ & คอมเมนต์ล่าสุด" ด้านบนเพื่อดูดข้อมูลจริงจาก Meta</div>' : `
-          <div class="tscroll"><table><thead><tr>
-            <th>แพลตฟอร์ม / เพจ</th>
-            <th>โพสต์</th>
-            <th>ลูกค้า / คอมเมนต์</th>
-            <th>เวลาที่คอมเมนต์</th>
-            <th>สถานะการตอบ</th>
-            <th>การตอบกลับของทีมงาน</th>
-          </tr></thead><tbody>
-            ${filtered.map(x => {
-              const p = x.post;
-              const isReplied = x.replied;
-              const reply = x.replies && x.replies[0];
-              const platName = p.platform === 'Instagram' ? 'Instagram' : 'Facebook';
-              const logoSvg = getBrandLogo(platName, 15);
-              return `<tr>
-                <td class="nowrap"><span style="display:inline-flex;align-items:center;gap:4px;font-weight:700">${logoSvg} ${esc(platName)}</span><br><small style="color:var(--muted)">${esc(p.pageName || p.pageId)}</small></td>
-                <td style="max-width:240px;font-size:13px">${esc(String(p.content || '').slice(0, 60))}${(p.content || '').length > 60 ? '…' : ''}${p.permalink ? `<br><a href="${esc(p.permalink)}" target="_blank" style="font-size:11px;color:var(--brand)">🔗 เปิดโพสต์จริง</a>` : ''}</td>
-                <td>${x.noComments ? '<i style="color:var(--muted)">ยังไม่มีคอมเมนต์</i>' : `<b>${esc(x.from)}</b><div style="font-size:13.5px;margin-top:2px;color:var(--ink-2)">${esc(x.text)}</div>`}</td>
-                <td class="nowrap" style="font-size:12.5px">${esc(x.timestamp ? x.timestamp.slice(0, 16).replace('T', ' ') : '—')}</td>
-                <td>${x.noComments ? '<span class="rv-hint">ไม่มีคอมเมนต์</span>' : `<span class="q-badge ${isReplied ? 'q-good' : 'q-poor'}">${isReplied ? '🟢 ตอบแล้ว' : '🔴 ยังไม่ตอบ'}</span>`}</td>
-                <td>${reply ? `<div style="font-size:12.5px"><b>${esc(reply.from)}:</b> ${esc(reply.text)}</div><small style="color:var(--muted)">${esc(reply.timestamp ? reply.timestamp.slice(0, 16).replace('T', ' ') : '')}</small>` : '<span style="color:var(--muted);font-size:12px">—</span>'}</td>
-              </tr>`;
-            }).join('')}
-          </tbody></table></div>
-        `}
+      <!-- Post & Nested Comments List -->
+      <div class="post-feed" style="display:flex;flex-direction:column;gap:16px">
+        ${!filteredPosts.length ? '<div class="empty">ไม่มีโพสต์ในหมวดหมู่นี้ หรือกด "🔄 ดึงโพสต์ & คอมเมนต์ล่าสุด" เพื่อโหลดข้อมูลจาก Meta</div>' :
+          filteredPosts.map((p) => {
+            const platName = p.platform === 'Instagram' ? 'Instagram' : 'Facebook';
+            const logoSvg = getBrandLogo(platName, 18);
+            const comms = p.comments || [];
+            let displayComms = comms;
+            if (c.filterStatus === 'pending') displayComms = comms.filter((cm) => !cm.replied);
+            else if (c.filterStatus === 'replied') displayComms = comms.filter((cm) => cm.replied);
+            const postPending = comms.filter((cm) => !cm.replied).length;
+            const hasComms = comms.length > 0;
+            const borderColor = hasComms ? (postPending > 0 ? '#fecaca' : '#bbf7d0') : '#e2e8f0';
+            const headerBg = hasComms ? (postPending > 0 ? '#fff8f8' : '#f4fbf5') : '#f8fafc';
+
+            return `
+              <div class="card" style="padding:0;overflow:hidden;border:1.5px solid ${borderColor};border-radius:12px;background:#ffffff">
+                <div style="padding:14px 18px;background:${headerBg};border-bottom:1px solid ${borderColor};display:flex;align-items:flex-start;gap:12px">
+                  <div style="flex:0 0 auto;padding-top:2px">${logoSvg}</div>
+                  <div style="flex:1;min-width:0">
+                    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px">
+                      <span style="font-weight:700;font-size:13px;color:var(--ink, #0f172a)">${esc(platName)}</span>
+                      <span style="color:var(--muted);font-size:12px">· ${esc(p.pageName || p.pageId)}</span>
+                      <span style="color:var(--muted);font-size:11.5px">· ${esc(p.timestamp ? p.timestamp.slice(0, 16).replace('T', ' ') : '—')}</span>
+                      ${hasComms
+                        ? `<span class="q-badge ${postPending > 0 ? 'q-poor' : 'q-good'}" style="margin-left:auto;font-size:11px">${postPending > 0 ? `🔴 ยังไม่ตอบ ${postPending}` : '🟢 ตอบครบแล้ว'}</span>`
+                        : '<span class="rv-hint" style="margin-left:auto;font-size:11px">⚪ ยังไม่มีคอมเมนต์</span>'}
+                    </div>
+                    <div style="font-size:13.5px;color:var(--ink-1, #1e293b);line-height:1.5;margin-bottom:6px;word-break:break-word">
+                      ${esc(String(p.content || '').slice(0, 240))}${(p.content || '').length > 240 ? '…' : ''}
+                    </div>
+                    <div style="display:flex;align-items:center;gap:12px;font-size:11.5px">
+                      ${p.permalink ? `<a href="${esc(p.permalink)}" target="_blank" style="color:var(--brand);font-weight:600;display:inline-flex;align-items:center;gap:4px">🔗 เปิดโพสต์จริงบน ${esc(platName)}</a>` : ''}
+                      <span style="color:var(--muted)">💬 ${comms.length} คอมเมนต์</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Comments section directly under this post -->
+                <div style="padding:12px 18px">
+                  ${!displayComms.length
+                    ? `<div style="padding:10px 0;color:var(--muted);font-size:12.5px;font-style:italic">${hasComms ? 'ไม่มีคอมเมนต์ในเงื่อนไขการกรองนี้' : 'ยังไม่มีคอมเมนต์ใต้โพสต์นี้'}</div>`
+                    : `<div style="display:flex;flex-direction:column;gap:12px">
+                        ${displayComms.map((cm, idx) => {
+                          const reply = cm.replies && cm.replies[0];
+                          const isLast = idx === displayComms.length - 1;
+                          return `
+                            <div style="padding-bottom:${isLast ? '0' : '12px'};border-bottom:${isLast ? 'none' : '1px dashed #e2e8f0'};display:flex;gap:10px;align-items:flex-start">
+                              <div style="width:30px;height:30px;border-radius:50%;background:#e2e8f0;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;color:#475569;flex:0 0 30px">
+                                ${esc(String(cm.from || 'U')[0].toUpperCase())}
+                              </div>
+                              <div style="flex:1;min-width:0">
+                                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:2px">
+                                  <b style="font-size:13px;color:var(--ink, #0f172a)">${esc(cm.from || 'ผู้ใช้งาน')}</b>
+                                  <span style="font-size:11px;color:var(--muted)">${esc(cm.timestamp ? cm.timestamp.slice(0, 16).replace('T', ' ') : '—')}</span>
+                                  <span class="q-badge ${cm.replied ? 'q-good' : 'q-poor'}" style="font-size:10px;padding:1px 6px">
+                                    ${cm.replied ? '🟢 ตอบแล้ว' : '🔴 ยังไม่ตอบ'}
+                                  </span>
+                                </div>
+                                <div style="font-size:13px;color:var(--ink-2, #334155);line-height:1.45;word-break:break-word">
+                                  ${esc(cm.text || '')}
+                                </div>
+                                ${reply ? `
+                                  <div style="margin-top:8px;padding:8px 12px;background:#f8fafc;border-left:3px solid #3b82f6;border-radius:6px;font-size:12.5px">
+                                    <div style="font-weight:600;color:#2563eb;font-size:11.5px;margin-bottom:2px">💬 ทีมงานตอบกลับ: ${esc(reply.from || 'ทีมงาน')}</div>
+                                    <div style="color:var(--ink-1, #1e293b)">${esc(reply.text || '')}</div>
+                                    <div style="font-size:10.5px;color:var(--muted);margin-top:2px">${esc(reply.timestamp ? reply.timestamp.slice(0, 16).replace('T', ' ') : '')}</div>
+                                  </div>
+                                ` : ''}
+                              </div>
+                            </div>
+                          `;
+                        }).join('')}
+                      </div>`
+                  }
+                </div>
+              </div>
+            `;
+          }).join('')
+        }
       </div>
     `;
   }
@@ -1233,9 +1286,15 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
     card.innerHTML = `<div class="table-head"><div><h2>Campaign performance</h2><p>Ad-level results joined with sales chat quality · ${d.data.ads.length} ads</p></div>
       <label class="search">${icon('search')}<input id="tsearch" data-bind="search" placeholder="Search campaign or ad" value="${esc(d.search)}" autocomplete="off"></label></div>
       <div class="tscroll"><table><thead><tr>${COLS.map(([k, l]) => `<th data-act="sort" data-key="${k}" class="${k === 'creative' ? 'nosort' : ''}">${l}${d.sort === k ? (d.dir === 'asc' ? ' ▲' : ' ▼') : ''}</th>`).join('')}</tr></thead>
-      <tbody>${slice.length ? slice.map((r) => `<tr>
-        <td><div class="ad-name" title="${esc(r.name)}">${esc(r.name)}</div><div class="ad-sub">${esc(r.campaign)}${r.adset ? ' – ' + esc(r.adset) : ''} · ${esc(r.id)}</div></td>
-        <td><div class="creative">
+      <tbody>${slice.length ? slice.map((r) => {
+        const hoverData = esc(JSON.stringify({
+          id: r.id, name: r.name, campaign: r.campaign, adset: r.adset, creative: r.creative, thumb: r.thumb,
+          reach: r.reach, impressions: r.impressions, spend: r.spend, cpm: r.cpm, ctr: r.ctr, purchases: r.purchases,
+          costMessage: r.costMessage, qualityScore: r.qualityScore, qualityLabel: r.qualityLabel
+        }));
+        return `<tr>
+        <td class="ad-hover-trigger" data-ad-hover="${hoverData}"><div class="ad-name" title="${esc(r.name)}">${esc(r.name)}</div><div class="ad-sub">${esc(r.campaign)}${r.adset ? ' – ' + esc(r.adset) : ''} · ${esc(r.id)}</div></td>
+        <td class="ad-hover-trigger" data-ad-hover="${hoverData}"><div class="creative">
           <label class="dash-thumb-wrap" title="${r.thumb ? 'คลิกเพื่อเปลี่ยนรูปภาพ' : 'คลิกเพื่อใส่รูปโฆษณา'}">
             ${r.thumb
               ? `<img class="thumb" src="${esc(r.thumb)}" alt="" referrerpolicy="no-referrer" loading="lazy"><span class="thumb-badge">📷</span>`
@@ -1243,7 +1302,8 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
             <input type="file" accept="image/*" style="display:none" data-act="dash-ad-img" data-ad-id="${esc(r.id)}" data-ad-name="${esc(r.name)}">
           </label>
           <span class="creative-lbl">${esc(cap(String(r.creative || 'IMAGE').toLowerCase()))}</span>
-        </div></td>
+        </div></td>`;
+      })
         <td>${num(r.reach)}</td><td>${num(r.impressions)}</td><td>${baht(r.cpm)}</td><td>${pct(r.ctr)}</td><td>${baht(r.costMessage)}</td>
         <td>${r.cqc === null ? '—' : baht(r.cqc)}</td><td>${num(r.purchases)}</td><td class="spend">${baht(r.spend)}</td><td>${baht(r.cpc)}</td>
         <td><div class="q-cell">${sparkSvg(r.spark, r.qualityLabel)}<span class="q-badge q-${r.qualityLabel}">${r.qualityScore === null ? 'No chats' : `${QLABEL[r.qualityLabel]} · ${r.qualityScore}%`}</span></div></td></tr>`).join('')
@@ -1384,7 +1444,7 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
     const curPlatform = S.dash.platform || '';
     const curPage = S.dash.page || '';
     const rawAllPages = (S.filters && S.filters.pages) || [];
-    const allPages = rawAllPages.filter((p) => p && p.id && !p.id.startsWith('PAGE-') && p.name && !p.name.startsWith('Page ') && p.id !== '111432947713900' && p.id !== '1040829309417229');
+    const allPages = rawAllPages.filter(isValidPage);
     const filteredPages = curPlatform ? allPages.filter((p) => (p.platform || 'Facebook') === curPlatform) : allPages;
 
     return `<section class="card filters" style="display:flex;align-items:center;flex-wrap:wrap;gap:10px">
@@ -2003,7 +2063,7 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
   function pagesPanelHtml() {
     const rawPages = (S.filters && S.filters.pages) || [];
     // กรองไม่แสดงเพจขยะ / เพจที่ไม่มีชื่อจริง / เพจตัวเลข
-    const pages = rawPages.filter((p) => p && p.id && !p.id.startsWith('PAGE-') && p.name && !p.name.startsWith('Page ') && p.id !== '111432947713900' && p.id !== '1040829309417229');
+    const pages = rawPages.filter(isValidPage);
     const rows = pages.map((p) => {
       const colorDot = `<span class="page-dot" style="background:${p.color || '#1877f2'};margin-right:6px"></span>`;
       const platformIcon = p.platform === 'LINE' ? '📱' : p.platform === 'WhatsApp' ? '💚' : p.platform === 'Instagram' ? '📸' : '🔵';
@@ -2598,6 +2658,83 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
     if (ev.key === 'Escape' && S.chat.id && S.route !== 'inbox') closeChat();
     const t = ev.target;
     if (ev.key === 'Enter' && !ev.shiftKey && !ev.isComposing && t.matches && t.matches('.reply-form textarea')) { ev.preventDefault(); t.form.requestSubmit(); }
+  });
+
+
+  // Global hover popover handler for Campaign ads and creative
+  function ensureAdPopover() {
+    let pop = document.getElementById('ad-preview-popover');
+    if (!pop) {
+      pop = document.createElement('div');
+      pop.id = 'ad-preview-popover';
+      pop.className = 'ad-preview-popover';
+      document.body.appendChild(pop);
+    }
+    return pop;
+  }
+
+  document.addEventListener('mouseover', (ev) => {
+    const trigger = ev.target.closest && ev.target.closest('.ad-hover-trigger');
+    if (!trigger || !trigger.dataset.adHover) return;
+    const pop = ensureAdPopover();
+    try {
+      const r = JSON.parse(trigger.dataset.adHover);
+      const qColor = { excellent: '#15803d', good: '#2563eb', average: '#d97706', poor: '#dc2626' }[r.qualityLabel] || '#64748b';
+      const cType = String(r.creative || 'IMAGE').toUpperCase();
+      const mediaHtml = r.thumb
+        ? `<img src="${esc(r.thumb)}" referrerpolicy="no-referrer" alt="${esc(r.name)}">`
+        : `<div style="font-size:40px;opacity:0.4">${cType === 'VIDEO' ? '🎬' : cType === 'CAROUSEL' ? '🎠' : '🖼️'}</div>`;
+
+      pop.innerHTML = `
+        <div class="ad-popover-media">
+          ${mediaHtml}
+          <span class="ad-popover-badge">${cType}</span>
+        </div>
+        <div class="ad-popover-title" style="font-weight:700;font-size:14px;color:var(--ink, #0f172a);line-height:1.4">${esc(r.name)}</div>
+        <div class="ad-popover-campaign" style="font-size:12px;color:var(--muted, #64748b)">📊 ${esc(r.campaign)}${r.adset ? ' — ' + esc(r.adset) : ''}</div>
+        <div class="ad-popover-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;background:#f8fafc;padding:10px;border-radius:8px">
+          <div><div style="font-size:10.5px;color:#64748b">Reach</div><div style="font-weight:700;font-size:12.5px">${Number(r.reach||0).toLocaleString()}</div></div>
+          <div><div style="font-size:10.5px;color:#64748b">Impressions</div><div style="font-weight:700;font-size:12.5px">${Number(r.impressions||0).toLocaleString()}</div></div>
+          <div><div style="font-size:10.5px;color:#64748b">Spend</div><div style="font-weight:700;font-size:12.5px;color:#0f172a">฿${Number(r.spend||0).toLocaleString(undefined, {minimumFractionDigits:0, maximumFractionDigits:0})}</div></div>
+          <div><div style="font-size:10.5px;color:#64748b">CTR</div><div style="font-weight:700;font-size:12.5px">${Number(r.ctr||0).toFixed(2)}%</div></div>
+          <div><div style="font-size:10.5px;color:#64748b">Cost/Msg</div><div style="font-weight:700;font-size:12.5px">฿${Number(r.costMessage||0).toFixed(0)}</div></div>
+          <div><div style="font-size:10.5px;color:#64748b">Purchases</div><div style="font-weight:700;font-size:12.5px;color:#16a34a">${r.purchases||0}</div></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding-top:4px;border-top:1px solid #f1f5f9;font-size:11.5px">
+          <span>🎯 Chat Quality: <b style="color:${qColor}">${r.qualityLabel ? String(r.qualityLabel).toUpperCase() : '—'} ${r.qualityScore !== null && r.qualityScore !== undefined ? r.qualityScore + '%' : ''}</b></span>
+          <span style="color:#94a3b8;font-size:11px">ID: ${esc(r.id)}</span>
+        </div>
+      `;
+
+      const rect = trigger.getBoundingClientRect();
+      const popW = 320;
+      const popH = 360;
+      let left = rect.right + 12;
+      let top = rect.top;
+      if (left + popW > window.innerWidth - 12) {
+        left = rect.left - popW - 12;
+      }
+      if (left < 10) left = 10;
+      if (top + popH > window.innerHeight - 12) {
+        top = window.innerHeight - popH - 12;
+      }
+      if (top < 10) top = 10;
+
+      pop.style.left = left + 'px';
+      pop.style.top = top + 'px';
+      pop.classList.add('active');
+    } catch (err) {
+      console.error('Hover popover error:', err);
+    }
+  });
+
+  document.addEventListener('mouseout', (ev) => {
+    const trigger = ev.target.closest && ev.target.closest('.ad-hover-trigger');
+    if (!trigger) return;
+    const rel = ev.relatedTarget;
+    if (rel && trigger.contains(rel)) return;
+    const pop = document.getElementById('ad-preview-popover');
+    if (pop) pop.classList.remove('active');
   });
 
   /* ---------------- boot ---------------- */
