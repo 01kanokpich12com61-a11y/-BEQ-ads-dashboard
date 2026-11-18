@@ -603,7 +603,7 @@ async function api(req, res, url, session) {
     for (const p of targetPages) {
       try {
         const pPlat = p.platform || 'Facebook';
-        const pPosts = await meta.fetchPostsAndComments(p.id, pPlat, p.fbPageId || null, 15);
+        const pPosts = await meta.fetchPostsAndComments(p.id, pPlat, p.fbPageId || null, 100);
         pPosts.forEach(post => {
           post.pageName = p.name;
           const exIdx = allPosts.findIndex(x => x.id === post.id);
