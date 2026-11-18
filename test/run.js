@@ -6,6 +6,8 @@ const path = require('node:path');
 const assert = require('node:assert/strict');
 
 process.env.DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'hairads-'));
+process.env.SUPABASE_URL = '';
+process.env.SUPABASE_KEY = '';
 delete process.env.ADMIN_PASSWORD;
 
 const auth = require('../lib/auth');
