@@ -1362,74 +1362,7 @@ async function api(req, res, url, session) {
         }
 
 
-      // สร้างแซมเปิลแชท Instagram 3 รายการให้เห็นทันทีในระบบเพื่อทดสอบ
-      let existingLeads = store.read('leads.json', []);
-      const hasIg = existingLeads.some(l => l.platform === 'Instagram' || l.channel === 'Instagram');
-      if (!hasIg) {
-        const igPage = pages.find(p => p.platform === 'Instagram') || { id: 'ig_sample', name: 'Instagram คลินิก' };
-        const now = today();
-        const igSamples = [
-          {
-            id: 'IG-DEMO-01',
-            name: 'sarah.beauty_care',
-            channel: 'Instagram',
-            platform: 'Instagram',
-            pageId: igPage.id,
-            pageName: igPage.name,
-            date: now,
-            status: 'talked',
-            quality: 'good',
-            adId: 'IG Direct',
-            dropReason: 'สนใจสอบถามโปรโมชั่นปลูกผม FUE ค่ะ',
-            phone: '0891234567'
-          },
-          {
-            id: 'IG-DEMO-02',
-            name: 'dr.natthapon_k',
-            channel: 'Instagram',
-            platform: 'Instagram',
-            pageId: igPage.id,
-            pageName: igPage.name,
-            date: now,
-            status: 'in_progress',
-            quality: 'good',
-            adId: 'IG Direct',
-            dropReason: 'ขอปรึกษาปัญหาผมบางด้านหน้าครับ',
-            phone: '0819876543'
-          },
-          {
-            id: 'IG-DEMO-03',
-            name: 'ploy_chutima',
-            channel: 'Instagram',
-            platform: 'Instagram',
-            pageId: igPage.id,
-            pageName: igPage.name,
-            date: now,
-            status: 'appointed',
-            quality: 'excellent',
-            adId: 'IG Direct',
-            dropReason: 'ขอนัดคิวเข้ามาตรวจสภาพผมสัปดาห์หน้าค่ะ',
-            phone: '0955554321'
-          }
-        ];
-        existingLeads.unshift(...igSamples);
-        store.write('leads.json', existingLeads);
 
-        let msgs = store.read('messages.json', {});
-        msgs['IG-DEMO-01'] = [
-          { from: 'customer', text: 'สวัสดีค่ะ สนใจสอบถามโปรโมชั่นปลูกผม FUE ค่ะ', at: now + ' 10:15' },
-          { from: 'staff', text: 'สวัสดีค่ะคุณ Sarah ยินดีให้คำปรึกษาค่ะ ตอนนี้มีโปรโมชั่นพิเศษนะคะ', at: now + ' 10:20', by: 'แอดมิน' }
-        ];
-        msgs['IG-DEMO-02'] = [
-          { from: 'customer', text: 'ขอปรึกษาปัญหาผมบางด้านหน้าครับ', at: now + ' 11:30' },
-          { from: 'staff', text: 'สวัสดีครับคุณหมอ สามารถส่งรูปบริเวณที่กังวลมาประเมินเบื้องต้นได้เลยครับ', at: now + ' 11:38', by: 'แอดมิน' }
-        ];
-        msgs['IG-DEMO-03'] = [
-          { from: 'customer', text: 'ขอนัดคิวเข้ามาตรวจสภาพผมสัปดาห์หน้าค่ะ', at: now + ' 14:00' },
-          { from: 'staff', text: 'ยินดีค่ะ สะดวกเป็นวันจันทร์หรือพุธช่วงบ่ายดีคะ', at: now + ' 14:08', by: 'แอดมิน' }
-        ];
-        store.write('messages.json', msgs);
-      }
 
                 // ตรวจสอบว่า Facebook เพจนี้เชื่อมกับ Instagram Business Account หรือไม่
         if (fp.instagram_business_account && fp.instagram_business_account.id) {

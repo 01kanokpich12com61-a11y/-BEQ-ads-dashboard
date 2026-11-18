@@ -19,6 +19,7 @@
     sla: { data: null, err: null, open: '', kind: '' },
     upload: { data: null, err: null, loading: false, rows: [], result: null, tab: 'leads', detectedType: 'leads', summary: null },
     quality: { data: null, err: null, loading: false, campaign: '', minQuality: '', sort: 'leads', sortDir: 'desc' },
+    comments: { data: null, loading: false, err: null, range: '30d', from: '', to: '', filterStatus: 'all' },
   };
   const PAGE_SIZE = 25;
   const INBOX_PAGE = 15;
@@ -719,6 +720,7 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
   }
 
   async function loadComments() {
+    if (!S.comments) S.comments = { data: null, loading: false, err: null, range: '30d', from: '', to: '', filterStatus: 'all' };
     const c = S.comments;
     c.loading = true; c.err = null; renderCommentsBody();
     try {
@@ -739,6 +741,7 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
 
   function renderCommentsBody() {
     const box = document.getElementById('comments-body'); if (!box) return;
+    if (!S.comments) S.comments = { data: null, loading: false, err: null, range: '30d', from: '', to: '', filterStatus: 'all' };
     const c = S.comments;
     if (c.err) { box.innerHTML = `<div class="notice err">${esc(c.err)}</div>`; return; }
     if (c.loading && !c.data) { box.innerHTML = '<div class="loading">Loading…</div>'; return; }
@@ -2228,6 +2231,27 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
         S.flash = r.ok ? { type: 'ok', text: 'แลกเป็น token อายุยาวสำเร็จ' } : { type: 'err', text: r.error }; if (r.ok) S.settings = r.settings; render();
       }
       /* ── upload page ── */
+      else if (act === 'sync-comments-api') {
+        el.disabled = true;
+        const orig = el.textContent;
+        el.textContent = 'กำลังดึง Post & comment…';
+        try {
+          const res = await api('/api/posts-comments/sync', { method: 'POST', body: {} });
+          S.flash = { type: 'ok', text: 'ดึง Post & comment สำเร็จแล้ว (' + (res.count || 0) + ' โพสต์)' };
+          await loadComments();
+        } catch (e) {
+          S.flash = { type: 'err', text: e.message || 'ดึง Post & comment ไม่สำเร็จ' };
+        } finally {
+          el.disabled = false;
+          el.textContent = orig;
+          render();
+        }
+      }
+      else if (act === 'c-filter') {
+        if (!S.comments) S.comments = { data: null, loading: false, err: null, range: '30d', from: '', to: '', filterStatus: 'all' };
+        S.comments.filterStatus = el.dataset.val || 'all';
+        renderCommentsBody();
+      }
       else if (act === 'upload-confirm') { await doUploadData(); }
       else if (act === 'upload-cancel' || act === 'upload-reset') { S.upload.rows = []; S.upload.result = null; S.upload.err = null; await loadUpload(); }
       else if (act === 'upload-tab') { S.upload.tab = el.dataset.tab; S.upload.rows = []; S.upload.result = null; S.upload.err = null; renderUploadBody(); }
