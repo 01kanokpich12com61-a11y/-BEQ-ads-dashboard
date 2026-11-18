@@ -1499,17 +1499,15 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
       const chBg   = ch === 'Instagram' ? '#fce7f3' : ch === 'LINE' ? '#f0fdf4' : ch === 'WhatsApp' ? '#f0fdf4' : '#e0f2fe';
       const pageLabel = r.pageName ? `<span style="font-size:11px;color:var(--brand-deep);background:#e4eedc;padding:1px 6px;border-radius:4px;white-space:nowrap">${esc(r.pageName)}</span>` : '';
       return `<button class="conv ${r.id === S.chat.id ? 'active' : ''}" data-act="select-chat" data-id="${esc(r.id)}">${avatarHtml(r.name, r.id, 48)}
-        <span class="conv-main">
-          <span style="display:flex;align-items:center;gap:4px;min-width:0">
-            <b style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0">${esc(r.name)}</b>
-            <span style="display:inline-flex;align-items:center;gap:3px;flex-shrink:0">
-              <span style="font-size:12px;font-weight:600;color:${chColor};background:${chBg};padding:1px 6px;border-radius:4px;white-space:nowrap">${chIcon} ${esc(ch)}</span>
-              ${pageLabel}
-            </span>
+        <span class="conv-main" style="display:flex;flex-direction:column;min-width:0;flex:1;overflow:hidden">
+          <b style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:14px;line-height:1.3">${esc(r.name)}</b>
+          <span style="display:flex;align-items:center;gap:3px;flex-wrap:nowrap;overflow:hidden">
+            <span style="font-size:11px;font-weight:600;color:${chColor};background:${chBg};padding:1px 5px;border-radius:4px;white-space:nowrap;flex-shrink:0">${chIcon} ${esc(ch)}</span>
+            ${pageLabel}
           </span>
-          <small>${pv}</small>
+          <small style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--muted);font-size:12px">${pv}</small>
         </span>
-        <i class="s-dot" style="background:${STATUS_COLOR[r.status] || '#8a948f'}" title="${esc(STATUS_TH[r.status] || r.status)}"></i></button>`;
+        <i class="s-dot" style="background:${STATUS_COLOR[r.status] || '#8a948f'};flex-shrink:0" title="${esc(STATUS_TH[r.status] || r.status)}"></i></button>`;
     }).join('') + (rows.length > MAX ? `<div class="ad-sub" style="text-align:center;padding:10px">แสดง ${MAX} จาก ${num(rows.length)} แชท ใช้ช่องค้นหาเพื่อกรอง</div>` : '');
   }
 
