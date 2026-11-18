@@ -760,18 +760,6 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
         pComms.forEach(com => {
           allComments.push({ ...com, post: p });
         });
-      } else {
-        // หากโพสต์นี้ยังไม่มีคอมเมนต์ ให้แสดงแถวโพสต์ไว้ด้วย เพื่อให้ทราบว่ามี 15 โพสต์
-        allComments.push({
-          id: 'no-comm-' + p.id,
-          from: '—',
-          text: '(ยังไม่มีคอมเมนต์ใต้โพสต์นี้)',
-          timestamp: p.timestamp || '',
-          replied: false,
-          replies: [],
-          noComments: true,
-          post: p
-        });
       }
     });
 
