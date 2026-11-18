@@ -1491,8 +1491,22 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
     if (!rows.length) { list.innerHTML = '<div class="empty">ไม่พบแชทในช่วงวันที่หรือตัวกรองที่เลือก</div>'; return; }
     list.innerHTML = rows.slice(0, MAX).map((r) => {
       const pv = r.last ? `${r.last.from === 'staff' ? 'คุณ: ' : ''}${esc(r.last.text)} · ${ago(r.last.at)}` : `ยังไม่มีข้อความ · ${esc(r.date)}`;
+      const ch = r.platform || r.channel || 'Facebook';
+      const chIcon = ch === 'Instagram' ? '📸' : ch === 'LINE' ? '📱' : ch === 'WhatsApp' ? '💚' : '🔵';
+      const chColor = ch === 'Instagram' ? '#c13584' : ch === 'LINE' ? '#06c755' : ch === 'WhatsApp' ? '#25d366' : '#1877f2';
+      const chBg   = ch === 'Instagram' ? '#fce7f3' : ch === 'LINE' ? '#f0fdf4' : ch === 'WhatsApp' ? '#f0fdf4' : '#e0f2fe';
+      const pageLabel = r.pageName ? `<span style="font-size:11px;color:var(--brand-deep);background:#e4eedc;padding:1px 6px;border-radius:4px;white-space:nowrap">${esc(r.pageName)}</span>` : '';
       return `<button class="conv ${r.id === S.chat.id ? 'active' : ''}" data-act="select-chat" data-id="${esc(r.id)}">${avatarHtml(r.name, r.id, 48)}
-        <span class="conv-main"><b>${(r.platform === 'Instagram' || r.channel === 'Instagram') ? '<span style="font-size:13px" title="Instagram">📸</span>' : (r.platform === 'LINE' || r.channel === 'LINE') ? '<span style="font-size:13px" title="LINE">📱</span>' : (r.platform === 'WhatsApp' || r.channel === 'WhatsApp') ? '<span style="font-size:13px" title="WhatsApp">💚</span>' : '<span style="font-size:13px" title="Facebook Messenger">🔵</span>'} ${esc(r.name)}${(r.platform === 'Instagram' || r.channel === 'Instagram') ? '<small style="display:inline;font-size:11px;color:#c13584;background:#fce7f3;padding:1px 6px;border-radius:4px;margin-left:5px;font-weight:700">Instagram</small>' : '<small style="display:inline;font-size:11px;color:#1877f2;background:#e0f2fe;padding:1px 6px;border-radius:4px;margin-left:5px;font-weight:700">Facebook</small>'}${r.pageName ? `<small style="display:inline;font-size:11px;color:var(--brand-deep);background:#e4eedc;padding:1px 6px;border-radius:4px;margin-left:5px">${esc(r.pageName)}</small>` : ""}</b><small>${pv}</small></span>
+        <span class="conv-main">
+          <span style="display:flex;align-items:center;gap:4px;min-width:0">
+            <b style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0">${esc(r.name)}</b>
+            <span style="display:inline-flex;align-items:center;gap:3px;flex-shrink:0">
+              <span style="font-size:12px;font-weight:600;color:${chColor};background:${chBg};padding:1px 6px;border-radius:4px;white-space:nowrap">${chIcon} ${esc(ch)}</span>
+              ${pageLabel}
+            </span>
+          </span>
+          <small>${pv}</small>
+        </span>
         <i class="s-dot" style="background:${STATUS_COLOR[r.status] || '#8a948f'}" title="${esc(STATUS_TH[r.status] || r.status)}"></i></button>`;
     }).join('') + (rows.length > MAX ? `<div class="ad-sub" style="text-align:center;padding:10px">แสดง ${MAX} จาก ${num(rows.length)} แชท ใช้ช่องค้นหาเพื่อกรอง</div>` : '');
   }
@@ -1613,12 +1627,12 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
     const slaCls = l.slaStatus === 'late' || l.status === 'no_reply' || l.status === 'very_poor' ? 'q-poor' : 'q-excellent';
 
     return `<div class="lead" draggable="true" data-lead-id="${esc(l.id)}" data-lead-status="${esc(l.status)}" data-act="open-chat" data-id="${esc(l.id)}">
-      <div class="lead-head">
-        <b>${esc(l.name)}</b>
-        <span style="display:inline-flex;align-items:center;gap:4px">
+      <div class="lead-head" style="flex-direction:column;align-items:flex-start;gap:2px">
+        <b style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:100%">${esc(l.name)}</b>
+        <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">
           ${l.pageName ? `<span class="ad-sub" style="font-size:11px;color:var(--muted)">${esc(l.pageName)}</span>` : ''}
           ${chanHtml(l.channel)}
-        </span>
+        </div>
       </div>
       ${custMsg ? `<div class="lead-cust-bubble" title="ลูกค้าพิมพ์: ${esc(custMsg)}"><span class="cust-prefix">💬 ลูกค้าพิมพ์:</span> <span class="cust-text">${esc(custMsg)}</span></div>` : ''}
       <div class="lead-meta-grid">
