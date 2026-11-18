@@ -716,7 +716,8 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
         <button class="btn primary" data-act="sync-comments-api" style="background:#2d5022">🔄 ดึงโพสต์ & คอมเมนต์ล่าสุด</button>
       </div>
     </div>
-    <div id="comments-body"><div class="loading">Loading…</div></div>`;
+    ${rangeBar('comments')}
+    <div id="comments-body" style="margin-top:16px"><div class="loading">Loading…</div></div>`;
   }
 
   async function loadComments() {
@@ -1324,7 +1325,12 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
     </section>`;
   }
 
-  function loadList(scope) { return scope === 'inbox' ? loadInbox() : scope === 'review' ? loadReview() : loadBoard(); }
+  function loadList(scope) {
+    if (scope === 'inbox') return loadInbox();
+    if (scope === 'review') return loadReview();
+    if (scope === 'comments' || scope === 'post-comment') return loadComments();
+    return loadBoard();
+  }
 
   async function fetchList(scope, path) {
     const s = S[scope];
