@@ -268,21 +268,25 @@ async function main() {
   const sr = sla.buildSla(sdata, false, rg, Date.parse('2026-11-09T12:00:00+07:00'));
   const R1 = sr.reps.find((r) => r.repId === 'R1'); const R2 = sr.reps.find((r) => r.repId === 'R2');
   assert.deepEqual([R1.turns, R1.onTime, R1.late, R1.deducted, R1.commuteLate, R1.nightReplies], [6, 2, 4, 1, 2, 0]);
-  assert.deepEqual([R2.turns, R2.onTime, R2.late, R2.deducted, R2.commuteLate, R2.nightReplies], [3, 0, 3, 2, 0, 1]);
-  assert.equal(R1.points, -1); assert.equal(sr.totals.deducted, 3);
+  assert.deepEqual([R2.turns, R2.onTime, R2.late, R2.deducted, R2.commuteLate, R2.nightReplies], [3, 0, 3, 1.5, 0, 1]);
+  assert.equal(R1.points, -1); assert.equal(sr.totals.deducted, 2.5);
   const outc = (r, id) => r.events.filter((e) => e.leadId === id).map((e) => e.outcome);
   assert.deepEqual(outc(R1, 'S1').sort(), ['deduct', 'dup']); assert.deepEqual(outc(R1, 'S3'), ['commute']); assert.deepEqual(outc(R2, 'S6'), ['late_night']);
   assert.equal(R2.events.find((e) => e.leadId === 'S8').unanswered, true);
+  assert.equal(R2.events.find((e) => e.leadId === 'S8').outcome, 'read_no_reply');
+  assert.equal(R2.events.find((e) => e.leadId === 'S8').points, -0.5);
   assert.equal(R2.events.find((e) => e.leadId === 'S7').replyWindow, 'night');
-  assert.ok(!R2.events.some((e) => e.leadId === 'S9')); ok('SLA: หักเฉพาะ 10–19 น. (1 แต้ม/แชท/เพจ) ช่วงเดินทาง/กลางคืนเป็นสถิติ');
+  assert.ok(!R2.events.some((e) => e.leadId === 'S9')); ok('SLA: หักเฉพาะ 10–19 น. (ตอบช้า 1 แต้ม / ไม่ตอบ 0.5 แต้ม) ช่วงเดินทาง/กลางคืนเป็นสถิติ');
   const sr2 = sla.buildSla(sdata, false, { from: '2026-11-03', to: '2026-11-09' }, Date.parse('2026-11-09T12:00:00+07:00'));
   assert.equal(sr2.totals.turns, 1); ok('SLA: กรองตามวันที่ลูกค้าทัก');
   const sj = (await call('GET', '/api/sla?range=30d')).json;
   assert.ok(sj.limitMin === 15 && sj.reps.length > 0 && sj.totals.turns > 0);
   assert.equal(sj.reps.reduce((x, r) => x + r.deducted, 0), sj.totals.deducted);
   const dedEv = sj.reps.flatMap((r) => r.events).filter((e) => e.outcome === 'deduct');
+  const noRepEv = sj.reps.flatMap((r) => r.events).filter((e) => e.outcome === 'read_no_reply');
   assert.equal(new Set(dedEv.map((e) => e.leadId + '|' + e.pageId)).size, dedEv.length);
   assert.ok(dedEv.every((e) => e.window === 'work' && e.minutes > 15 && e.points === -1));
+  assert.ok(noRepEv.every((e) => e.window === 'work' && e.unanswered === true && e.points === -0.5));
   assert.ok(sj.reps.flatMap((r) => r.events).filter((e) => e.outcome === 'commute').every((e) => e.window === 'commute' && e.points === 0)); ok('API /api/sla (เดโม)');
 
   // static + path traversal

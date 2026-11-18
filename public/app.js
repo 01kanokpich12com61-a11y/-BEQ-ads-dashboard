@@ -783,12 +783,12 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
       <!-- SLA Score Card -->
       <section class="card panel" style="margin-bottom:16px;background:linear-gradient(135deg,#fafffa 0%,#f0fdf4 100%);border:1.5px solid #bbf7d0">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-          <h3 style="margin:0;color:#166534;display:flex;align-items:center;gap:8px">⏱️ ผลงานตอบคอมเมนต์ (Comment SLA) — เกณฑ์ 15 นาที</h3>
+          <h3 style="margin:0;color:#166534;display:flex;align-items:center;gap:8px">⏱️ ผลงานตอบคอมเมนต์ (Comment SLA) — เกณฑ์ 60 นาที · หัก 0.5 แต้ม</h3>
           <span class="chip good">SLA แยกเฉพาะคอมเมนต์</span>
         </div>
         <div class="grid-4">
           <div class="stat"><div class="k-label">คอมเมนต์ทั้งหมด</div><div class="k-value">${num(totals.turns || allComments.length)}</div></div>
-          <div class="stat"><div class="k-label">ตอบทันเวลา (≤ 15 น.)</div><div class="k-value" style="color:#16a34a">${num(totals.onTime || repliedCount)}</div></div>
+          <div class="stat"><div class="k-label">ตอบทันเวลา (≤ 60 น.)</div><div class="k-value" style="color:#16a34a">${num(totals.onTime || repliedCount)}</div></div>
           <div class="stat"><div class="k-label">ตอบช้า / หลุด SLA</div><div class="k-value" style="color:${totals.late ? '#dc2626' : 'var(--muted)'}">${num(totals.late)}</div></div>
           <div class="stat"><div class="k-label">แต้ม SLA โดนหัก (10–19 น.)</div><div class="k-value" style="color:${totals.points < 0 ? '#dc2626' : '#16a34a'}">${totals.points || 0} แต้ม</div></div>
         </div>
@@ -1562,6 +1562,7 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
   const SLA_WIN = { work: '10:00–19:00', commute: 'ช่วงเดินทาง', night: 'กลางคืน' };
   const SLA_OUT = {
     ontime: ['ทันเวลา', 'q-excellent'], deduct: ['หัก 1 แต้ม', 'q-poor'], dup: ['ช้า (ไม่หักซ้ำ)', 'q-average'],
+    read_no_reply: ['อ่านไม่ตอบ หัก 0.5', 'q-average'],
     commute: ['ช้า · ช่วงเดินทาง ไม่หัก', 'q-average'], late_night: ['ช้า · กลางคืน ไม่หัก', 'q-none'],
   };
   const SLA_KINDS = [['', 'ทั้งหมด'], ['deduct', 'หักคะแนน'], ['commute', 'ช้าช่วงเดินทาง'], ['night', 'ตอบนอกเวลา 22:00–08:00']];
@@ -1573,7 +1574,7 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
     const open = d.reps.find((r) => r.repId === s.open);
     const evs = open ? open.events.filter((e) => !s.kind || (s.kind === 'night' ? e.replyWindow === 'night' : e.outcome === s.kind)) : [];
     box.innerHTML = `<section class="card panel sla-panel"><h3>SLA ตอบแชทภายใน ${d.limitMin} นาที</h3>
-      <p class="sub">นับจากเวลาที่ลูกค้าทัก · 10:00–19:00 ตอบช้าหัก 1 แต้ม (สูงสุด 1 แต้มต่อแชทต่อเพจ) · 08:00–10:00 และ 19:00–22:00 ไม่หักแต่เก็บเป็นสถิติตอบช้า · 22:00–08:00 ไม่หัก และเก็บสถิติถ้าเซลส์ตอบในช่วงนี้</p>
+      <p class="sub">นับจากเวลาที่ลูกค้าทัก · 10:00–19:00 ตอบช้าหัก 1 แต้ม · เปิดอ่านแต่ไม่ตอบหัก 0.5 แต้ม · 08:00–10:00 และ 19:00–22:00 ไม่หักแต่เก็บเป็นสถิติตอบช้า · 22:00–08:00 ไม่หัก และเก็บสถิติถ้าเซลส์ตอบในช่วงนี้</p>
       <div class="grid-4" style="margin-bottom:16px">
         <div class="stat"><div class="k-label">แต้มที่ถูกหักรวม</div><div class="k-value" style="color:${t.deducted ? 'var(--coral)' : 'inherit'}">${t.deducted ? '−' + num(t.deducted) : '0'}</div></div>
         <div class="stat"><div class="k-label">ตอบทัน / ตรวจทั้งหมด</div><div class="k-value">${num(t.onTime)} / ${num(t.turns)}</div></div>
