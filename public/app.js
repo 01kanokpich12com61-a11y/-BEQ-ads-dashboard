@@ -754,21 +754,40 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
     const totals = sla.totals || { turns: 0, onTime: 0, late: 0, deducted: 0, points: 0 };
 
     let allComments = [];
+    let realComments = [];
     posts.forEach(p => {
       const pComms = p.comments || [];
       if (pComms.length > 0) {
         pComms.forEach(com => {
-          allComments.push({ ...com, post: p });
+          const item = { ...com, post: p };
+          allComments.push(item);
+          realComments.push(item);
+        });
+      } else {
+        // หากโพสต์นี้ยังไม่มีคอมเมนต์ แสดงแถวโพสต์ไว้ด้วย (ระบุชัดเจนว่ายังไม่มีคอมเมนต์)
+        allComments.push({
+          id: 'no-comm-' + p.id,
+          from: '—',
+          text: '(ยังไม่มีคอมเมนต์ใต้โพสต์นี้)',
+          timestamp: p.timestamp || '',
+          replied: false,
+          replies: [],
+          noComments: true,
+          post: p
         });
       }
     });
 
-    const repliedCount = allComments.filter(x => x.replied).length;
-    const pendingCount = allComments.filter(x => !x.replied).length;
+    // ยอดตัวเลข SLA และสถานะตอบกลับ จะคิดเฉพาะคอมเมนต์จริงที่มีคนคอมเมนต์เท่านั้น ไม่นับโพสต์ที่ไม่มีคอมเมนต์เป็นยังไม่ตอบ
+    const repliedCount = realComments.filter(x => x.replied).length;
+    const pendingCount = realComments.filter(x => !x.replied).length;
 
     let filtered = allComments;
-    if (c.filterStatus === 'pending') filtered = allComments.filter(x => !x.replied);
-    else if (c.filterStatus === 'replied') filtered = allComments.filter(x => x.replied);
+    if (c.filterStatus === 'pending') filtered = allComments.filter(x => !x.noComments && !x.replied);
+    else if (c.filterStatus === 'replied') filtered = allComments.filter(x => !x.noComments && x.replied);
+    else if (c.filterStatus === 'no-comment') filtered = allComments.filter(x => x.noComments);
+
+    const noCommCount = allComments.filter(x => x.noComments).length;
 
     box.innerHTML = `
       <!-- SLA Score Card -->
@@ -778,19 +797,20 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
           <span class="chip good">SLA แยกเฉพาะคอมเมนต์</span>
         </div>
         <div class="grid-4">
-          <div class="stat"><div class="k-label">คอมเมนต์ทั้งหมด</div><div class="k-value">${num(totals.turns || allComments.length)}</div></div>
-          <div class="stat"><div class="k-label">ตอบทันเวลา (≤ 60 น.)</div><div class="k-value" style="color:#16a34a">${num(totals.onTime || repliedCount)}</div></div>
-          <div class="stat"><div class="k-label">ตอบช้า / หลุด SLA</div><div class="k-value" style="color:${totals.late ? '#dc2626' : 'var(--muted)'}">${num(totals.late)}</div></div>
-          <div class="stat"><div class="k-label">แต้ม SLA โดนหัก (10–19 น.)</div><div class="k-value" style="color:${totals.points < 0 ? '#dc2626' : '#16a34a'}">${totals.points || 0} แต้ม</div></div>
+          <div class="stat"><div class="k-label">โพสต์ทั้งหมดที่ดึงมา</div><div class="k-value">${num(posts.length)}</div></div>
+          <div class="stat"><div class="k-label">คอมเมนต์จริงทั้งหมด</div><div class="k-value">${num(realComments.length)}</div></div>
+          <div class="stat"><div class="k-label">ตอบแล้ว</div><div class="k-value" style="color:#16a34a">${num(repliedCount)}</div></div>
+          <div class="stat"><div class="k-label">ยังไม่ตอบ</div><div class="k-value" style="color:${pendingCount ? '#dc2626' : 'var(--muted)'}">${num(pendingCount)}</div></div>
         </div>
       </section>
 
       <!-- Filter Tabs -->
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:10px">
         <div class="seg">
-          <button class="${c.filterStatus === 'all' ? 'active' : ''}" data-act="c-filter" data-val="all">ทั้งหมด (${allComments.length})</button>
-          <button class="${c.filterStatus === 'pending' ? 'active' : ''}" data-act="c-filter" data-val="pending" style="color:#b91c1c">🔴 ยังไม่ตอบ (${pendingCount})</button>
-          <button class="${c.filterStatus === 'replied' ? 'active' : ''}" data-act="c-filter" data-val="replied" style="color:#15803d">🟢 ตอบแล้ว (${repliedCount})</button>
+          <button class="${c.filterStatus === 'all' ? 'active' : ''}" data-act="c-filter" data-val="all">โพสต์/คอมเมนต์ทั้งหมด (${allComments.length})</button>
+          <button class="${c.filterStatus === 'pending' ? 'active' : ''}" data-act="c-filter" data-val="pending" style="color:#b91c1c">🔴 คอมเมนต์ยังไม่ตอบ (${pendingCount})</button>
+          <button class="${c.filterStatus === 'replied' ? 'active' : ''}" data-act="c-filter" data-val="replied" style="color:#15803d">🟢 คอมเมนต์ตอบแล้ว (${repliedCount})</button>
+          <button class="${c.filterStatus === 'no-comment' ? 'active' : ''}" data-act="c-filter" data-val="no-comment" style="color:var(--muted)">⚪ โพสต์ที่ยังไม่มีคอมเมนต์ (${noCommCount})</button>
         </div>
       </div>
 
