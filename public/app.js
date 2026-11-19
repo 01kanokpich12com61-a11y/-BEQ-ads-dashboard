@@ -984,14 +984,12 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
 
   async function loadQuality() {
     const q = S.quality;
-    // Reuse dashboard data if available, else load fresh
-    if (S.dash.data) {
-      q.data = buildQualityData(S.dash.data); q.loading = false; q.err = null;
-      renderQualityBody(); return;
-    }
     q.loading = true; q.err = null; renderQualityBody();
     try {
-      const data = await api('/api/dashboard?range=30d');
+      const p = new URLSearchParams({ range: '30d' });
+      if (S.dash.platform) p.set('platform', S.dash.platform);
+      if (S.dash.page) p.set('page', S.dash.page);
+      const data = await api('/api/dashboard?' + p.toString());
       S.dash.data = data;
       q.data = buildQualityData(data); q.loading = false;
     } catch (e) {
@@ -2561,6 +2559,9 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
       else if (S.route === 'board') { render(); loadBoard(); }
       else if (S.route === 'inbox') { render(); loadInbox(); }
       else if (S.route === 'post-comment') { render(); loadComments(); }
+      else if (S.route === 'review') { render(); loadReview(); }
+      else if (S.route === 'followup') { render(); loadFollowups(); }
+      else if (S.route === 'quality') { render(); loadQuality(); }
       else render();
       return;
     }
@@ -2570,6 +2571,9 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
       else if (S.route === 'board') { render(); loadBoard(); }
       else if (S.route === 'inbox') { render(); loadInbox(); }
       else if (S.route === 'post-comment') { render(); loadComments(); }
+      else if (S.route === 'review') { render(); loadReview(); }
+      else if (S.route === 'followup') { render(); loadFollowups(); }
+      else if (S.route === 'quality') { render(); loadQuality(); }
       else render();
       return;
     }
