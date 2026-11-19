@@ -632,7 +632,7 @@ async function api(req, res, url, session) {
   if (route === 'GET /api/sla') {
     const range = resolveRange(q);
     const data = await providers.load(range);
-    return send(res, 200, { mode: providers.currentMode(), ...sla.buildSla(data, providers.currentMode() === 'demo', range) });
+    return send(res, 200, { mode: providers.currentMode(), ...sla.buildSla(data, providers.currentMode() === 'demo', range, Date.now(), { platform: q.platform, page: q.page }) });
   }
 
   if (route === 'GET /api/inbox') {

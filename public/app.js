@@ -1757,36 +1757,86 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
     if (!s.data) { box.innerHTML = '<div class="loading" style="padding:30px">Loading…</div>'; return; }
     const d = s.data; const t = d.totals;
     const open = d.reps.find((r) => r.repId === s.open);
-    const evs = open ? open.events.filter((e) => !s.kind || (s.kind === 'night' ? e.replyWindow === 'night' : e.outcome === s.kind)) : [];
-    box.innerHTML = `<section class="card panel sla-panel"><h3>SLA ตอบแชทภายใน ${d.limitMin} นาที</h3>
-      <p class="sub">นับจากเวลาที่ลูกค้าทัก · 10:00–19:00 ตอบช้าหัก 1 แต้ม · เปิดอ่านแต่ไม่ตอบหัก 0.5 แต้ม · 08:00–10:00 และ 19:00–22:00 ไม่หักแต่เก็บเป็นสถิติตอบช้า · 22:00–08:00 ไม่หัก และเก็บสถิติถ้าเซลส์ตอบในช่วงนี้</p>
+    const evFilter = (e) => {
+      if (!s.kind) return true;
+      if (s.kind === 'night') return e.replyWindow === 'night';
+      if (s.kind === 'commute') return e.outcome === 'commute';
+      if (s.kind === 'deduct') return e.outcome === 'deduct' || e.outcome === 'read_no_reply';
+      return e.outcome === s.kind;
+    };
+    const evs = open ? open.events.filter(evFilter) : [];
+
+    const kindPills = SLA_KINDS.map(([k, l]) =>
+      `<button class="pill ${s.kind === k ? 'active' : ''}" data-act="sla-kind" data-kind="${k}">${l}</button>`
+    ).join('');
+
+    const repRows = d.reps.length
+      ? d.reps.map((r) => {
+          const pageTag = r.pageName
+            ? `<div class="ad-sub" style="font-size:11px;margin-top:2px;color:var(--accent)">${esc(r.pageName)}</div>`
+            : '';
+          return `<tr class="click-row ${r.repId === s.open ? 'sel-row' : ''}" data-act="sla-rep" data-rep="${esc(r.repId)}">
+            <td><b>${esc(r.rep)}</b>${pageTag}</td>
+            <td>${num(r.turns)}</td><td>${num(r.onTime)}</td><td>${num(r.late)}</td>
+            <td>${r.deducted ? `<span class="q-badge q-poor">−${num(r.deducted)}</span>` : '<span class="q-badge q-excellent">0</span>'}</td>
+            <td>${num(r.commuteLate)}</td><td>${num(r.nightReplies)}</td><td>${r.avgMin === null ? '—' : fmtDur(r.avgMin)}</td>
+          </tr>`;
+        }).join('')
+      : '<tr><td colspan="8"><div class="empty">ยังไม่มีข้อมูลการตอบแชทในช่วงที่เลือก</div></td></tr>';
+
+    const detailRows = evs.length
+      ? evs.map((e) => `<tr class="click-row" data-act="sla-open" data-id="${esc(e.leadId)}" data-date="${esc(e.leadDate)}">
+          <td><div class="ad-name">${esc(e.name)}</div><div class="ad-sub">${esc(e.page || '—')} · ${esc(e.channel)}</div></td>
+          <td class="nowrap">${esc(sepLabel(e.customerAt))}<div class="ad-sub">${SLA_WIN[e.window]}</div></td>
+          <td class="nowrap">${e.replyAt
+            ? `${esc(sepLabel(e.replyAt))}<div class="ad-sub">${e.replyWindow === 'night' ? 'ตอบช่วง 22:00–08:00' : SLA_WIN[e.replyWindow]}</div>`
+            : '<span class="q-badge q-poor">ยังไม่ตอบ</span>'}</td>
+          <td class="nowrap">${fmtDur(e.minutes)}</td>
+          <td><span class="q-badge ${SLA_OUT[e.outcome][1]}">${SLA_OUT[e.outcome][0]}</span></td>
+        </tr>`).join('')
+      : '<tr><td colspan="5"><div class="empty">ไม่มีรายการในหมวดนี้</div></td></tr>';
+
+    const detailSection = open ? `<div class="sla-detail" style="margin-top:16px">
+        <h4>${esc(open.rep)}${open.pageName ? ' (' + esc(open.pageName) + ')' : ''} &middot; ${num(open.eventTotal)} รายการ</h4>
+        <div class="pills" style="margin-bottom:10px">${kindPills}</div>
+        <div class="tscroll"><table style="min-width:860px"><thead><tr>
+          <th class="nosort">ลูกค้า / เพจ</th>
+          <th class="nosort">ลูกค้าทัก</th>
+          <th class="nosort">เซลส์ตอบ</th>
+          <th class="nosort">ใช้เวลา</th>
+          <th class="nosort">ผล</th>
+        </tr></thead><tbody>
+        ${detailRows}</tbody></table></div>
+        ${open.eventTotal > open.events.length
+          ? `<div class="ad-sub" style="padding:8px;text-align:center">แสดง ${open.events.length} จาก ${num(open.eventTotal)} รายการล่าสุด</div>`
+          : ''}
+      </div>` : '';
+
+    box.innerHTML = `<section class="card panel sla-panel">
+      <h3>SLA ตอบแชทภายใน ${d.limitMin} นาที</h3>
+      <p class="sub">นับจากเวลาที่ลูกค้าทัก &middot; 10:00–19:00 ตอบช้าหัก 1 แต้ม &middot; เปิดอ่านแต่ไม่ตอบหัก 0.5 แต้ม &middot; 08:00–10:00 และ 19:00–22:00 ไม่หักแต่เก็บเป็นสถิติตอบช้า &middot; 22:00–08:00 ไม่หัก และเก็บสถิติถ้าเซลส์ตอบในช่วงนี้</p>
       <div class="grid-4" style="margin-bottom:16px">
         <div class="stat"><div class="k-label">แต้มที่ถูกหักรวม</div><div class="k-value" style="color:${t.deducted ? 'var(--coral)' : 'inherit'}">${t.deducted ? '−' + num(t.deducted) : '0'}</div></div>
         <div class="stat"><div class="k-label">ตอบทัน / ตรวจทั้งหมด</div><div class="k-value">${num(t.onTime)} / ${num(t.turns)}</div></div>
         <div class="stat"><div class="k-label">ช้าช่วงเดินทาง (สถิติ)</div><div class="k-value">${num(t.commuteLate)}</div></div>
-        <div class="stat"><div class="k-label">ตอบนอกเวลา 22:00–08:00</div><div class="k-value">${num(t.nightReplies)}</div></div></div>
-      <div class="tscroll"><table style="min-width:900px"><thead><tr><th class="nosort">เซลส์</th><th>ตรวจ</th><th>ทันเวลา</th><th>ช้า</th><th>แต้มที่ถูกหัก</th><th>ช้าช่วงเดินทาง</th><th>ตอบนอกเวลา</th><th>ตอบเฉลี่ย</th></tr></thead><tbody>
-      ${d.reps.length ? d.reps.map((r) => `<tr class="click-row ${r.repId === s.open ? 'sel-row' : ''}" data-act="sla-rep" data-rep="${esc(r.repId)}">
-        <td><b>${esc(r.rep)}</b></td><td>${num(r.turns)}</td><td>${num(r.onTime)}</td><td>${num(r.late)}</td>
-        <td>${r.deducted ? `<span class="q-badge q-poor">−${num(r.deducted)}</span>` : '<span class="q-badge q-excellent">0</span>'}</td>
-        <td>${num(r.commuteLate)}</td><td>${num(r.nightReplies)}</td><td>${r.avgMin === null ? '—' : fmtDur(r.avgMin)}</td></tr>`).join('')
-        : '<tr><td colspan="8"><div class="empty">ยังไม่มีข้อมูลการตอบแชทในช่วงที่เลือก</div></td></tr>'}</tbody></table></div>
-      <p class="rv-hint" style="margin:10px 0 0">คลิกแถวเซลส์เพื่อดูรายการ · คลิกรายการเพื่อเปิดแชทนั้นที่หน้า Inbox</p>
-      ${open ? `<div class="sla-detail"><h4>${esc(open.rep)} · ${num(open.eventTotal)} รายการ</h4>
-        <div class="pills" style="margin-bottom:10px">${SLA_KINDS.map(([k, l]) => `<button class="pill ${s.kind === k ? 'active' : ''}" data-act="sla-kind" data-kind="${k}">${l}</button>`).join('')}</div>
-        <div class="tscroll"><table style="min-width:860px"><thead><tr><th class="nosort">ลูกค้า / เพจ</th><th class="nosort">ลูกค้าทัก</th><th class="nosort">เซลส์ตอบ</th><th class="nosort">ใช้เวลา</th><th class="nosort">ผล</th></tr></thead><tbody>
-        ${evs.length ? evs.map((e) => `<tr class="click-row" data-act="sla-open" data-id="${esc(e.leadId)}" data-date="${esc(e.leadDate)}">
-          <td><div class="ad-name">${esc(e.name)}</div><div class="ad-sub">${esc(e.page || '—')} · ${esc(e.channel)}</div></td>
-          <td class="nowrap">${esc(sepLabel(e.customerAt))}<div class="ad-sub">${SLA_WIN[e.window]}</div></td>
-          <td class="nowrap">${e.replyAt ? `${esc(sepLabel(e.replyAt))}<div class="ad-sub">${e.replyWindow === 'night' ? 'ตอบช่วง 22:00–08:00' : SLA_WIN[e.replyWindow]}</div>` : '<span class="q-badge q-poor">ยังไม่ตอบ</span>'}</td>
-          <td class="nowrap">${fmtDur(e.minutes)}</td>
-          <td><span class="q-badge ${SLA_OUT[e.outcome][1]}">${SLA_OUT[e.outcome][0]}</span></td></tr>`).join('')
-          : '<tr><td colspan="5"><div class="empty">ไม่มีรายการในหมวดนี้</div></td></tr>'}</tbody></table></div>
-        ${open.eventTotal > open.events.length ? `<div class="ad-sub" style="padding:8px;text-align:center">แสดง ${open.events.length} จาก ${num(open.eventTotal)} รายการล่าสุด</div>` : ''}</div>` : ''}
+        <div class="stat"><div class="k-label">ตอบนอกเวลา 22:00–08:00</div><div class="k-value">${num(t.nightReplies)}</div></div>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:12px">
+        <div class="pills">${kindPills}</div>
+        <div class="ad-sub">แสดงผลตามเซลส์และเพจที่รับผิดชอบ</div>
+      </div>
+      <div class="tscroll"><table style="min-width:900px"><thead><tr>
+        <th class="nosort">เซลส์ / แอดมิน</th>
+        <th>ตรวจ</th><th>ทันเวลา</th><th>ช้า</th>
+        <th>แต้มที่ถูกหัก</th><th>ช้าช่วงเดินทาง</th>
+        <th>ตอบนอกเวลา</th><th>ตอบเฉลี่ย</th>
+      </tr></thead><tbody>
+      ${repRows}</tbody></table></div>
+      <p class="rv-hint" style="margin:10px 0 0">คลิกแถวเซลส์เพื่อดูรายการ &middot; คลิกรายการเพื่อเปิดแชทนั้นที่หน้า Inbox</p>
+      ${detailSection}
     </section>`;
   }
-
-  function boardShell() {
+function boardShell() {
     return `<div class="page-head"><div><h1>Board</h1><div class="meta-line"><span>ลูกค้าแยกตามความคืบหน้าของแชท</span></div></div></div>
       ${rangeBar('board')}<div id="board-body"><div class="loading">Loading…</div></div>`;
   }
