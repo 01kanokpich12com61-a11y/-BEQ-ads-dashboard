@@ -1661,6 +1661,9 @@ function serveStatic(req, res, url) {
 }
 
 const server = http.createServer(async (req, res) => {
+  // ขยาย timeout สำหรับการดึงข้อมูลและ sync ขนาดใหญ่ (Meta Graph API)
+  req.setTimeout(180000);
+  res.setTimeout(180000);
   try {
     const url = new URL(req.url, 'http://localhost');
     const ip = clientIp(req);
@@ -1754,6 +1757,10 @@ const server = http.createServer(async (req, res) => {
     send(res, status, { error: errMsg });
   }
 });
+
+server.timeout = 180000;
+server.keepAliveTimeout = 65000;
+server.headersTimeout = 66000;
 
 if (require.main === module) {
   const created = auth.ensureAdmin();
