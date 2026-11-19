@@ -813,23 +813,46 @@ async function api(req, res, url, session) {
       const phone = clean(r.phone || r.phone_number || r.telephone, 40) || '';
       const email = clean(r.email || r.email_address, 80) || '';
 
-      const platform = uploadPlatform || clean(r.platform, 30) || channel;
-      const pageName = uploadPageName || clean(r.pageName || r.page, 80) || `${platform} เพจหลัก`;
-      
-      // ค้นหา pageId จริงจาก pages.json ที่เชื่อมต่อกับ Meta
+      // ตรวจสอบแพลตฟอร์ม Instagram จาก channel, platform หรือชื่อเพจ
+      const rawRowPlat = clean(r.platform, 30);
+      const rawRowPage = clean(r.pageName || r.page, 80);
+      const isIg = Boolean(
+        (rawRowPlat && /ig|instagram/i.test(rawRowPlat)) ||
+        (channel && /ig|instagram/i.test(channel)) ||
+        (uploadPlatform && /ig|instagram/i.test(uploadPlatform)) ||
+        (rawRowPage && /ig|instagram|dr\.nay_hairtransplant|beq_wellness/i.test(rawRowPage)) ||
+        (uploadPageName && /ig|instagram|dr\.nay_hairtransplant|beq_wellness/i.test(uploadPageName))
+      );
+
+      let platform = isIg ? 'Instagram' : (uploadPlatform || rawRowPlat || channel);
+      let pageName = uploadPageName || rawRowPage || `${platform} เพจหลัก`;
+
+      // ค้นหา pageId และชื่อเพจจริงจาก pages.json ที่เชื่อมต่อกับ Meta (แยก Instagram และ Facebook ชัดเจน)
       let resolvedPageId = clean(r.pageId, 50);
-      if (!resolvedPageId && pageName) {
-        const pNorm = pageName.toLowerCase().replace(/\s+/g, '');
-        const matchedPage = knownPages.find((p) => {
+      if (pageName) {
+        const pNorm = pageName.toLowerCase().replace(/[\s_.-]/g, '');
+        let matchedPage = knownPages.find((p) => {
           if (!p.name) return false;
-          const kNorm = p.name.toLowerCase().replace(/\s+/g, '');
-          return kNorm === pNorm || kNorm.includes(pNorm) || pNorm.includes(kNorm);
+          const kNorm = p.name.toLowerCase().replace(/[\s_.-]/g, '');
+          const platMatch = isIg ? (p.platform === 'Instagram') : (p.platform !== 'Instagram');
+          return platMatch && (kNorm === pNorm || kNorm.includes(pNorm) || pNorm.includes(kNorm));
         });
+
+        // หากระบุว่าเป็น Instagram แต่ใส่ชื่อ Facebook Page มา (เช่น Dr. Nay Hair Transplant) ให้แมพไปหา Instagram Page คู่ของมัน
+        if (isIg && !matchedPage) {
+          const fbPage = knownPages.find((p) => p.platform === 'Facebook' && (p.name || '').toLowerCase().replace(/[\s_.-]/g, '').includes(pNorm));
+          if (fbPage) {
+            matchedPage = knownPages.find((p) => p.platform === 'Instagram' && p.fbPageId === fbPage.id);
+          }
+        }
+
         if (matchedPage) {
           resolvedPageId = matchedPage.id;
+          pageName = matchedPage.name;
+          platform = matchedPage.platform || platform;
         }
       }
-      const pageId = resolvedPageId || `P_${pageName.replace(/[^a-zA-Z0-9ก-๙]/g, '_')}`;
+      const pageId = resolvedPageId || clean(r.pageId, 50) || `P_${pageName.replace(/[^a-zA-Z0-9ก-๙]/g, '_')}`;
       recordPage(pageId, pageName, platform);
 
       // ตรวจสอบว่ามี lead เดิมจาก Meta ในเพจเดียวกันหรือไม่ (ตามชื่อลูกค้า หรือเบอร์โทร)
