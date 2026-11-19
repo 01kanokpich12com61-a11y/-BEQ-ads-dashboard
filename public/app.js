@@ -2561,7 +2561,6 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
       else if (S.route === 'board') { render(); loadBoard(); }
       else if (S.route === 'inbox') { render(); loadInbox(); }
       else if (S.route === 'post-comment') { render(); loadComments(); }
-      else if (S.route === 'post-comment') { render(); loadComments(); }
       else render();
       return;
     }
@@ -2570,6 +2569,7 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
       if (S.route === 'dashboard') { render(); loadDash(); }
       else if (S.route === 'board') { render(); loadBoard(); }
       else if (S.route === 'inbox') { render(); loadInbox(); }
+      else if (S.route === 'post-comment') { render(); loadComments(); }
       else render();
       return;
     }
