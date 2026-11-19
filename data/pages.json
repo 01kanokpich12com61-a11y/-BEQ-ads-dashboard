@@ -2,13 +2,50 @@
   {
     "id": "P-LINE",
     "name": "LINE Official Account",
-    "platform": "LINE",
-    "color": "#25D366"
+    "color": "#25D366",
+    "platform": "LINE"
   },
   {
     "id": "P-WhatsApp",
     "name": "WhatsApp Business",
-    "platform": "WhatsApp",
-    "color": "#128C7E"
+    "color": "#128C7E",
+    "platform": "WhatsApp"
+  },
+  {
+    "id": "239105462619075",
+    "name": "Pavicon Hair Clinic คลินิกปลูกผมมาตรฐานสากล",
+    "color": "#1877f2",
+    "platform": "Facebook",
+    "pageToken": "EAAQlcRCNVC8BTKUs4kBDXzBLfQgTqqZBd9EikzNjqr62y7mcCPVSaUksepwqPmKLf90BdCBVnT01YgwsG3ZAf3THuvx7dxSBMigW0U1y09EErRyJPDEtt5TmqoqIsdDwTAxxkN2OBWuVDD7c0MrdsgMNraLy26ZBOnXBcSM4sZCT8RrO1gDPaTK3kYtiL6tAyxI4HisBNKwVYWrRLNTNXs00KQ7UpkUdMugGSZAfFKAZDZD"
+  },
+  {
+    "id": "109373461849494",
+    "name": "Dr. Nay Hair Transplant by BEQ ปลูกผมถาวร",
+    "color": "#1877f2",
+    "platform": "Facebook",
+    "pageToken": "EAAQlcRCNVC8BTH2ZAYCHBZCTYecjkNp4kgkPZCWwEJr4tTlryZATd5pJdyu13EMpQM4SEcEkITubv8Fn054NaVqVs3ZAoULZAvZBe8TrYf8Y4ERZCskYMOOJMwtmRPl0yt8fKC05HXxr1yDQIPwwb1ZCbQZBtjAGiKaKgYKOhZCai4StPstjH0BG8ugHoqzHWJCu9sGkztcBMKjyZAUrE9LlFrznEVRaRni7nBZCQnE0e0lPkNQZDZD"
+  },
+  {
+    "id": "17841448814795762",
+    "name": "dr.nay_hairtransplant",
+    "color": "#e1306c",
+    "fbPageId": "109373461849494",
+    "platform": "Instagram",
+    "pageToken": "EAAQlcRCNVC8BTH2ZAYCHBZCTYecjkNp4kgkPZCWwEJr4tTlryZATd5pJdyu13EMpQM4SEcEkITubv8Fn054NaVqVs3ZAoULZAvZBe8TrYf8Y4ERZCskYMOOJMwtmRPl0yt8fKC05HXxr1yDQIPwwb1ZCbQZBtjAGiKaKgYKOhZCai4StPstjH0BG8ugHoqzHWJCu9sGkztcBMKjyZAUrE9LlFrznEVRaRni7nBZCQnE0e0lPkNQZDZD"
+  },
+  {
+    "id": "122342237846683",
+    "name": "Beq Hair Wellness Center",
+    "color": "#1877f2",
+    "platform": "Facebook",
+    "pageToken": "EAAQlcRCNVC8BTLnJvNtlfb9q0PURpmPklZAZBqSTrNgQeRWSvvBcW5QoZAkajimd51FzHlIfIPO7ZB6sMi5rB7SSomUJVlvJEeSlcXaIthEjgi2l8rcblnDydch5cB95hNJlFe8y7HfmGrOMrtjbj8za6Y41I9krurO9aLhVG5UJxRTLyMWZBNARAjfUXjERZCvfnBSPDZAPYpIxdlrcsgfWPWjd4fjUDe6xB1FYxYnUgZDZD"
+  },
+  {
+    "id": "17841401019079620",
+    "name": "beq_wellness",
+    "color": "#e1306c",
+    "fbPageId": "122342237846683",
+    "platform": "Instagram",
+    "pageToken": "EAAQlcRCNVC8BTLnJvNtlfb9q0PURpmPklZAZBqSTrNgQeRWSvvBcW5QoZAkajimd51FzHlIfIPO7ZB6sMi5rB7SSomUJVlvJEeSlcXaIthEjgi2l8rcblnDydch5cB95hNJlFe8y7HfmGrOMrtjbj8za6Y41I9krurO9aLhVG5UJxRTLyMWZBNARAjfUXjERZCvfnBSPDZAPYpIxdlrcsgfWPWjd4fjUDe6xB1FYxYnUgZDZD"
   }
 ]

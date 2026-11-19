@@ -1265,6 +1265,14 @@ async function api(req, res, url, session) {
     const convs = await meta.fetchFbConversations(pageId, Number(b.limit) || 100, plat, fbPageId);
       let leads = store.read('leads.json', []);
       let messages = store.read('messages.json', {});
+      
+      // แทนที่ข้อมูลเดิม: ลบ leads และ messages เดิมของเพจนี้ออกก่อนนำเข้าใหม่
+      const oldLeadsOfPage = leads.filter((l) => l.pageId === pageId || String(l.pageId) === String(pageId));
+      for (const oldLead of oldLeadsOfPage) {
+        delete messages[oldLead.id];
+      }
+      leads = leads.filter((l) => l.pageId !== pageId && String(l.pageId) !== String(pageId));
+
       let importedLeads = 0;
       let importedMsgs = 0;
 
@@ -1425,6 +1433,14 @@ async function api(req, res, url, session) {
       const pPlat = page.platform || 'Facebook';
       try {
         const convs = await meta.fetchFbConversations(page.id, limit || 100, pPlat, page.fbPageId || null);
+        
+        // แทนที่ข้อมูลเดิม: ลบ leads และ messages เดิมของเพจนี้ออกก่อน
+        const oldLeadsOfPage = leads.filter((l) => l.pageId === page.id || String(l.pageId) === String(page.id));
+        for (const oldLead of oldLeadsOfPage) {
+          delete messages[oldLead.id];
+        }
+        leads = leads.filter((l) => l.pageId !== page.id && String(l.pageId) !== String(page.id));
+
         let pLeads = 0;
         let pMsgs = 0;
         for (const c of convs) {

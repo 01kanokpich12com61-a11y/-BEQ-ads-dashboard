@@ -2,9 +2,9 @@
   "users": [
     {
       "username": "admin",
-      "passwordHash": "scrypt$f835287abfabbafed66866577fb3cc34$61ad65dde7002bf4df15e522ebd24827f28dfffb1d88b3acc22d266f20b91a9110744ae411f934e40340b168d3d4143540f372cd1846e5bf36580df3cbd7691c",
+      "createdAt": "2026-11-18T06:29:43.495Z",
       "mustChange": false,
-      "createdAt": "2026-11-08T17:48:18.033Z"
+      "passwordHash": "scrypt$192baa39234233b0a979789a70a326bd$b9b8c1cdd304966ca3d6b35fbcb83f096137ca0e5021afe3d23f84d3ac9bdb8e07dc3e27d24ad103856b066c6b1ab04419b6988300e617956030438f95854412"
     }
   ]
 }

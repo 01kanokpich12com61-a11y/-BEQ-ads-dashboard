@@ -2409,7 +2409,7 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
         }
       }
       else if (act === 'fb-import-all') {
-        if (!confirm('ต้องการดึงแชทและลูกค้าย้อนหลังของทุกเพจ (เพจละ 100 แชท) พร้อมกันหรือไม่?')) return;
+        if (!confirm('ต้องการดึงแชทของทุกเพจพร้อมกันหรือไม่?\n\n⚠️ ข้อมูลแชทและลูกค้าเดิมของแต่ละเพจจะถูกแทนที่ด้วยข้อมูลล่าสุดจาก Meta')) return;
         el.disabled = true;
         const originalText = el.textContent;
         el.textContent = '⏳ กำลังดึงแชททุกเพจ...';
@@ -2432,7 +2432,7 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
       else if (act === 'fb-import-conv') {
         const pageId = el.dataset.pageId;
         const pageName = el.dataset.pageName;
-        if (!confirm(`ต้องการดึงข้อมูลแชทและลูกค้าเก่าย้อนหลัง 100 แชทของเพจ "${pageName}" (ID: ${pageId}) หรือไม่?`)) return;
+        if (!confirm(`ต้องการดึงข้อมูลแชทของเพจ "${pageName}" หรือไม่?\n\n⚠️ ข้อมูลแชทและลูกค้าเดิมของเพจนี้จะถูกแทนที่ด้วยข้อมูลล่าสุดจาก Meta`)) return;
         el.disabled = true;
         el.textContent = '⏳ กำลังดึงแชท...';
         try {
