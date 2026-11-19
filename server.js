@@ -1316,15 +1316,15 @@ async function api(req, res, url, session) {
         }
 
         const msgList = (c.messages && c.messages.data) || [];
+        const currentLeadMsgs = messages[lead.id] || (messages[lead.id] = []);
         for (const m of msgList) {
           const fromPage = m.from && (String(m.from.id) === String(pageId) || (fbPageId && String(m.from.id) === String(fbPageId)));
           const text = m.message || '';
           if (!text) continue;
           const at = ops.nowStamp(m.created_time ? new Date(m.created_time).getTime() : Date.now());
-          const leadMsgs = messages[lead.id] || [];
-          if (!leadMsgs.some((x) => x.text === text && Math.abs(new Date(x.at) - new Date(at)) < 60000)) {
+          if (!currentLeadMsgs.some((x) => (m.id && x.mid === m.id) || (x.text === text && Math.abs(new Date(x.at) - new Date(at)) < 60000))) {
             const staffName = fromPage ? ((m.from && m.from.name) || 'Staff') : null;
-            ops.addMessage(lead.id, {
+            currentLeadMsgs.push({
               from: fromPage ? 'staff' : 'customer',
               text,
               mid: m.id || undefined,
@@ -1337,6 +1337,12 @@ async function api(req, res, url, session) {
           }
         }
       }
+      for (const lid in messages) {
+        if (Array.isArray(messages[lid])) {
+          messages[lid].sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0));
+        }
+      }
+      store.write('messages.json', messages);
       store.write('leads.json', leads);
       audit.log(session.user.username, 'import_fb', 'นำเข้าบทสนทนาเพจ ' + pageName + ': ' + importedLeads + ' ลีด, ' + importedMsgs + ' ข้อความ', clientIp(req));
       return send(res, 200, { ok: true, importedLeads, importedMsgs, pageId, pageName });
@@ -1483,14 +1489,14 @@ async function api(req, res, url, session) {
           }
 
           const msgList = (c.messages && c.messages.data) || [];
+          const currentLeadMsgs = messages[lead.id] || (messages[lead.id] = []);
           for (const m of msgList) {
             const fromPage = m.from && (String(m.from.id) === String(page.id) || (page.fbPageId && String(m.from.id) === String(page.fbPageId)));
             const text = m.message || '';
             if (!text) continue;
             const at = ops.nowStamp(m.created_time ? new Date(m.created_time).getTime() : Date.now());
-            const leadMsgs = messages[lead.id] || [];
-            if (!leadMsgs.some((x) => x.text === text && Math.abs(new Date(x.at) - new Date(at)) < 60000)) {
-              ops.addMessage(lead.id, {
+            if (!currentLeadMsgs.some((x) => (m.id && x.mid === m.id) || (x.text === text && Math.abs(new Date(x.at) - new Date(at)) < 60000))) {
+              currentLeadMsgs.push({
                 from: fromPage ? 'staff' : 'customer',
                 text,
                 mid: m.id || undefined,
@@ -1501,6 +1507,12 @@ async function api(req, res, url, session) {
             }
           }
         }
+        for (const lid in messages) {
+          if (Array.isArray(messages[lid])) {
+            messages[lid].sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0));
+          }
+        }
+        store.write('messages.json', messages);
         store.write('leads.json', leads);
         totalImportedLeads += pLeads;
         totalImportedMsgs += pMsgs;
