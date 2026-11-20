@@ -2500,7 +2500,7 @@ function boardShell() {
         const originalText = el.textContent;
         el.textContent = '⏳ กำลังดึงแชททุกเพจ...';
         try {
-          const r = await api('/api/import/facebook-conversations-all', { method: 'POST', body: { limit: 100 } });
+          const r = await api('/api/import/facebook-conversations-all', { method: 'POST', body: { limit: 500 } });
           if (r.ok) {
             const errText = r.errors && r.errors.length ? (' (⚠️ มีข้อผิดพลาด: ' + r.errors.join('; ') + ')') : '';
             S.flash = { type: r.errors && r.errors.length && !r.totalImportedLeads ? 'err' : 'ok', text: `ดึงประวัติแชทสำเร็จ! เพิ่มลูกค้าใหม่ ${r.totalImportedLeads} ราย, ${r.totalImportedMsgs} ข้อความ${errText}` };
@@ -2522,7 +2522,7 @@ function boardShell() {
         el.disabled = true;
         el.textContent = '⏳ กำลังดึงแชท...';
         try {
-          const r = await api('/api/import/facebook-conversations', { method: 'POST', body: { pageId, limit: 100 } });
+          const r = await api('/api/import/facebook-conversations', { method: 'POST', body: { pageId, limit: 500 } });
           if (r.ok) {
             S.flash = { type: 'ok', text: `นำเข้าบทสนทนาเพจ ${r.pageName} สำเร็จ: เพิ่มลูกค้าใหม่ ${r.importedLeads} ราย, ${r.importedMsgs} ข้อความ` };
             S.filters = await api('/api/filters').catch(() => null);

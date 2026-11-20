@@ -1326,7 +1326,7 @@ async function api(req, res, url, session) {
     try {
       const plat = (matched && matched.platform) || 'Facebook';
     const fbPageId = matched ? matched.fbPageId : null;
-    const convs = await meta.fetchFbConversations(pageId, Number(b.limit) || 100, plat, fbPageId);
+    const convs = await meta.fetchFbConversations(pageId, Number(b.limit) || 500, plat, fbPageId);
       let leads = store.read('leads.json', []);
       let messages = store.read('messages.json', {});
       
@@ -1488,7 +1488,7 @@ async function api(req, res, url, session) {
   if (route === 'POST /api/import/facebook-conversations-all') {
     if (!auth.isAdmin(session.user)) return send(res, 403, { error: 'เฉพาะผู้ดูแล (admin) เท่านั้น' });
     const b = await readJson(req).catch(() => ({}));
-    const limit = Number(b.limit) || 100;
+    const limit = Number(b.limit) || 500;
     const pages = store.read('pages.json', []);
     const targetPages = pages.filter((p) => (!p.platform || p.platform === 'Facebook' || p.platform === 'Instagram') && !p.id.startsWith('P-'));
     if (!targetPages.length) return send(res, 400, { error: 'ไม่พบเพจ Facebook หรือ Instagram ในระบบ กรุณากดดึงเพจจาก Meta ก่อน' });
