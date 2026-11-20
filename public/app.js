@@ -1291,7 +1291,7 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
           costMessage: r.costMessage, qualityScore: r.qualityScore, qualityLabel: r.qualityLabel
         }));
         return `<tr>
-        <td class="ad-hover-trigger" data-ad-hover="${hoverData}"><div class="ad-name" title="${esc(r.name)}">${esc(r.name)}</div><div class="ad-sub">${esc(r.campaign)}${r.adset ? ' – ' + esc(r.adset) : ''} · ${esc(r.id)}</div></td>
+        <td class="ad-hover-trigger" data-ad-hover="${hoverData}"><div class="ad-name" title="${esc(r.name)}">${esc(r.name)}</div><div class="ad-sub">${esc(r.campaign)}${r.adset ? ' – ' + esc(r.adset) : ''} · ${esc(r.id)}${r.page ? ` · <span style="color:var(--brand-deep);font-weight:600">📄 ${esc(r.page)}</span>` : ''}</div></td>
         <td class="ad-hover-trigger" data-ad-hover="${hoverData}"><div class="creative">
           <label class="dash-thumb-wrap" title="${r.thumb ? 'คลิกเพื่อเปลี่ยนรูปภาพ' : 'คลิกเพื่อใส่รูปโฆษณา'}">
             ${r.thumb
