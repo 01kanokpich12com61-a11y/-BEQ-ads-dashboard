@@ -865,3 +865,36 @@
 .kanban {
   scroll-behavior: smooth;
 }
+
+/* Notification badge styles */
+.nav-count-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #dc2626;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 999px;
+  margin-left: 4px;
+  line-height: 1.2;
+}
+.count-dot {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  background: #dc2626 !important;
+  color: #fff !important;
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  width: auto !important;
+  min-width: 17px !important;
+  height: 17px !important;
+  border-radius: 999px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 0 4px !important;
+  border: 1.5px solid #fff;
+}

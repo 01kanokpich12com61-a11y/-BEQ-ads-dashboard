@@ -63,6 +63,7 @@ const store = require('./lib/store');
 const meta = require('./lib/meta');
 const providers = require('./lib/providers');
 const ops = require('./lib/ops');
+const line = require('./lib/line');
 const audit = require('./lib/audit');
 const sla = require('./lib/sla');
 const { resolveRange, isDate, today, eachDay, addDays } = require('./lib/dates');
@@ -703,10 +704,77 @@ async function api(req, res, url, session) {
     const lead = data.leads.find((l) => l.id === b.id);
     if (!lead) return send(res, 404, { error: 'ไม่พบแชทนี้' });
     if (lead.status !== b.status) {
+      const oldStatus = lead.status;
       ops.setStatus(lead.id, b.status);
       audit.log(session.user.username, 'status_change', `${lead.id} ${lead.name}: ${lead.status} → ${b.status}`, clientIp(req));
+      
+      // ส่งแจ้งเตือน LINE ทันทีเมื่อเปลี่ยนสถานะ
+      try {
+        const lineConf = line.getLineConfig();
+        if (lineConf.enabled && lineConf.notifyOnStatusChange) {
+          line.sendLineNotification(line.formatStatusChangeAlert(lead, oldStatus, b.status, session.user.username)).catch(() => {});
+        }
+      } catch (err) {
+        console.warn('[LINE alert error]', err.message);
+      }
     }
     return send(res, 200, { ok: true, status: b.status });
+  }
+
+  if (route === 'GET /api/notifications') {
+    const data = await providers.load(resolveRange({ range: '90d' }));
+    const fuData = ops.buildFollowups(data, providers.currentMode() === 'demo', q);
+    const rows = fuData.rows || [];
+    const overdueList = rows.filter(r => r.overdue);
+    const replyList = rows.filter(r => r.kind === 'reply');
+    const chaseList = rows.filter(r => r.kind === 'chase');
+    
+    // จัดกลุ่มตาม Rep
+    const repMap = {};
+    for (const r of rows) {
+      const rep = r.rep || 'Unassigned';
+      if (!repMap[rep]) repMap[rep] = { rep, total: 0, overdue: 0, reply: 0, chase: 0, items: [] };
+      repMap[rep].total++;
+      if (r.overdue) repMap[rep].overdue++;
+      if (r.kind === 'reply') repMap[rep].reply++;
+      if (r.kind === 'chase') repMap[rep].chase++;
+      if (repMap[rep].items.length < 5) repMap[rep].items.push({ id: r.id, name: r.name, kind: r.kind, overdue: r.overdue });
+    }
+
+    return send(res, 200, {
+      total: overdueList.length + replyList.length,
+      counts: {
+        overdue: overdueList.length,
+        reply: replyList.length,
+        chase: chaseList.length,
+        scheduled: (fuData.counts && fuData.counts.scheduled) || 0,
+      },
+      byRep: Object.values(repMap),
+      recentAlerts: overdueList.slice(0, 10).map(r => ({
+        id: r.id,
+        name: r.name,
+        rep: r.rep,
+        dueDate: r.dueDate,
+        note: r.note,
+        type: 'overdue'
+      }))
+    });
+  }
+
+  if (route === 'GET /api/settings/line-notify') {
+    return send(res, 200, line.getLineConfig());
+  }
+
+  if (route === 'POST /api/settings/line-notify') {
+    const b = await readJson(req);
+    const saved = line.saveLineConfig(b);
+    audit.log(session.user.username, 'line_notify_settings_saved', `enabled: ${saved.enabled}`, clientIp(req));
+    return send(res, 200, { ok: true, config: saved });
+  }
+
+  if (route === 'POST /api/notifications/test-line') {
+    const r = await line.sendLineNotification('🧪 ทดสอบการแจ้งเตือนจาก BEQ Ads Dashboard สำเร็จแล้ว!');
+    return send(res, 200, r);
   }
 
   if (route === 'GET /api/followups') {
@@ -722,6 +790,15 @@ async function api(req, res, url, session) {
     if (!lead) return send(res, 404, { error: 'ไม่พบแชทนี้' });
     const fu = ops.setFollowup(lead.id, { dueDate: b.dueDate, note: clean(b.note, 300) }, session.user.username);
     audit.log(session.user.username, 'followup_set', `${lead.id} ${lead.name}: นัด ${fu.dueDate}${fu.note ? ' — ' + fu.note : ''}`, clientIp(req));
+    
+    // แจ้งเตือน LINE หากตั้งนัดหมายติดตามลูกค้า
+    try {
+      const lineConf = line.getLineConfig();
+      if (lineConf.enabled && lineConf.notifyOnOverdue) {
+        line.sendLineNotification(`\n📅 [ตั้งนัดติดตามลูกค้า]\n👤 ลูกค้า: ${lead.name}\n💼 เซลส์: ${lead.repId || 'ยังไม่ระบุ'}\n📅 นัดตาม: ${fu.dueDate}\n📝 โน้ต: ${fu.note || 'ไม่มี'}`).catch(() => {});
+      }
+    } catch {}
+    
     return send(res, 200, { ok: true, followup: fu });
   }
 
@@ -1845,6 +1922,32 @@ if (require.main === module) {
       console.log(`\n  Hair Clinic Ads Dashboard → http://${config.host === '0.0.0.0' ? 'localhost' : config.host}:${config.port}`);
       if (created) console.log(`  สร้างผู้ใช้ "${config.adminUser}" แล้ว${config.usingDefaultPassword ? ' (รหัสผ่านเริ่มต้น: admin1234 — ระบบจะให้เปลี่ยนหลังล็อกอิน)' : ''}`);
       console.log(`  โหมดข้อมูล: ${providers.currentMode() === 'meta' ? 'Meta' : 'Demo'}\n`);
+      
+      // Background Cron: ตรวจสอบและส่งการแจ้งเตือน LINE สำหรับลูกค้านัดตามเกินกำหนด (ทุกๆ 1 ชั่วโมง)
+      setInterval(async () => {
+        try {
+          const lineConf = line.getLineConfig();
+          if (!lineConf.enabled || !lineConf.notifyOnOverdue) return;
+          const data = await providers.load(resolveRange({ range: '90d' })).catch(() => null);
+          if (!data) return;
+          const fuData = ops.buildFollowups(data, providers.currentMode() === 'demo', {});
+          const notifiedStore = store.read('notified_alerts.json', {});
+          const nowMs = Date.now();
+          for (const row of (fuData.rows || [])) {
+            if (row.overdue) {
+              const lastNotified = notifiedStore[row.id] || 0;
+              // เตือนไม่เกินวันละ 1 ครั้งต่อลูกค้า 1 คน
+              if (nowMs - lastNotified > 24 * 3600 * 1000) {
+                await line.sendLineNotification(line.formatOverdueAlert(row, { dueDate: row.dueDate, note: row.note }));
+                notifiedStore[row.id] = nowMs;
+              }
+            }
+          }
+          store.write('notified_alerts.json', notifiedStore);
+        } catch (err) {
+          console.error('[Scheduled alert error]', err.message);
+        }
+      }, 60 * 60 * 1000);
     });
   }).catch((err) => {
     console.error('[Startup] Supabase init failed, starting anyway:', err.message);

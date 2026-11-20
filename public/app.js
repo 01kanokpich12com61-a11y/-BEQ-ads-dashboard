@@ -231,7 +231,7 @@
   function topbar() {
     const nav = [['dashboard', 'Dashboard', 'grid'], ['inbox', 'Inbox', 'chat'], ['board', 'Board', 'grid'],
       ['post-comment', 'Post & comment', 'chat'],
-      ['followup', 'ตามลูกค้า', 'clock'], ['review', '⏱️ SLA', 'check'], ['audit', 'Audit', 'list'],
+      ['followup', (S.notifications && S.notifications.counts && S.notifications.counts.overdue) ? `ตามลูกค้า <span class="nav-count-badge">${S.notifications.counts.overdue}</span>` : 'ตามลูกค้า', 'clock'], ['review', '⏱️ SLA', 'check'], ['audit', 'Audit', 'list'],
       ['upload', 'Upload', 'upload'], ['quality', 'Quality', 'shield'], ['setting', 'ตั้งค่า', 'gear']];
     const platforms = (S.filters && S.filters.platforms) || ['Facebook', 'LINE', 'WhatsApp', 'Instagram'];
     const rawAllPages = (S.filters && S.filters.pages) || [];
@@ -253,7 +253,7 @@
           ${filteredPages.map((p) => `<option value="${esc(p.id)}" ${S.dash.page === p.id ? "selected" : ""}>${p.platform === "Facebook" ? "🔵 " : p.platform === "Instagram" ? "📸 " : p.platform === "LINE" ? "🟢 " : p.platform === "WhatsApp" ? "💚 " : ""}${esc(p.name)}</option>`).join("")}
         </select></div>
       </div>
-      <div class="rel"><button class="icon-btn" data-act="menu" data-menu="bell" aria-label="Notifications">${icon('bell')}${list.length ? '<span class="dot"></span>' : ''}</button>
+      <div class="rel"><button class="icon-btn" data-act="menu" data-menu="bell" aria-label="Notifications">${icon('bell')}${list.length ? `<span class="dot count-dot">${list.length > 9 ? '9+' : list.length}</span>` : ''}</button>
         ${S.menu === 'bell' ? `<div class="popover">${list.length ? list.map((t) => `<div class="item">${esc(t)}</div>`).join('') : '<div class="item">ไม่มีการแจ้งเตือน</div>'}</div>` : ''}</div>
       <div class="rel"><button class="user-btn" data-act="menu" data-menu="user"><span class="avatar">${esc(S.me.username[0])}</span>${esc(S.me.username)}<span style="opacity:.6">▾</span></button>
         ${S.menu === 'user' ? `<div class="popover"><a class="item" style="display:block">${esc(S.me.clinicName || '')}</a><button data-act="goto" data-to="setting">Setting</button><button data-act="logout">Log out</button></div>` : ''}</div>
@@ -2118,7 +2118,13 @@ function boardShell() {
 
   /* ---------------- settings ---------------- */
   async function loadSettings() {
-    try { S.settings = await api('/api/settings'); } catch (e) { S.flash = { type: 'err', text: e.message }; }
+    try {
+      const [settings, lineNotify] = await Promise.all([
+        api('/api/settings'),
+        api('/api/settings/line-notify').catch(() => null)
+      ]);
+      S.settings = { ...settings, lineNotify: lineNotify || {} };
+    } catch (e) { S.flash = { type: 'err', text: e.message }; }
     renderSettingBody();
     if (S.me && S.me.role === 'admin') await loadUsers();
   }
@@ -2308,6 +2314,57 @@ function boardShell() {
         <ol class="steps"><li>ที่ Meta App → Messenger (หรือ Instagram Graph API) → Webhooks กรอก Callback URL และ Verify Token ด้านบน</li>
           <li>Subscribe ฟิลด์ <code>messages</code>, <code>message_echoes</code>, <code>messaging_referrals</code> (สำหรับ Facebook) และ <code>messages</code> (สำหรับ Instagram)</li>
           <li>ผูกเพจและบัญชี IG เข้ากับ Webhook (Add subscriptions) และให้สิทธิ์ <code>pages_messaging</code>, <code>instagram_basic</code>, <code>instagram_manage_messages</code></li></ol></section>
+
+      <section class="card panel" style="border:1.5px solid #06c755;background:#fcfdfa">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+          <div>
+            <h3 style="margin:0;display:flex;align-items:center;gap:8px;color:#06c755">
+              🔔 แจ้งเตือนสถานะลูกค้าผ่าน LINE (LINE Notify / Group Webhook)
+            </h3>
+            <p class="sub" style="margin:4px 0 0">ส่งแจ้งเตือนเข้ากลุ่ม LINE ของทีมขายอัตโนมัติเมื่อลูกค้าเปลี่ยนสถานะ, ถึงเวลานัดตาม, หรือลูกค้ารอตอบ</p>
+          </div>
+          <button class="btn" type="button" data-act="line-notify-test" style="border-color:#06c755;color:#06c755;font-weight:600">🧪 ทดสอบส่ง LINE</button>
+        </div>
+        <form class="form" data-form="line-notify-settings" autocomplete="off" style="margin-top:14px">
+          <div class="field" style="display:flex;align-items:center;gap:10px">
+            <input type="checkbox" id="ln-enabled" name="enabled" value="1" ${(s.lineNotify && s.lineNotify.enabled) ? 'checked' : ''} style="width:20px;height:20px;cursor:pointer">
+            <label for="ln-enabled" style="margin:0;font-weight:600;cursor:pointer">เปิดใช้งานการแจ้งเตือน LINE</label>
+          </div>
+          <div class="field">
+            <label>LINE Notify Token (แนะนำสำหรับกลุ่มทีมงาน)</label>
+            <input type="text" name="token" value="${esc((s.lineNotify && s.lineNotify.token) || '')}" placeholder="ออก Token จาก notify-bot.line.me แล้วนำมาใส่ที่นี่">
+            <small>สามารถดึง Token ฟรีจาก https://notify-bot.line.me แล้วดึง LINE Notify เข้ากลุ่มไลน์ของทีมขาย</small>
+          </div>
+          <div class="field">
+            <label>หรือ Webhook URL (กรณีใช้ Make / Zapier / Discord / Slack)</label>
+            <input type="text" name="webhookUrl" value="${esc((s.lineNotify && s.lineNotify.webhookUrl) || '')}" placeholder="https://hook.eu1.make.com/...">
+          </div>
+          <div class="field">
+            <label style="margin-bottom:6px">เหตุการณ์ที่ต้องการให้แจ้งเตือนเข้า LINE</label>
+            <div style="display:flex;flex-direction:column;gap:8px;font-size:13.5px">
+              <label style="display:flex;align-items:center;gap:8px;font-weight:normal;cursor:pointer">
+                <input type="checkbox" name="notifyOnStatusChange" value="1" ${(!s.lineNotify || s.lineNotify.notifyOnStatusChange) ? 'checked' : ''}>
+                <span>🔄 แจ้งเตือนเมื่อสถานะลูกค้าเปลี่ยน (เช่น สนใจ → นัดปรึกษา → ปิดการขาย) พร้อมระบุชื่อเซลส์</span>
+              </label>
+              <label style="display:flex;align-items:center;gap:8px;font-weight:normal;cursor:pointer">
+                <input type="checkbox" name="notifyOnOverdue" value="1" ${(!s.lineNotify || s.lineNotify.notifyOnOverdue) ? 'checked' : ''}>
+                <span>⏰ แจ้งเตือนเมื่อนัดตามลูกค้าเกินกำหนด หรือตั้งนัดใหม่</span>
+              </label>
+              <label style="display:flex;align-items:center;gap:8px;font-weight:normal;cursor:pointer">
+                <input type="checkbox" name="notifyOnNewReply" value="1" ${(!s.lineNotify || s.lineNotify.notifyOnNewReply) ? 'checked' : ''}>
+                <span>💬 แจ้งเตือนเมื่อลูกค้าตอบกลับมารอแอดมิน/เซลส์ตอบ</span>
+              </label>
+              <label style="display:flex;align-items:center;gap:8px;font-weight:normal;cursor:pointer">
+                <input type="checkbox" name="notifyOnChase" value="1" ${(!s.lineNotify || s.lineNotify.notifyOnChase) ? 'checked' : ''}>
+                <span>⏳ แจ้งเตือนเมื่อลูกค้าเงียบเกิน 24 ชม. (ถึงเวลาทักตามต่อ)</span>
+              </label>
+            </div>
+          </div>
+          <div class="row-actions">
+            <button class="btn primary" type="submit" style="background:#06c755;border-color:#05b64c">บันทึกการตั้งค่าแจ้งเตือน LINE</button>
+          </div>
+        </form>
+      </section>
 
       <section class="card panel"><h3>เชื่อมต่อ LINE Official Account (Messaging API)</h3>
         <p class="sub">เชื่อมต่อกับ LINE Developers เพื่อดึงข้อความจากลูกค้า LINE OA เข้ามาในระบบ</p>
