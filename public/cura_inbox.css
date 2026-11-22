@@ -1,8 +1,33 @@
-
 /* ==========================================================================
-   CURA AI INBOX (CLINICS INDUSTRY) - EXACT COMPONENT CSS
-   Canvas: #F4F6FB | Panels: #FFFFFF | Accent: #4F46E5 | Border: #E2E8F0
+   CURA AI INBOX (HIGH-TECH MEDICAL & HAIR CLINIC) - EXACT EMERALD THEME
+   Canvas: #F4F7F5 | Panels: #FFFFFF | Accent: #10B981 / #059669 | Border: #E2E8F0
    ========================================================================== */
+
+/* Full-viewport exact fitting for Inbox */
+.page-inbox,
+.page:has(#inbox-body) {
+  padding: 10px 16px;
+  height: calc(100vh - 52px);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.page-inbox #inbox-body,
+.page:has(#inbox-body) #inbox-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.page-inbox .cura-panels-row,
+.page:has(#inbox-body) .cura-panels-row {
+  flex: 1;
+  height: 100%;
+  min-height: 0;
+}
 
 /* Inbox Page Header */
 .cura-inbox-header {
@@ -10,8 +35,9 @@
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
-  gap: 12px;
-  margin-bottom: 12px;
+  gap: 10px;
+  margin-bottom: 10px;
+  flex-shrink: 0;
 }
 
 .cura-inbox-title-wrap {
@@ -22,75 +48,78 @@
 
 .cura-inbox-title-wrap h1 {
   margin: 0;
-  font-size: 24px;
-  font-weight: 700;
+  font-size: 26px;
+  font-weight: 800;
   color: #0f172a;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.025em;
 }
 
 .cura-copilot-pill {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  background: linear-gradient(135deg, #eff6ff, #f0fdf4);
-  border: 1px solid #bfdbfe;
-  color: #2563eb;
-  padding: 4px 12px;
+  gap: 8px;
+  background: linear-gradient(135deg, #ecfdf5 0%, #f0fdf4 100%);
+  border: 1px solid #a7f3d0;
+  color: #047857;
+  padding: 5px 14px;
   border-radius: 999px;
   font-size: 12px;
   font-weight: 700;
+  box-shadow: 0 1px 4px rgba(16, 185, 129, 0.12);
 }
 
 .cura-copilot-pill .pulse-dot {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: #2563eb;
-  box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.7);
-  animation: curaPulse 2s infinite;
+  background: #10b981;
+  box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+  animation: beqPulse 2s infinite;
 }
 
-@keyframes curaPulse {
-  0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.7); }
-  70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(37, 99, 235, 0); }
-  100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(37, 99, 235, 0); }
+@keyframes beqPulse {
+  0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+  70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
+  100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
 }
 
-/* 3 Major Panels Container (Full viewport height match) */
+/* 4-Column Layout Container matching Cura AI */
 .cura-panels-row {
   display: flex;
   flex-direction: row;
   gap: 12px;
-  height: calc(100vh - 170px);
-  min-height: 620px;
+  height: calc(100vh - 128px);
+  min-height: 520px;
   width: 100%;
 }
 
-/* Panel 1: Folders & Conversation List Combined */
+/* Panel 1: Left Container (Rail + Conversation List) */
 .cura-panel-left {
-  width: 420px;
-  min-width: 380px;
-  max-width: 440px;
+  width: 380px;
+  min-width: 350px;
+  max-width: 400px;
   background: #ffffff;
-  border: 1px solid #e2e8f0;
-  border-radius: 24px;
-  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.04);
+  border: 1px solid rgba(16, 185, 129, 0.14);
+  border-radius: 16px;
+  box-shadow: 0 4px 20px -2px rgba(15, 23, 42, 0.04);
   display: flex;
   flex-direction: row;
   overflow: hidden;
+  flex-shrink: 0;
 }
 
-/* Panel 1 - Sub Column A: Folders Rail */
+/* Sub-Column 1: Folders & Channels Rail */
 .cura-rail-col {
-  width: 170px;
-  min-width: 160px;
-  background: #fafbfd;
+  width: 135px;
+  min-width: 130px;
+  background: #fbfdfc;
   border-right: 1px solid #f1f5f9;
-  padding: 16px 10px;
+  padding: 12px 6px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
   overflow-y: auto;
+  flex-shrink: 0;
 }
 
 .cura-rail-block {
@@ -103,9 +132,12 @@
   font-size: 11px;
   font-weight: 800;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.06em;
   color: #94a3b8;
   padding: 4px 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .cura-rail-item {
@@ -131,9 +163,10 @@
 }
 
 .cura-rail-item.active {
-  background: #eff6ff;
-  color: #4f46e5;
+  background: #ecfdf5;
+  color: #047857;
   font-weight: 700;
+  box-shadow: inset 3px 0 0 #10b981;
 }
 
 .cura-item-badge {
@@ -155,13 +188,13 @@
   color: #d97706;
 }
 
-/* Channels List in Rail */
+/* Channels in Rail */
 .cura-chan-btn {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 10px;
-  border-radius: 8px;
+  padding: 7px 10px;
+  border-radius: 10px;
   background: transparent;
   border: none;
   cursor: pointer;
@@ -179,12 +212,12 @@
 }
 
 .cura-chan-btn.active {
-  background: #eef2ff;
-  color: #4f46e5;
+  background: #ecfdf5;
+  color: #047857;
   font-weight: 700;
 }
 
-/* Panel 1 - Sub Column B: Conversation List */
+/* Sub-Column 2: Conversation List */
 .cura-convs-col {
   flex: 1;
   background: #ffffff;
@@ -207,6 +240,13 @@
   border-radius: 12px;
   padding: 7px 12px;
   color: #94a3b8;
+  transition: all 0.15s ease;
+}
+
+.cura-search-inner:focus-within {
+  border-color: #10b981;
+  background: #ffffff;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15);
 }
 
 .cura-search-inner input {
@@ -223,10 +263,11 @@
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  padding: 6px;
+  padding: 8px 6px;
   gap: 4px;
 }
 
+/* Conversation Card */
 .cura-conv-card {
   display: flex;
   gap: 12px;
@@ -236,39 +277,94 @@
   border: 1px solid transparent;
   cursor: pointer;
   text-align: left;
-  transition: all 0.16s ease;
+  transition: all 0.16s cubic-bezier(0.16, 1, 0.3, 1);
   width: 100%;
+  position: relative;
 }
 
 .cura-conv-card:hover {
   background: #f8fafc;
   border-color: #f1f5f9;
+  transform: translateY(-1px);
 }
 
 .cura-conv-card.active {
-  background: #f4f6fb;
-  border-color: #c7d2fe;
-  box-shadow: 0 2px 8px rgba(79, 70, 229, 0.06);
+  background: #f0fdf4;
+  border-color: #a7f3d0;
+  box-shadow: 0 4px 14px rgba(16, 185, 129, 0.08);
 }
 
+.cura-conv-card.active::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 12px;
+  bottom: 12px;
+  width: 4px;
+  border-radius: 0 4px 4px 0;
+  background: #10b981;
+}
+
+/* Avatar & SLA Circular Timer Ring */
 .cura-avatar-shell {
   position: relative;
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-/* Organic Asymmetric Blob Avatar */
+.cura-sla-ring {
+  position: absolute;
+  inset: -3px;
+  width: calc(100% + 6px);
+  height: calc(100% + 6px);
+  pointer-events: none;
+}
+
+.cura-sla-ring svg {
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+
+.cura-sla-ring circle.track {
+  fill: none;
+  stroke: #e2e8f0;
+  stroke-width: 2.2;
+}
+
+.cura-sla-ring circle.fill {
+  fill: none;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 0.4s ease;
+}
+
+.cura-sla-ring.sla-ontime circle.fill {
+  stroke: #10b981;
+}
+
+.cura-sla-ring.sla-warning circle.fill {
+  stroke: #f59e0b;
+}
+
+.cura-sla-ring.sla-late circle.fill {
+  stroke: #ef4444;
+}
+
 .cura-blob-avatar {
   display: flex;
   align-items: center;
   justify-content: center;
   color: #ffffff;
   font-weight: 700;
-  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
   transition: transform 0.2s ease;
 }
 
 .cura-conv-card:hover .cura-blob-avatar {
-  transform: scale(1.04);
+  transform: scale(1.05);
 }
 
 .cura-chan-badge-overlay {
@@ -313,6 +409,7 @@
   font-size: 11px;
   color: #94a3b8;
   white-space: nowrap;
+  font-weight: 500;
 }
 
 .cura-card-snippet {
@@ -321,7 +418,7 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  line-height: 1.35;
+  line-height: 1.4;
 }
 
 .cura-card-footer {
@@ -329,14 +426,18 @@
   align-items: center;
   gap: 6px;
   margin-top: 3px;
+  flex-wrap: wrap;
 }
 
 .cura-ai-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   font-size: 10.5px;
   font-weight: 700;
-  color: #4f46e5;
-  background: #eef2ff;
-  border: 1px solid #c7d2fe;
+  color: #047857;
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
   padding: 1px 7px;
   border-radius: 999px;
 }
@@ -344,88 +445,179 @@
 .cura-tag-pill {
   font-size: 10.5px;
   font-weight: 600;
-  color: #065f46;
-  background: #d1fae5;
+  color: #1e293b;
+  background: #f1f5f9;
   padding: 1px 6px;
   border-radius: 4px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 90px;
+  max-width: 100px;
 }
 
-/* Panel 2: Center Active Chat Area */
+.cura-sla-badge {
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+.cura-sla-badge.ontime { background: #d1fae5; color: #065f46; }
+.cura-sla-badge.late { background: #fee2e2; color: #dc2626; }
+.cura-sla-badge.warning { background: #fef3c7; color: #b45309; }
+
+/* ==========================================================================
+   Panel 3: Center Active Chat Area
+   ========================================================================== */
 .cura-panel-center {
   flex: 1;
   min-width: 380px;
   background: #ffffff;
-  border: 1px solid #e2e8f0;
-  border-radius: 24px;
-  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.04);
+  border: 1px solid rgba(16, 185, 129, 0.14);
+  border-radius: 16px;
+  box-shadow: 0 4px 20px -2px rgba(15, 23, 42, 0.04);
   display: flex;
   flex-direction: column;
   overflow: hidden;
 }
 
 .cura-thread-header {
-  height: 64px;
+  min-height: 52px;
+  height: auto;
   background: #ffffff;
   border-bottom: 1px solid #f1f5f9;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 20px;
+  flex-wrap: wrap;
+  padding: 6px 14px;
+  gap: 6px 10px;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  overflow: visible;
 }
 
 .cura-thread-user-info {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: visible;
 }
 
 .cura-thread-title {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
+  flex-wrap: wrap;
+  white-space: nowrap;
+  overflow: visible;
 }
 
 .cura-thread-title b {
-  font-size: 15px;
+  font-size: 13.5px;
   font-weight: 700;
   color: #0f172a;
+  white-space: nowrap;
 }
 
 .cura-thread-sub {
-  font-size: 12px;
+  font-size: 11px;
   color: #64748b;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   margin-top: 1px;
+  white-space: nowrap;
+  flex-wrap: wrap;
+  overflow: visible;
 }
 
+.cura-thread-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  overflow: visible;
+}
+
+/* SLA Countdown Target Pill */
+.sla-target-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 999px;
+  padding: 2.5px 8px;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #334155;
+  white-space: nowrap;
+  flex-shrink: 0;
+  min-width: max-content;
+  line-height: 1.2;
+}
+.sla-target-pill span {
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.sla-target-pill.urgent {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #dc2626;
+}
+.sla-target-pill .sla-pulse {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #10b981;
+  box-shadow: 0 0 5px rgba(16, 185, 129, 0.6);
+}
+.sla-target-pill.urgent .sla-pulse {
+  background: #ef4444;
+  box-shadow: 0 0 5px rgba(239, 68, 68, 0.6);
+}
+
+/* Frosted Glass Takeover Button */
 .cura-takeover-btn {
-  background: #4f46e5;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: linear-gradient(135deg, #059669, #10b981);
   color: #ffffff;
   border: none;
   border-radius: 999px;
-  padding: 8px 18px;
-  font-size: 12.5px;
+  padding: 4px 11px;
+  font-size: 11px;
   font-weight: 700;
   cursor: pointer;
-  box-shadow: 0 2px 8px rgba(79, 70, 229, 0.3);
+  box-shadow: 0 1px 4px rgba(16, 185, 129, 0.25);
   transition: all 0.15s ease;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .cura-takeover-btn:hover {
-  background: #4338ca;
+  background: linear-gradient(135deg, #047857, #059669);
   transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.45);
 }
 
+.cura-takeover-btn.ai-active {
+  background: #ffffff;
+  color: #047857;
+  border: 1px solid #a7f3d0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+/* AI Copilot Summary Banner in Chat */
 .cura-ai-summary-box {
-  margin: 12px 18px 4px;
-  background: linear-gradient(135deg, #f8fafc, #eff6ff);
-  border: 1px solid #bfdbfe;
+  margin: 10px 18px 4px;
+  background: linear-gradient(135deg, #f8fafc 0%, #ecfdf5 100%);
+  border: 1px solid #a7f3d0;
   border-radius: 14px;
   padding: 10px 14px;
   display: flex;
@@ -441,21 +633,26 @@
 }
 
 .cura-ai-summary-badge {
-  background: #2563eb;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #059669;
   color: #ffffff;
   font-size: 11px;
   font-weight: 700;
-  padding: 2px 8px;
+  padding: 2px 10px;
   border-radius: 999px;
 }
 
+/* Chat Feed */
 .cura-thread-feed {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
-  padding: 20px;
+  padding: 14px 18px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 14px;
   background: #fbfcfd;
 }
 
@@ -470,6 +667,7 @@
   background: #f1f5f9;
   padding: 3px 12px;
   border-radius: 999px;
+  font-weight: 500;
 }
 
 .cura-bubble-row {
@@ -499,40 +697,161 @@
 }
 
 .cura-bubble.out {
-  background: #4f46e5;
+  background: linear-gradient(135deg, #059669 0%, #10b981 100%);
   color: #ffffff;
   border-bottom-right-radius: 4px;
-  box-shadow: 0 4px 14px rgba(79, 70, 229, 0.28);
+  box-shadow: 0 4px 14px rgba(16, 185, 129, 0.3);
 }
 
 .cura-bubble-time {
   font-size: 11px;
   margin-top: 5px;
-  opacity: 0.75;
+  opacity: 0.8;
   display: flex;
   gap: 6px;
 }
 
+/* AI Copilot Suggestion Pills above composer */
+.cura-copilot-suggestions {
+  padding: 6px 14px 0;
+  background: #ffffff;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border-top: 1px solid #f8fafc;
+  flex-shrink: 0;
+}
+
+.cura-suggestions-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10.5px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #059669;
+}
+
+.cura-suggestions-row,
+.copilot-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  overflow-x: auto;
+  padding: 2px 0;
+  max-width: 100%;
+}
+.cura-suggestions-row::-webkit-scrollbar,
+.copilot-chips::-webkit-scrollbar { display: none; }
+
+.cura-suggestion-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: #f0fdf4;
+  border: 1px solid #a7f3d0;
+  color: #065f46;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.cura-suggestion-chip:hover {
+  background: #d1fae5;
+  border-color: #10b981;
+  transform: translateY(-1px);
+  box-shadow: 0 1px 4px rgba(16, 185, 129, 0.2);
+}
+
+.cura-composer,
 .cura-composer-box {
   background: #ffffff;
   border-top: 1px solid #f1f5f9;
-  padding: 14px 20px;
+  padding: 6px 14px 8px;
+  flex-shrink: 0;
+  box-sizing: border-box;
 }
 
-/* Panel 3: Right Contact Info & CRM Panel */
-.cura-panel-right {
-  width: 320px;
-  min-width: 300px;
-  max-width: 340px;
+.cura-composer .reply-form,
+.cura-composer-box .reply-form {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+  margin-top: 5px;
+}
+
+.cura-composer textarea,
+.cura-composer-box textarea,
+.cura-composer-box .reply-form textarea {
+  flex: 1;
+  min-height: 38px;
+  max-height: 100px;
+  font: inherit;
+  font-size: 12.5px;
+  line-height: 1.35;
+  padding: 6px 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
   background: #ffffff;
-  border: 1px solid #e2e8f0;
-  border-radius: 24px;
-  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.04);
-  padding: 20px 16px;
+  color: var(--ink);
+  resize: vertical;
+  transition: all 0.15s ease;
+  box-sizing: border-box;
+}
+
+.cura-composer textarea:focus,
+.cura-composer-box textarea:focus,
+.cura-composer-box .reply-form textarea:focus {
+  outline: none;
+  border-color: #10b981;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.18);
+}
+
+.cura-composer .reply-form .btn,
+.cura-composer-box .reply-form .btn {
+  height: 38px;
+  padding: 0 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  font-size: 12.5px;
+  font-weight: 700;
+  border-radius: 10px;
+  flex-shrink: 0;
+}
+
+.cura-composer .reply-note,
+.cura-composer-box .reply-note {
+  font-size: 11px;
+  color: #64748b;
+  margin-top: 4px;
+  line-height: 1.3;
+}
+
+/* ==========================================================================
+   Panel 4: Right Contact Info & CRM Panel
+   ========================================================================== */
+.cura-panel-right {
+  width: 300px;
+  min-width: 280px;
+  max-width: 320px;
+  background: #ffffff;
+  border: 1px solid rgba(16, 185, 129, 0.14);
+  border-radius: 16px;
+  box-shadow: 0 4px 20px -2px rgba(15, 23, 42, 0.04);
+  padding: 14px 12px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
   overflow-y: auto;
+  flex-shrink: 0;
 }
 
 .cura-profile-center {
@@ -541,6 +860,7 @@
   align-items: center;
   text-align: center;
   gap: 8px;
+  padding-bottom: 4px;
 }
 
 .cura-profile-header-name {
@@ -550,6 +870,105 @@
   color: #0f172a;
 }
 
+.cura-quick-actions-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.cura-quick-act-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  display: grid;
+  place-items: center;
+  font-size: 13px;
+  color: #475569;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.cura-quick-act-btn:hover {
+  background: #ecfdf5;
+  border-color: #10b981;
+  color: #059669;
+  transform: translateY(-1px);
+}
+
+/* Deals & Pipeline Card */
+.cura-deal-card {
+  background: linear-gradient(135deg, #f8fafc 0%, #f0fdf4 100%);
+  border: 1px solid #a7f3d0;
+  border-radius: 14px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.cura-deal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.cura-deal-title {
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #059669;
+}
+
+.cura-deal-prob {
+  font-size: 11px;
+  font-weight: 700;
+  color: #065f46;
+  background: #d1fae5;
+  padding: 1px 6px;
+  border-radius: 999px;
+}
+
+.cura-deal-val {
+  font-size: 18px;
+  font-weight: 800;
+  color: #0f172a;
+  letter-spacing: -0.02em;
+}
+
+/* Warm Tinted Notes Card */
+.cura-notes-card {
+  background: #fffdf5;
+  border: 1px solid #fde68a;
+  border-radius: 14px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cura-notes-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #92400e;
+}
+
+.cura-notes-body {
+  font-size: 12.5px;
+  color: #78350f;
+  line-height: 1.45;
+}
+
+/* Profile Segmented Tabs */
 .cura-profile-pill-tabs {
   display: flex;
   background: #f1f5f9;
@@ -578,19 +997,44 @@
 }
 
 .cura-section-card {
-  background: #f8fafc;
+  background: #ffffff;
   border: 1px solid #e2e8f0;
-  border-radius: 16px;
+  border-radius: 14px;
   overflow: hidden;
 }
 
 .cura-section-card-title {
   padding: 10px 14px;
-  border-bottom: 1px solid #edf2f7;
-  font-size: 12.5px;
+  border-bottom: 1px solid #f1f5f9;
+  font-size: 12px;
   font-weight: 700;
   color: #334155;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
+
+.cura-regen-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: none;
+  border: none;
+  color: #059669;
+  font-size: 11.5px;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 6px;
+  transition: all 0.15s ease;
+}
+.cura-regen-btn:hover {
+  background: #ecfdf5;
+}
+.cura-regen-btn.rotating svg, .cura-regen-btn.rotating .spin-ic {
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { 100% { transform: rotate(360deg); } }
 
 .cura-section-card-body {
   padding: 12px 14px;
@@ -608,8 +1052,10 @@
 
 .cura-field-group label {
   font-size: 11px;
-  font-weight: 600;
+  font-weight: 700;
   color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
 }
 
 .cura-field-group input, .cura-field-group select {
@@ -619,11 +1065,19 @@
   background: #ffffff;
   font-size: 12.5px;
   color: #0f172a;
+  transition: all 0.15s ease;
+}
+
+.cura-field-group input:focus, .cura-field-group select:focus {
+  outline: none;
+  border-color: #10b981;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15);
 }
 
 .cura-detail-row {
   display: flex;
   justify-content: space-between;
+  align-items: center;
 }
 
 .cura-detail-row span {

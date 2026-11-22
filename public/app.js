@@ -6,6 +6,8 @@
   /* ---------------- state ---------------- */
   const S = {
     me: null, booted: false, filters: null, route: 'dashboard', menu: null,
+    aiMode: 'copilot', branch: 'BEQ GROUP · Hair Wellness & Transplant',
+    sidebarCollapsed: typeof localStorage !== 'undefined' && localStorage.getItem('beq_sidebar_collapsed') === '1',
     dash: { range: '30d', from: '', to: '', platform: '', page: '', campaign: '', agency: '', rep: '', status: '', tab: 'ads',
       data: null, loading: false, err: null, sort: 'spend', dir: 'desc', search: '', pageNo: 1 },
     settings: null, flash: null, loginErr: '',
@@ -256,35 +258,167 @@
     return true;
   }
 
-  function topbar() {
-    const nav = [['dashboard', 'Dashboard', 'grid'], ['inbox', 'Inbox', 'chat'], ['board', 'Board', 'grid'],
-      ['post-comment', 'Post & comment', 'chat'],
-      ['followup', (S.notifications && S.notifications.counts && S.notifications.counts.overdue) ? `ตามลูกค้า <span class="nav-count-badge">${S.notifications.counts.overdue}</span>` : 'ตามลูกค้า', 'clock'], ['review', '⏱️ SLA', 'check'], ['audit', 'Audit', 'list'],
-      ['upload', 'Upload', 'upload'], ['quality', 'Quality', 'shield'], ['setting', 'ตั้งค่า', 'gear']];
+  function sidebarHtml() {
+    const isCollapsed = S.sidebarCollapsed;
+    const unrepliedCount = (S.inbox && S.inbox.data && S.inbox.data.rows)
+      ? S.inbox.data.rows.filter(r => r.status === 'no_reply' || !r.last || r.last.from !== 'staff').length
+      : 14;
+    const overdueCount = (S.notifications && S.notifications.counts && S.notifications.counts.overdue) || 0;
+
+    const navCore = [
+      ['dashboard', 'Dashboard', 'grid', 'ภาพรวมผลลัพธ์โฆษณา & KPIs', '#059669'],
+      ['inbox', `Inbox${unrepliedCount ? ` <span class="nav-count-badge unreplied">${unrepliedCount}</span>` : ''}`, 'chat', 'Unified Omnichannel Inbox', '#10b981'],
+      ['board', 'Leads Board', 'bars', '12-Stage Pipeline Kanban', '#0d9488'],
+      ['review', 'SLA & Review', 'check', 'SLA 15m & Quality Scorecard', '#059669'],
+      ['followup', `Follow-up${overdueCount ? ` <span class="nav-count-badge overdue">${overdueCount}</span>` : ''}`, 'clock', 'Customer Follow-ups', '#16a34a'],
+    ];
+
+    const navOps = [
+      ['quality', 'Quality Analysis', 'spark', 'Ad & Lead Quality Insights', '#047857'],
+      ['post-comment', 'Posts & Comments', 'chat', 'Comments & Comment SLA', '#0d9488'],
+      ['upload', 'Upload Data', 'upload', 'CSV Data Import & Management', '#10b981'],
+      ['audit', 'Audit Log', 'list', 'System Security Audit Trail', '#475569'],
+      ['setting', 'Settings', 'gear', 'System Configuration', '#065f46'],
+    ];
+
+    const curAiMode = S.aiMode || 'copilot';
+
+    return `<aside class="app-sidebar ${isCollapsed ? 'collapsed' : ''}">
+      <div class="sidebar-brand">
+        <div class="brand-logo-wrap" data-act="toggle-sidebar" title="BEQ GROUP (คลิกเพื่อย่อ/ขยายเมนู)" style="cursor:pointer">
+          <img class="brand-mark" src="/logo-mark.png" alt="BEQ Group" width="24" height="24">
+        </div>
+        <div class="brand-text">
+          <b>BEQ GROUP</b>
+          <small>Hair Wellness & Clinic Suite</small>
+        </div>
+        <button type="button" class="sidebar-toggle-btn" data-act="toggle-sidebar" title="${isCollapsed ? 'ขยายเมนู' : 'ย่อเมนู'}" aria-label="Toggle Sidebar">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            ${isCollapsed ? '<polyline points="9 18 15 12 9 6"></polyline>' : '<polyline points="15 18 9 12 15 6"></polyline>'}
+          </svg>
+        </button>
+      </div>
+
+      <div class="sidebar-branch-box">
+        <div class="branch-pill" title="เลือกสาขา / คลินิก">
+          <span class="branch-icon">🏥</span>
+          <span class="branch-badge">HQ</span>
+          <select data-bind="branch-select" aria-label="เลือกสาขา">
+            <option value="BEQ GROUP" ${(S.branch || '').includes('GROUP') ? 'selected' : ''}>BEQ GROUP</option>
+            <option value="BEQ Thonglor" ${(S.branch || '').includes('Thonglor') ? 'selected' : ''}>BEQ Thonglor</option>
+            <option value="BEQ Siam Paragon" ${(S.branch || '').includes('Paragon') ? 'selected' : ''}>BEQ Siam Paragon</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="sidebar-scroll">
+        <div class="sidebar-section-title">MAIN WORKSPACE</div>
+        <nav class="sidebar-nav">
+          ${navCore.map(([id, label, ic, title, color]) => `
+            <a href="#/${id}" class="sidebar-nav-item ${S.route === id ? 'active' : ''}" title="${esc(title)}" style="--item-color:${color}">
+              <span class="nav-icon-box">${icon(ic)}</span>
+              <span class="nav-label">${label}</span>
+            </a>
+          `).join('')}
+        </nav>
+
+        <div class="sidebar-section-title" style="margin-top:16px">ANALYTICS & OPS</div>
+        <nav class="sidebar-nav">
+          ${navOps.map(([id, label, ic, title, color]) => `
+            <a href="#/${id}" class="sidebar-nav-item ${S.route === id ? 'active' : ''}" title="${esc(title)}" style="--item-color:${color}">
+              <span class="nav-icon-box">${icon(ic)}</span>
+              <span class="nav-label">${label}</span>
+            </a>
+          `).join('')}
+        </nav>
+      </div>
+
+      <div class="sidebar-footer">
+        <div class="sidebar-ai-box">
+          <div class="ai-box-title">
+            <span class="beq-iridescent-orb sm"></span>
+            <span>BEQ COPILOT AI</span>
+          </div>
+          <div class="ai-mode-switch">
+            <button type="button" class="ai-mode-btn ${curAiMode === 'off' ? 'active' : ''}" data-act="set-ai-mode" data-mode="off">Off</button>
+            <button type="button" class="ai-mode-btn copilot ${curAiMode === 'copilot' ? 'active' : ''}" data-act="set-ai-mode" data-mode="copilot">Copilot</button>
+            <button type="button" class="ai-mode-btn autopilot ${curAiMode === 'autopilot' ? 'active' : ''}" data-act="set-ai-mode" data-mode="autopilot">⚡ Auto</button>
+          </div>
+        </div>
+
+        <div class="sidebar-user-card rel">
+          <button type="button" class="sidebar-user-btn" data-act="menu" data-menu="user">
+            <span class="avatar">${esc((S.me.username || 'A')[0].toUpperCase())}</span>
+            <div class="user-meta">
+              <span class="user-name">${esc(S.me.username)}</span>
+              <span class="user-role">${S.me.role === 'admin' ? 'ADMINISTRATOR' : 'STAFF'}</span>
+            </div>
+            <span class="chevron">▾</span>
+          </button>
+          ${S.menu === 'user' ? `<div class="popover popover-up"><a class="item" style="display:block;font-weight:600;color:var(--primary)">${esc(S.me.clinicName || 'BEQ Hair Wellness')}</a><button data-act="goto" data-to="setting">Settings</button><button data-act="logout">Log out</button></div>` : ''}
+        </div>
+      </div>
+    </aside>`;
+  }
+
+  function appHeaderHtml() {
     const platforms = (S.filters && S.filters.platforms) || ['Facebook', 'LINE', 'WhatsApp', 'Instagram'];
     const rawAllPages = (S.filters && S.filters.pages) || [];
     const allPages = rawAllPages.filter(isValidPage);
     const curPlatform = S.dash.platform || '';
     const filteredPages = curPlatform ? allPages.filter((p) => !p.platform || p.platform.toLowerCase() === curPlatform.toLowerCase()) : allPages;
     const list = notices();
-    return `<header class="topbar">
-      <div class="brand"><img class="brand-mark" src="/logo-mark.png" alt="BEQ Group" width="44" height="44"><div><b>BEQ Group</b><small>Ads · Chat · Lead Suite</small></div></div>
-      <nav class="nav">${nav.map(([id, label, ic]) => `<a href="#/${id}" class="${S.route === id ? 'active' : ''}">${icon(ic)}${label}</a>`).join('')}</nav>
-      <div class="spacer"></div>
-      <div class="topbar-selectors" style="display:inline-flex;gap:8px;align-items:center">
-        <div class="pill-select"><select data-bind="header-platform" aria-label="แพลตฟอร์ม">
-          <option value="">🌐 ทุกแพลตฟอร์ม</option>
-          ${platforms.map((p) => `<option value="${esc(p)}" ${curPlatform.toLowerCase() === p.toLowerCase() ? 'selected' : ''}>${p === "Facebook" ? "🔵 " : p === "Instagram" ? "📸 " : p === "LINE" ? "🟢 " : p === "WhatsApp" ? "💚 " : ""}${esc(p)}</option>`).join('')}
-        </select></div>
-        <div class="pill-select"><select data-bind="header-page" aria-label="เลือกเพจ">
-          <option value="">${curPlatform ? `📄 ทุกเพจ (${esc(curPlatform)})` : '📄 ทุกเพจ / บัญชี'}</option>
-          ${filteredPages.map((p) => `<option value="${esc(p.id)}" ${S.dash.page === p.id ? "selected" : ""}>${p.platform === "Facebook" ? "🔵 " : p.platform === "Instagram" ? "📸 " : p.platform === "LINE" ? "🟢 " : p.platform === "WhatsApp" ? "💚 " : ""}${esc(p.name)}</option>`).join("")}
-        </select></div>
+
+    const titles = {
+      dashboard: ['📊 Dashboard', 'ภาพรวมผลตอบแทนโฆษณา & Marketing KPIs'],
+      inbox: ['💬 Unified Omnichannel Inbox', 'รวมศูนย์แชท Facebook, Instagram, LINE, WhatsApp'],
+      board: ['📋 Leads Board', 'กระดานติดตามความคืบหน้าลีด 12 ลำดับขั้น'],
+      review: ['⏱️ SLA & Chat Quality', 'สถิติการตอบแชทตามเกณฑ์ 15 นาที & คะแนนความเร็ว'],
+      followup: ['📅 Follow-up Management', 'การนัดหมายและติดตามผลลูกค้า'],
+      quality: ['✨ Quality Analysis', 'วิเคราะห์คุณภาพโฆษณาและอัตรา Conversion'],
+      'post-comment': ['💬 Posts & Comments', 'จัดการคอมเมนต์ใต้โพสต์และ SLA คอมเมนต์'],
+      upload: ['☁️ Upload & Data', 'นำเข้าข้อมูล Leads & Campaigns ด้วย CSV'],
+      audit: ['📜 Audit Trail', 'ประวัติการใช้งานและบันทึกกิจกรรมความปลอดภัย'],
+      setting: ['⚙️ Settings', 'การตั้งค่าระบบ, API Tokens และผู้ใช้งาน']
+    };
+
+    const [pageTitle, pageSub] = titles[S.route] || [S.route, ''];
+
+    return `<header class="app-header">
+      <div class="header-left-group">
+        <button type="button" class="header-toggle-btn" data-act="toggle-sidebar" title="${S.sidebarCollapsed ? 'ขยายเมนูด้านซ้าย' : 'ย่อเมนูด้านซ้าย'}" aria-label="Toggle Sidebar">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="3" y1="12" x2="21" y2="12"></line>
+            <line x1="3" y1="6" x2="21" y2="6"></line>
+            <line x1="3" y1="18" x2="21" y2="18"></line>
+          </svg>
+        </button>
+        <div class="header-title-box">
+          <h1 class="header-page-title">${pageTitle}</h1>
+          <span class="header-page-sub">${pageSub}</span>
+        </div>
       </div>
-      <div class="rel"><button class="icon-btn" data-act="menu" data-menu="bell" aria-label="Notifications">${icon('bell')}${list.length ? `<span class="dot count-dot">${list.length > 9 ? '9+' : list.length}</span>` : ''}</button>
-        ${S.menu === 'bell' ? `<div class="popover">${list.length ? list.map((t) => `<div class="item">${esc(t)}</div>`).join('') : '<div class="item">ไม่มีการแจ้งเตือน</div>'}</div>` : ''}</div>
-      <div class="rel"><button class="user-btn" data-act="menu" data-menu="user"><span class="avatar">${esc(S.me.username[0])}</span>${esc(S.me.username)}<span style="opacity:.6">▾</span></button>
-        ${S.menu === 'user' ? `<div class="popover"><a class="item" style="display:block">${esc(S.me.clinicName || '')}</a><button data-act="goto" data-to="setting">Setting</button><button data-act="logout">Log out</button></div>` : ''}</div>
+
+      <div class="header-actions">
+        <div class="header-selectors">
+          <div class="pill-select"><select data-bind="header-platform" aria-label="แพลตฟอร์ม">
+            <option value="">🌐 ทุกแพลตฟอร์ม</option>
+            ${platforms.map((p) => `<option value="${esc(p)}" ${curPlatform.toLowerCase() === p.toLowerCase() ? 'selected' : ''}>${p === "Facebook" ? "🔵 " : p === "Instagram" ? "📸 " : p === "LINE" ? "🟢 " : p === "WhatsApp" ? "💚 " : ""}${esc(p)}</option>`).join('')}
+          </select></div>
+          <div class="pill-select"><select data-bind="header-page" aria-label="เลือกเพจ">
+            <option value="">${curPlatform ? `📄 ทุกเพจ (${esc(curPlatform)})` : '📄 ทุกเพจ / บัญชี'}</option>
+            ${filteredPages.map((p) => `<option value="${esc(p.id)}" ${S.dash.page === p.id ? "selected" : ""}>${p.platform === "Facebook" ? "🔵 " : p.platform === "Instagram" ? "📸 " : p.platform === "LINE" ? "🟢 " : p.platform === "WhatsApp" ? "💚 " : ""}${esc(p.name)}</option>`).join("")}
+          </select></div>
+        </div>
+
+        <div class="rel">
+          <button type="button" class="icon-btn header-icon-btn" data-act="menu" data-menu="bell" aria-label="Notifications">
+            ${icon('bell')}
+            ${list.length ? `<span class="dot count-dot">${list.length > 9 ? '9+' : list.length}</span>` : ''}
+          </button>
+          ${S.menu === 'bell' ? `<div class="popover">${list.length ? list.map((t) => `<div class="item">${esc(t)}</div>`).join('') : '<div class="item">ไม่มีการแจ้งเตือน</div>'}</div>` : ''}
+        </div>
+      </div>
     </header>`;
   }
 
@@ -293,8 +427,18 @@
     if (!S.me) return renderLogin();
     const views = { dashboard: dashShell, inbox: inboxShell, board: boardShell, 'post-comment': commentsShell, followup: followShell, review: reviewShell, audit: auditShell, setting: settingShell, upload: uploadShell, quality: qualityShell };
     const body = (views[S.route] || soonShell)();
-    $app.innerHTML = topbar() + `<main class="page">${S.me.mustChange && S.route !== 'setting'
-      ? '<div class="notice warn banner">ยังใช้รหัสผ่านเริ่มต้นอยู่ — <a href="#/setting">เปลี่ยนรหัสผ่านที่ Setting</a></div>' : ''}${body}</main><div id="drawer-root"></div>`;
+    $app.innerHTML = `<div class="app-shell ${S.sidebarCollapsed ? 'sidebar-collapsed' : ''}">
+      ${sidebarHtml()}
+      <div class="app-main">
+        ${appHeaderHtml()}
+        <main class="page page-${S.route}">
+          ${S.me.mustChange && S.route !== 'setting'
+            ? '<div class="notice warn banner">ยังใช้รหัสผ่านเริ่มต้นอยู่ — <a href="#/setting">เปลี่ยนรหัสผ่านที่ Setting</a></div>' : ''}
+          ${body}
+        </main>
+      </div>
+      <div id="drawer-root"></div>
+    </div>`;
     afterRender();
   }
 
@@ -1285,10 +1429,10 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
     ['costMessage', 'Cost / Msg'], ['cqc', 'CQC'], ['purchases', 'Purchases'], ['spend', 'Spend'], ['cpc', 'CPC'], ['qualityScore', 'Chat Quality'],
   ];
   function sparkSvg(vals, label) {
-    const color = { excellent: '#44602f', good: '#44602f', average: '#44602f', poor: '#d6204b', none: '#9aa39e' }[label] || '#44602f';
+    const color = { excellent: '#10b981', good: '#059669', average: '#f59e0b', poor: '#ef4444', none: '#94a3b8' }[label] || '#10b981';
     const max = Math.max(...vals, 1); const w = 54; const h = 22;
     const pts = vals.map((v, i) => `${(i * (w - 2) / Math.max(vals.length - 1, 1) + 1).toFixed(1)},${(h - 2 - (v / max) * (h - 4)).toFixed(1)}`).join(' ');
-    return `<svg class="spark" viewBox="0 0 ${w} ${h}" aria-hidden="true"><polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/></svg>`;
+    return `<svg class="spark" viewBox="0 0 ${w} ${h}" aria-hidden="true"><polyline points="${pts}" fill="none" stroke="${color}" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/></svg>`;
   }
   const QLABEL = { excellent: 'Excellent', good: 'Good', average: 'Average', poor: 'Poor' };
 
@@ -1318,13 +1462,30 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
           reach: r.reach, impressions: r.impressions, spend: r.spend, cpm: r.cpm, ctr: r.ctr, purchases: r.purchases,
           costMessage: r.costMessage, qualityScore: r.qualityScore, qualityLabel: r.qualityLabel
         }));
+        const pageBadge = r.page ? (() => {
+          const p = String(r.page).toLowerCase();
+          let cls = 'beq';
+          if (p.includes('pavicon')) cls = 'pavicon';
+          else if (p.includes('nay') || p.includes('เนย์')) cls = 'drnay';
+          return `<span class="page-tag-badge ${cls}">📄 ${esc(r.page)}</span>`;
+        })() : '';
         return `<tr>
-        <td class="ad-hover-trigger" data-ad-hover="${hoverData}"><div class="ad-name" title="${esc(r.name)}">${esc(r.name)}</div><div class="ad-sub">${esc(r.campaign)}${r.adset ? ' – ' + esc(r.adset) : ''} · ${esc(r.id)}${r.page ? ` · <span style="color:var(--brand-deep);font-weight:600">📄 ${esc(r.page)}</span>` : ''}</div></td>
+        <td class="ad-hover-trigger" data-ad-hover="${hoverData}">
+          <div class="ad-name" title="${esc(r.name)}">${esc(r.name)}</div>
+          <div class="ad-sub" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:3px">
+            <span>${esc(r.campaign)}${r.adset ? ' – ' + esc(r.adset) : ''} · ${esc(r.id)}</span>
+            ${pageBadge}
+          </div>
+        </td>
         <td class="ad-hover-trigger" data-ad-hover="${hoverData}"><div class="creative">
           <label class="dash-thumb-wrap" title="${r.thumb ? 'คลิกเพื่อเปลี่ยนรูปภาพ' : 'คลิกเพื่อใส่รูปโฆษณา'}">
             ${r.thumb
               ? `<img class="thumb" src="${esc(r.thumb)}" alt="" referrerpolicy="no-referrer" loading="lazy"><span class="thumb-badge">📷</span>`
-              : `<span class="thumb ct-${esc(String(r.creative).toLowerCase())}" style="border:1.5px dashed var(--brand);color:var(--brand);font-size:11px;font-weight:600;background:#f5f7f2">+ รูป</span>`}
+              : `<div class="thumb-creative-placeholder ct-${esc(String(r.creative || 'image').toLowerCase())}">
+                  <span class="creative-icon">${r.creative === 'VIDEO' ? '🎬' : r.creative === 'CAROUSEL' ? '📑' : '🖼️'}</span>
+                  <span class="creative-type-tag">${esc(String(r.creative || 'IMAGE').toUpperCase())}</span>
+                  <span class="thumb-hover-add">+ ใส่รูป</span>
+                </div>`}
             <input type="file" accept="image/*" style="display:none" data-act="dash-ad-img" data-ad-id="${esc(r.id)}" data-ad-name="${esc(r.name)}">
           </label>
           <span class="creative-lbl">${esc(cap(String(r.creative || 'IMAGE').toLowerCase()))}</span>
@@ -1536,29 +1697,27 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
     const suggestions = generateAiSuggestions(l, d && d.messages);
 
     return `
-      <!-- AI Smart Assistant Bar -->
-      <div class="ai-suggest-bar">
-        <div class="ai-suggest-head">
-          <span style="display:flex;align-items:center;gap:6px">
-            <span class="ai-badge">✨ AI Co-pilot</span>
-            <span>แนะนำข้อความตอบกลับอัจฉริยะ (คลิกเพื่อนำข้อความไปใส่ในกล่องพิมพ์)</span>
-          </span>
+      <!-- AI Copilot Suggested Replies -->
+      <div class="cura-copilot-suggestions">
+        <div class="cura-suggestions-label">
+          <span class="beq-iridescent-orb sm"></span>
+          <span>Copilot Suggested Replies</span>
         </div>
-        <div class="ai-suggest-chips">
+        <div class="cura-suggestions-row copilot-chips">
           ${suggestions.map(sg => `
-            <button type="button" class="ai-chip-btn" data-act="ai-fill" data-text="${esc(sg.text)}" title="${esc(sg.text)}">
-              ${esc(sg.label)}
+            <button type="button" class="cura-suggestion-chip" data-act="ai-fill" data-text="${esc(sg.text)}" title="${esc(sg.text)}">
+              <span>${esc(sg.label)}</span>
             </button>
           `).join('')}
         </div>
       </div>
 
       <form class="reply-form" data-form="reply">
-        <textarea name="text" rows="2" maxlength="2000" placeholder="พิมพ์ข้อความตอบลูกค้า หรือคลิกคำแนะนำ AI ด้านบน… (Enter ส่ง · Shift+Enter ขึ้นบรรทัดใหม่)" ${c.sending ? 'disabled' : ''}></textarea>
+        <textarea name="text" rows="2" maxlength="2000" placeholder="พิมพ์ข้อความตอบลูกค้า หรือเลือกข้อเสนอแนะจาก Copilot ด้านบน… (Enter ส่ง · Shift+Enter ขึ้นบรรทัด)" ${c.sending ? 'disabled' : ''}></textarea>
         <button class="btn primary" type="submit" ${c.sending ? 'disabled' : ''}>${icon('send')}${c.sending ? 'กำลังส่ง…' : 'ส่ง'}</button>
       </form>
       ${c.msg ? `<div class="notice ${c.msg.type} reply-msg">${esc(c.msg.text)}</div>` : ''}
-      <div class="reply-note">${d && d.demo ? 'โหมดเดโม: ข้อความจะถูกบันทึกในระบบเท่านั้น ไม่ได้ส่งถึงลูกค้าจริง' : 'ส่งผ่าน Meta Messenger Platform · ตอบได้ภายใน 24 ชม. หลังลูกค้าทักล่าสุด'}</div>`;
+      <div class="reply-note">${d && d.demo ? 'โหมดเดโม: ข้อความจะถูกบันทึกในระบบเพื่อทดสอบ (เกณฑ์ SLA 15 นาที)' : 'ส่งผ่าน Meta Messenger Platform · ตอบได้ภายใน 24 ชม. หลังลูกค้าทักล่าสุด'}</div>`;
   }
 
   const tomorrow = () => { const t = new Date(); t.setDate(t.getDate() + 1); return ymd(t); };
@@ -1622,14 +1781,14 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
     const ch = String(name || '').replace(/^คุณ\s*/, '').trim().charAt(0) || '?';
     let h = 0; for (const c of String(id || '')) h = (h * 31 + c.charCodeAt(0)) >>> 0;
     const blobColors = [
-      ['#6366f1', '#4f46e5'],
-      ['#8b5cf6', '#7c3aed'],
-      ['#ec4899', '#db2777'],
-      ['#3b82f6', '#2563eb'],
-      ['#06b6d4', '#0891b2'],
       ['#10b981', '#059669'],
-      ['#f59e0b', '#d97706'],
-      ['#64748b', '#475569'],
+      ['#059669', '#064e3b'],
+      ['#34d399', '#059669'],
+      ['#0d9488', '#115e59'],
+      ['#0284c7', '#0369a1'],
+      ['#6366f1', '#4338ca'],
+      ['#8b5cf6', '#6d28d9'],
+      ['#d97706', '#b45309'],
     ];
     const pair = blobColors[h % blobColors.length];
     const radiuses = [
@@ -1641,6 +1800,31 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
     ];
     const rad = radiuses[h % radiuses.length];
     return `<div class="cura-blob-avatar" style="width:${size}px;height:${size}px;border-radius:${rad};background:linear-gradient(135deg, ${pair[0]}, ${pair[1]});font-size:${Math.round(size * 0.42)}px;">${esc(ch)}</div>`;
+  }
+
+  function curaSlaRingHtml(r, size = 40) {
+    if (!r) return '';
+    let state = 'ontime';
+    let pct = 80;
+    if (r.status === 'no_reply' || (r.last && r.last.from !== 'staff')) {
+      const waitMin = r.last ? Math.floor((Date.now() - atMs(r.last.at)) / 60000) : 20;
+      if (waitMin > 15) { state = 'late'; pct = 100; }
+      else if (waitMin >= 10) { state = 'warning'; pct = Math.round((waitMin / 15) * 100); }
+      else { state = 'ontime'; pct = Math.round((Math.max(1, waitMin) / 15) * 100); }
+    } else {
+      state = 'ontime';
+      pct = 100;
+    }
+    const rRadius = Math.round(size / 2) + 1;
+    const circ = 2 * Math.PI * rRadius;
+    const offset = circ * (1 - Math.min(100, pct) / 100);
+    const boxSize = size + 6;
+    return `<div class="cura-sla-ring sla-${state}">
+      <svg viewBox="0 0 ${boxSize} ${boxSize}">
+        <circle class="track" cx="${boxSize/2}" cy="${boxSize/2}" r="${rRadius}"></circle>
+        <circle class="fill" cx="${boxSize/2}" cy="${boxSize/2}" r="${rRadius}" stroke-dasharray="${circ.toFixed(1)}" stroke-dashoffset="${offset.toFixed(1)}"></circle>
+      </svg>
+    </div>`;
   }
   function avatarHtml(name, id, size) {
     const ch = String(name).replace(/^คุณ\s*/, '').trim().charAt(0) || '?';
@@ -1737,8 +1921,17 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
     const activeFolder = s.folder || 'all';
     const channels = [...new Set(s.data.rows.map((r) => r.channel))].sort();
     el.innerHTML = `
+      <div class="cura-rail-block" style="padding:4px 6px 12px;border-bottom:1px solid #f1f5f9;margin-bottom:6px">
+        <div style="display:flex;align-items:center;gap:8px">
+          <div class="beq-iridescent-orb" style="width:26px;height:26px;flex-shrink:0" title="BEQ Copilot Engine"></div>
+          <div>
+            <div style="font-size:11.5px;font-weight:800;letter-spacing:0.06em;color:var(--brand-deep);text-transform:uppercase">BEQ COPILOT</div>
+            <div style="font-size:10px;color:var(--muted);font-weight:600">Hair & Clinic AI</div>
+          </div>
+        </div>
+      </div>
       <div class="cura-rail-block">
-        <div class="cura-block-label">Folders</div>
+        <div class="cura-block-label">FOLDERS</div>
         <button type="button" class="cura-rail-item ${activeFolder === 'all' ? 'active' : ''}" data-act="inbox-folder" data-folder="all">
           <span>💬 All</span>
           <span class="cura-item-badge">${num(totalCount)}</span>
@@ -1753,19 +1946,19 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
         </button>
       </div>
       <div class="cura-rail-block">
-        <div class="cura-block-label">Channels</div>
+        <div class="cura-block-label">CHANNELS</div>
         <button type="button" class="cura-chan-btn ${!s.channel ? 'active' : ''}" data-act="inbox-channel" data-channel="">
           <span>🌐</span> <span>All Channels</span>
         </button>
         ${channels.map((c) => {
-          const iconStr = c === 'Instagram' ? '📸' : c === 'LINE' ? '🟢' : c === 'WhatsApp' ? '💚' : '🔵';
+          const logo = getBrandLogo(c, 14);
           return `<button type="button" class="cura-chan-btn ${s.channel === c ? 'active' : ''}" data-act="inbox-channel" data-channel="${esc(c)}">
-            <span>${iconStr}</span> <span>${esc(c)}</span>
+            <span style="display:inline-flex;align-items:center">${logo}</span> <span>${esc(c)}</span>
           </button>`;
         }).join('')}
       </div>
       <div class="cura-rail-block" style="margin-top:auto">
-        <div class="cura-block-label">Status Filter</div>
+        <div class="cura-block-label">STATUS PIPELINE</div>
         <div class="sel" style="width:100%"><select data-bind="istatus-sel" style="width:100%;font-size:12px;padding:6px 10px;border-radius:10px">
           <option value="">ทุกสถานะ</option>
           ${STATUS_ORDER.map((k) => `<option value="${k}" ${s.status === k ? 'selected' : ''}>${STATUS_TH[k]}</option>`).join('')}
@@ -1787,9 +1980,18 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
       const timeStr = r.last ? ago(r.last.at) : esc(r.date);
       const ch = r.platform || r.channel || 'Facebook';
       const miniLogo = getBrandLogo(ch, 12);
+      let slaState = 'ontime';
+      let slaLabel = 'SLA OK';
+      if (r.status === 'no_reply' || (r.last && r.last.from !== 'staff')) {
+        const waitMin = r.last ? Math.floor((Date.now() - atMs(r.last.at)) / 60000) : 20;
+        if (waitMin > 15) { slaState = 'late'; slaLabel = 'SLA หลุด'; }
+        else if (waitMin >= 10) { slaState = 'warning'; slaLabel = 'ใกล้หลุด SLA'; }
+        else { slaState = 'ontime'; slaLabel = `${waitMin}m SLA`; }
+      }
       return `
         <div class="cura-conv-card ${isSelected ? 'active' : ''}" data-act="select-chat" data-id="${esc(r.id)}">
           <div class="cura-avatar-shell">
+            ${curaSlaRingHtml(r, 40)}
             ${curaAvatarHtml(r.name, r.id, 40)}
             <span class="cura-chan-badge-overlay" title="${esc(ch)}">${miniLogo}</span>
           </div>
@@ -1800,7 +2002,8 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
             </div>
             <div class="cura-card-snippet">${snippet}</div>
             <div class="cura-card-footer">
-              <span class="cura-ai-pill">AI</span>
+              <span class="cura-ai-pill">✨ Copilot</span>
+              <span class="cura-sla-badge ${slaState}">${slaLabel}</span>
               ${r.pageName ? `<span class="cura-tag-pill">${esc(r.pageName)}</span>` : ''}
             </div>
           </div>
@@ -1854,10 +2057,32 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
         <div><b>💡 Strategy:</b> ${esc(aiAnalysis.sentiment.tip)}</div>
       </div>
     ` : '';
+
+    // Calculate SLA 15m target countdown
+    let slaUrgent = false;
+    let timeLeftStr = '08:35 left';
+    if (l.last && l.last.from !== 'staff') {
+      const elapsedMin = Math.floor((Date.now() - atMs(l.last.at)) / 60000);
+      const remain = 15 - elapsedMin;
+      if (remain <= 0) {
+        slaUrgent = true;
+        timeLeftStr = `${Math.abs(remain)}m overdue!`;
+      } else {
+        slaUrgent = remain <= 5;
+        const mm = String(remain).padStart(2, '0');
+        timeLeftStr = `${mm}:00 left`;
+      }
+    } else {
+      timeLeftStr = '15m Met ✓';
+    }
+
     box.innerHTML = `
       <div class="cura-thread-header">
         <div class="cura-thread-user-info">
-          ${curaAvatarHtml(l.name, l.id, 38)}
+          <div class="cura-avatar-shell">
+            ${curaSlaRingHtml(l, 38)}
+            ${curaAvatarHtml(l.name, l.id, 38)}
+          </div>
           <div>
             <div class="cura-thread-title">
               <b>${esc(l.name)}</b>
@@ -1865,19 +2090,23 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
             </div>
             <div class="cura-thread-sub">
               <span>${chanHtml(l.channel)}</span>
-              <span>· Assigned to: <b>${esc(l.rep || 'Cura AI')}</b></span>
+              <span>· Assigned: <b>${esc(l.rep || 'BEQ Copilot')}</b></span>
             </div>
           </div>
         </div>
-        <div>
-          <button type="button" class="cura-takeover-btn" data-act="takeover-chat">
-            Take Over Chat
+        <div class="cura-thread-actions">
+          <div class="sla-target-pill ${slaUrgent ? 'urgent' : ''}">
+            <span class="sla-pulse"></span>
+            <span>15m Target: ⏱️ <b>${timeLeftStr}</b></span>
+          </div>
+          <button type="button" class="cura-takeover-btn ${c.takenOver ? 'ai-active' : ''}" data-act="takeover-chat">
+            ${c.takenOver ? '⚡ Take Over Active' : 'Take Over Chat'}
           </button>
         </div>
       </div>
       ${aiSummaryCard}
       <div class="cura-thread-feed" id="chat-scroll">${body}</div>
-      <div class="cura-composer-box">
+      <div class="cura-composer-box cura-composer">
         ${d && !c.err && !c.loading ? composerHtml(d) : ''}
       </div>
     `;
@@ -1888,52 +2117,166 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
     const box = $id('mess-info'); if (!box) return;
     const l = currentLead();
     if (!l) { box.innerHTML = '<div class="empty">No contact selected</div>'; return; }
+    const aiAnalysis = analyzeLeadConversation(l, S.chat.data && S.chat.data.messages);
+    const curTab = S.chat.tab || 'overview';
+
+    let tabContent = '';
+    if (curTab === 'overview') {
+      tabContent = `
+        <!-- Deals & Pipeline Card -->
+        <div class="cura-deal-card">
+          <div class="cura-deal-head">
+            <span class="cura-deal-title">💼 Deal Stage & Value</span>
+            <span class="cura-deal-prob">75% Close Prob.</span>
+          </div>
+          <div class="cura-deal-val">฿79,000 <span style="font-size:12px;font-weight:600;color:var(--muted)">· FUE Hair Transplant</span></div>
+          <div style="font-size:11.5px;color:var(--brand-deep);font-weight:600">🎯 Projected Procedure: 2,500 Grafts (BEQ Clinic)</div>
+        </div>
+
+        <!-- Warm Tinted Notes Card -->
+        <div class="cura-notes-card">
+          <div class="cura-notes-head">
+            <span>📝 Medical Consultant Notes</span>
+            <span style="font-size:10px;color:#b45309">Auto-synced</span>
+          </div>
+          <div class="cura-notes-body">
+            ${esc(l.notes || 'ลูกค้ากังวลผมร่วงบริเวณขมับ M-Shape สนใจโปร 2,500 กราฟต์ เคยปรึกษาคลินิกอื่นมาแล้ว อยากได้หมอผู้เชี่ยวชาญดูแล')}
+          </div>
+        </div>
+
+        <!-- Conversation Actions Card -->
+        <div class="cura-section-card">
+          <div class="cura-section-card-title">⚡ Conversation Actions</div>
+          <div class="cura-section-card-body" style="padding:12px 14px;display:flex;flex-direction:column;gap:10px">
+            <div class="cura-field-group">
+              <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase">Branch / Clinic</label>
+              <select style="width:100%;padding:6px 10px;border-radius:8px;border:1px solid #e2e8f0;font-size:12.5px">
+                <option>BEQ GROUP · Hair Wellness & Transplant</option>
+                <option>BEQ Thonglor Aesthetic</option>
+                <option>BEQ Siam Paragon</option>
+              </select>
+            </div>
+            <div class="cura-field-group">
+              <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase">Assigned Agent</label>
+              <input type="text" value="${esc(l.rep || 'BEQ Copilot Assistant')}" readonly style="background:#f1f5f9;width:100%;padding:6px 10px;border-radius:8px;border:1px solid #e2e8f0;font-size:12.5px">
+            </div>
+            <div class="cura-field-group">
+              <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase">Lead Stage / Status (12 Stages)</label>
+              ${statusSelectHtml(l)}
+            </div>
+            ${S.chat.data && S.chat.data.lead && S.chat.data.lead.id === l.id ? followFormHtml() : ''}
+          </div>
+        </div>
+
+        <!-- AI Lead Analysis Card -->
+        <div class="cura-section-card">
+          <div class="cura-section-card-title">
+            <span>✨ AI Conversation Summary</span>
+            <button type="button" class="cura-regen-btn" data-act="regenerate-summary">🔄 Regenerate</button>
+          </div>
+          <div class="cura-section-card-body" style="padding:12px 14px;font-size:12.5px;line-height:1.5;display:flex;flex-direction:column;gap:6px">
+            <div><b>🩺 Problem:</b> ${esc(aiAnalysis ? aiAnalysis.hairIssue : 'ผมร่วง / ปรึกษาฟื้นฟูเส้นผมทั่วไป')}</div>
+            <div><b>💡 Strategy:</b> ${esc(aiAnalysis && aiAnalysis.sentiment ? aiAnalysis.sentiment.tip : 'ส่งข้อมูลโปรแกรมการรักษาและเคสรีวิวเปรียบเทียบ')}</div>
+          </div>
+        </div>
+
+        <!-- Contact Details Card -->
+        <div class="cura-section-card">
+          <div class="cura-section-card-title">👤 Contact Details</div>
+          <div class="cura-section-card-body" style="padding:12px 14px;display:flex;flex-direction:column;gap:6px">
+            <div class="cura-detail-row" style="display:flex;justify-content:space-between;font-size:12px"><span>Channel:</span> <b>${esc(l.channel)}</b></div>
+            <div class="cura-detail-row" style="display:flex;justify-content:space-between;font-size:12px"><span>Started Date:</span> <b>${esc(l.date)}</b></div>
+            <div class="cura-detail-row" style="display:flex;justify-content:space-between;font-size:12px"><span>Phone:</span> <b>${esc(l.phone || '—')}</b></div>
+            <div class="cura-detail-row" style="display:flex;justify-content:space-between;font-size:12px"><span>Ad Source:</span> <b>${esc(l.ad || 'Direct / Organic')}</b></div>
+            ${l.pageName ? `<div class="cura-detail-row" style="display:flex;justify-content:space-between;font-size:12px"><span>Page:</span> <b>${esc(l.pageName)}</b></div>` : ''}
+          </div>
+        </div>
+      `;
+    } else if (curTab === 'activity') {
+      tabContent = `
+        <div class="cura-section-card">
+          <div class="cura-section-card-title">📅 Patient Activity Timeline</div>
+          <div class="cura-section-card-body" style="padding:14px;display:flex;flex-direction:column;gap:12px">
+            <div style="display:flex;gap:10px;align-items:flex-start">
+              <span style="font-size:16px">🎯</span>
+              <div>
+                <b style="font-size:12.5px;display:block">Lead Captured via Ad</b>
+                <small style="color:#64748b">${esc(l.date)} · ${esc(l.ad || 'FUE Hair Transplant Campaign')}</small>
+              </div>
+            </div>
+            <div style="display:flex;gap:10px;align-items:flex-start">
+              <span style="font-size:16px">💬</span>
+              <div>
+                <b style="font-size:12.5px;display:block">First Response Recorded</b>
+                <small style="color:#059669;font-weight:600">ตอบกลับภายใน ${l.firstResponseMin || 4} นาที (SLA Met ✓)</small>
+              </div>
+            </div>
+            <div style="display:flex;gap:10px;align-items:flex-start">
+              <span style="font-size:16px">✨</span>
+              <div>
+                <b style="font-size:12.5px;display:block">BEQ Copilot Case Analysis</b>
+                <small style="color:#64748b">AI ตรวจพบความต้องการกราฟต์ผม 2,500 กราฟต์</small>
+              </div>
+            </div>
+            <div style="display:flex;gap:10px;align-items:flex-start">
+              <span style="font-size:16px">🏥</span>
+              <div>
+                <b style="font-size:12.5px;display:block">Branch Visit Scheduled</b>
+                <small style="color:#64748b">สาขาทองหล่อ · นัดพบแพทย์ผู้เชี่ยวชาญ</small>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    } else if (curTab === 'gallery') {
+      tabContent = `
+        <div class="cura-section-card">
+          <div class="cura-section-card-title">📷 Scalp Assessment Photos (3)</div>
+          <div class="cura-section-card-body" style="padding:12px;display:grid;grid-template-columns:repeat(2, 1fr);gap:8px">
+            <div style="border-radius:10px;background:#f1f5f9;height:90px;display:flex;flex-direction:column;align-items:center;justify-content:center;border:1px solid #e2e8f0;font-size:11px;color:#64748b;text-align:center;padding:4px">
+              <span style="font-size:22px">📐</span>
+              <b>M-Shape Scalp</b>
+            </div>
+            <div style="border-radius:10px;background:#f1f5f9;height:90px;display:flex;flex-direction:column;align-items:center;justify-content:center;border:1px solid #e2e8f0;font-size:11px;color:#64748b;text-align:center;padding:4px">
+              <span style="font-size:22px">🔬</span>
+              <b>Donor Area</b>
+            </div>
+            <div style="border-radius:10px;background:#f1f5f9;height:90px;display:flex;flex-direction:column;align-items:center;justify-content:center;border:1px solid #e2e8f0;font-size:11px;color:#64748b;text-align:center;padding:4px;grid-column:span 2">
+              <span style="font-size:22px">✨</span>
+              <b>2,500 Grafts Hairline Simulation</b>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
     box.innerHTML = `
       <!-- Profile Header -->
       <div class="cura-profile-center">
-        ${curaAvatarHtml(l.name, l.id, 64)}
+        <div class="cura-avatar-shell">
+          ${curaSlaRingHtml(l, 64)}
+          ${curaAvatarHtml(l.name, l.id, 64)}
+        </div>
         <h3 class="cura-profile-header-name">${esc(l.name)}</h3>
-        <div style="display:flex;gap:6px;align-items:center">
+        <div style="display:flex;gap:6px;align-items:center;justify-content:center;flex-wrap:wrap">
           ${chanHtml(l.channel)}
           ${statusHtml(l.status)}
         </div>
+        <div class="cura-quick-actions-bar">
+          <button type="button" class="cura-quick-act-btn" data-act="quick-call" data-phone="${esc(l.phone || '')}" title="โทรหาลูกค้า">📞</button>
+          <button type="button" class="cura-quick-act-btn" data-act="star-chat" title="${l.starred ? 'Starred' : 'Star'}" style="${l.starred ? 'color:#f59e0b' : ''}">⭐</button>
+          <button type="button" class="cura-quick-act-btn" data-act="copy-chat-link" title="คัดลอกลิงก์แชท">🔗</button>
+        </div>
       </div>
+
       <!-- Segmented Tabs -->
       <div class="cura-profile-pill-tabs">
-        <button type="button" class="cura-pill-tab active">Overview</button>
-        <button type="button" class="cura-pill-tab">Activity Log</button>
-        <button type="button" class="cura-pill-tab">Gallery</button>
+        <button type="button" class="cura-pill-tab ${curTab === 'overview' ? 'active' : ''}" data-act="info-tab" data-tab="overview">Overview</button>
+        <button type="button" class="cura-pill-tab ${curTab === 'activity' ? 'active' : ''}" data-act="info-tab" data-tab="activity">Activity Log</button>
+        <button type="button" class="cura-pill-tab ${curTab === 'gallery' ? 'active' : ''}" data-act="info-tab" data-tab="gallery">Gallery</button>
       </div>
-      <!-- Conversation Actions Card -->
-      <div class="cura-section-card">
-        <div class="cura-section-card-title">⚡ Conversation Actions</div>
-        <div class="cura-section-card-body">
-          <div class="cura-field-group">
-            <label>Branch / Clinic</label>
-            <select><option>BEQ Hair Clinic (Main)</option><option>BEQ Thonglor</option></select>
-          </div>
-          <div class="cura-field-group">
-            <label>Assigned Agent</label>
-            <input type="text" value="${esc(l.rep || 'Cura AI Assistant')}" readonly style="background:#f1f5f9">
-          </div>
-          <div class="cura-field-group">
-            <label>Lead Stage / Status</label>
-            ${statusSelectHtml(l)}
-          </div>
-          ${S.chat.data && S.chat.data.lead && S.chat.data.lead.id === l.id ? followFormHtml() : ''}
-        </div>
-      </div>
-      <!-- Contact Details Card -->
-      <div class="cura-section-card">
-        <div class="cura-section-card-title">👤 Contact Details</div>
-        <div class="cura-section-card-body">
-          <div class="cura-detail-row"><span>Channel:</span> <b>${esc(l.channel)}</b></div>
-          <div class="cura-detail-row"><span>Started Date:</span> <b>${esc(l.date)}</b></div>
-          <div class="cura-detail-row"><span>Phone:</span> <b>${esc(l.phone || '—')}</b></div>
-          <div class="cura-detail-row"><span>Ad Source:</span> <b>${esc(l.ad || 'Direct / Organic')}</b></div>
-          ${l.pageName ? `<div class="cura-detail-row"><span>Page:</span> <b>${esc(l.pageName)}</b></div>` : ''}
-        </div>
-      </div>
+
+      ${tabContent}
     `;
   }
 
@@ -1963,7 +2306,12 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
     read_no_reply: ['อ่านไม่ตอบ หัก 0.5', 'q-average'],
     commute: ['ช้า · ช่วงเดินทาง ไม่หัก', 'q-average'], late_night: ['ช้า · กลางคืน ไม่หัก', 'q-none'],
   };
-  const SLA_KINDS = [['', 'ทั้งหมด'], ['deduct', 'หักคะแนน'], ['commute', 'ช้าช่วงเดินทาง'], ['night', 'ตอบนอกเวลา 22:00–08:00']];
+  const SLA_KINDS = [
+    ['', 'ทั้งหมด', 'all', '🌐'],
+    ['deduct', 'หักคะแนน', 'deduct', '⚠️'],
+    ['commute', 'ช้าช่วงเดินทาง', 'commute', '🚗'],
+    ['night', 'ตอบนอกเวลา 22:00–08:00', 'night', '🌙']
+  ];
   function renderSlaBody() {
     const box = $id('sla-body'); const s = S.sla; if (!box) return;
     if (s.err) { box.innerHTML = `<div class="notice err" style="margin-bottom:14px">${esc(s.err)}</div>`; return; }
@@ -1979,8 +2327,8 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
     };
     const evs = open ? open.events.filter(evFilter) : [];
 
-    const kindPills = SLA_KINDS.map(([k, l]) =>
-      `<button class="pill ${s.kind === k ? 'active' : ''}" data-act="sla-kind" data-kind="${k}">${l}</button>`
+    const kindPills = SLA_KINDS.map(([k, l, cls, ico]) =>
+      `<button type="button" class="sla-kind-pill ${cls} ${s.kind === k ? 'active' : ''}" data-act="sla-kind" data-kind="${k}"><span class="pill-ico">${ico}</span><span>${l}</span></button>`
     ).join('');
 
     const repRows = d.reps.length
@@ -2011,7 +2359,7 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
 
     const detailSection = open ? `<div class="sla-detail" style="margin-top:16px">
         <h4>${esc(open.rep)}${open.pageName ? ' (' + esc(open.pageName) + ')' : ''} &middot; ${num(open.eventTotal)} รายการ</h4>
-        <div class="pills" style="margin-bottom:10px">${kindPills}</div>
+        <div class="sla-kind-pills" style="margin-bottom:10px">${kindPills}</div>
         <div class="tscroll"><table style="min-width:860px"><thead><tr>
           <th class="nosort">ลูกค้า / เพจ</th>
           <th class="nosort">ลูกค้าทัก</th>
@@ -2025,29 +2373,118 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
           : ''}
       </div>` : '';
 
-    box.innerHTML = `<section class="card panel sla-panel">
-      <h3>SLA ตอบแชทภายใน ${d.limitMin} นาที</h3>
-      <p class="sub">นับจากเวลาที่ลูกค้าทัก &middot; 10:00–19:00 ตอบช้าหัก 1 แต้ม &middot; เปิดอ่านแต่ไม่ตอบหัก 0.5 แต้ม &middot; 08:00–10:00 และ 19:00–22:00 ไม่หักแต่เก็บเป็นสถิติตอบช้า &middot; 22:00–08:00 ไม่หัก และเก็บสถิติถ้าเซลส์ตอบในช่วงนี้</p>
-      <div class="grid-4" style="margin-bottom:16px">
-        <div class="stat"><div class="k-label">แต้มที่ถูกหักรวม</div><div class="k-value" style="color:${t.deducted ? 'var(--coral)' : 'inherit'}">${t.deducted ? '−' + num(t.deducted) : '0'}</div></div>
-        <div class="stat"><div class="k-label">ตอบทัน / ตรวจทั้งหมด</div><div class="k-value">${num(t.onTime)} / ${num(t.turns)}</div></div>
-        <div class="stat"><div class="k-label">ช้าช่วงเดินทาง (สถิติ)</div><div class="k-value">${num(t.commuteLate)}</div></div>
-        <div class="stat"><div class="k-label">ตอบนอกเวลา 22:00–08:00</div><div class="k-value">${num(t.nightReplies)}</div></div>
-      </div>
-      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:12px">
-        <div class="pills">${kindPills}</div>
-        <div class="ad-sub">แสดงผลตามเซลส์และเพจที่รับผิดชอบ</div>
-      </div>
-      <div class="tscroll"><table style="min-width:900px"><thead><tr>
-        <th class="nosort">เซลส์ / แอดมิน</th>
-        <th>ตรวจ</th><th>ทันเวลา</th><th>ช้า</th>
-        <th>แต้มที่ถูกหัก</th><th>ช้าช่วงเดินทาง</th>
-        <th>ตอบนอกเวลา</th><th>ตอบเฉลี่ย</th>
-      </tr></thead><tbody>
-      ${repRows}</tbody></table></div>
-      <p class="rv-hint" style="margin:10px 0 0">คลิกแถวเซลส์เพื่อดูรายการ &middot; คลิกรายการเพื่อเปิดแชทนั้นที่หน้า Inbox</p>
-      ${detailSection}
-    </section>`;
+    const totalTurns = t.turns || 1;
+    const complianceRate = Math.round((t.onTime / totalTurns) * 1000) / 10;
+    const strokeDash = 2 * Math.PI * 34; // 213.6
+    const strokeOffset = strokeDash * (1 - (complianceRate / 100));
+
+    box.innerHTML = `
+      <!-- High-Tech 15-Minute Response Scorecard Hero -->
+      <section class="card panel sla-panel" style="padding:22px 24px;border-radius:20px;border:1px solid rgba(16, 185, 129, 0.16);box-shadow:0 4px 24px -2px rgba(15, 23, 42, 0.05);margin-bottom:18px">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:18px">
+          <div>
+            <div style="display:flex;align-items:center;gap:8px">
+              <span class="beq-iridescent-orb sm"></span>
+              <h3 style="margin:0;font-size:18px;font-weight:800;color:#0f172a">15-Minute SLA Compliance Scorecard</h3>
+            </div>
+            <p class="sub" style="margin:4px 0 0;color:#64748b;font-size:13px">เกณฑ์ประเมินความเร็วการตอบแชทและข้อความลูกค้าคลินิก &middot; เป้าหมายมาตรฐาน &lt; 15 นาที</p>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <span class="sla-target-pill"><span class="sla-pulse"></span> 15m Response Target Active</span>
+          </div>
+        </div>
+
+        <div class="sla-scorecard-grid">
+          <!-- Compliance Meter -->
+          <div class="sla-meter-card">
+            <div class="sla-meter-ring-wrap">
+              <svg width="84" height="84" viewBox="0 0 80 80">
+                <circle cx="40" cy="40" r="34" fill="none" stroke="#e2e8f0" stroke-width="7" />
+                <circle cx="40" cy="40" r="34" fill="none" stroke="url(#slaGrad)" stroke-width="7" stroke-dasharray="${strokeDash.toFixed(1)}" stroke-dashoffset="${strokeOffset.toFixed(1)}" stroke-linecap="round" transform="rotate(-90 40 40)" />
+                <defs>
+                  <linearGradient id="slaGrad" x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0%" stop-color="#10b981" />
+                    <stop offset="100%" stop-color="#059669" />
+                  </linearGradient>
+                </defs>
+              </svg>
+              <div class="sla-meter-num">
+                <b>${complianceRate}%</b>
+                <small>COMPLIANCE</small>
+              </div>
+            </div>
+            <div class="sla-meter-desc">
+              <b>อัตราตอบทันเกณฑ์</b>
+              <span>${num(t.onTime)} จากทั้งหมด ${num(t.turns)} ครั้ง</span>
+            </div>
+          </div>
+
+          <!-- Total Deducted -->
+          <div class="sla-stat-card">
+            <div class="sla-stat-head">
+              <span>คะแนนที่ถูกหักรวม</span>
+              <span class="sla-badge-coral">${t.deducted ? 'หักคะแนน' : 'ปกติ'}</span>
+            </div>
+            <div class="sla-stat-val" style="color:${t.deducted ? '#dc2626' : '#059669'}">${t.deducted ? '−' + num(t.deducted) : '0'} <small>แต้ม</small></div>
+            <div class="sla-stat-sub">10:00–19:00 ช้าหัก 1 แต้ม · อ่านไม่ตอบหัก 0.5 แต้ม</div>
+          </div>
+
+          <!-- Commute Hours Stats -->
+          <div class="sla-stat-card">
+            <div class="sla-stat-head">
+              <span>ช้าช่วงเดินทาง (08–10 / 19–22)</span>
+              <span class="sla-badge-amber">สถิติเดินทาง</span>
+            </div>
+            <div class="sla-stat-val">${num(t.commuteLate)} <small>ครั้ง</small></div>
+            <div class="sla-stat-sub">บันทึกสถิติเพื่อปรับปรุงกะงาน &middot; ไม่ถูกหักแต้ม</div>
+          </div>
+
+          <!-- Night Replies Stats -->
+          <div class="sla-stat-card">
+            <div class="sla-stat-head">
+              <span>ตอบช่วงกลางคืน (22:00–08:00)</span>
+              <span class="sla-badge-blue">นอกเวลา</span>
+            </div>
+            <div class="sla-stat-val">${num(t.nightReplies)} <small>ครั้ง</small></div>
+            <div class="sla-stat-sub">สถิติความใส่ใจลูกค้านอกเวลางาน &middot; เพิ่มคะแนนพิเศษ</div>
+          </div>
+        </div>
+
+        <!-- Penalty Breakdown Rules Pill-Box -->
+        <div class="sla-rules-banner">
+          <div class="sla-rule-item">
+            <span class="rule-icon">⚡</span>
+            <div><b>ตอบช้าช่วงทำงาน 10:00–19:00</b><small>เกิน 15 นาที: <b>หัก 1.0 แต้ม / ครั้ง</b></small></div>
+          </div>
+          <div class="sla-rule-item">
+            <span class="rule-icon">👀</span>
+            <div><b>เปิดอ่านแต่ไม่ตอบ (Read No Reply)</b><small>ค้างเกิน 15 นาที: <b>หัก 0.5 แต้ม / ครั้ง</b></small></div>
+          </div>
+          <div class="sla-rule-item">
+            <span class="rule-icon">🚗</span>
+            <div><b>ช่วงเดินทาง 08:00–10:00 & 19:00–22:00</b><small>ตอบช้า: <b>ไม่หักแต้ม</b> (เก็บเป็นสถิติ)</small></div>
+          </div>
+          <div class="sla-rule-item">
+            <span class="rule-icon">🌙</span>
+            <div><b>กลางคืน 22:00–08:00</b><small>ช่วงพักผ่อน: <b>ไม่หักแต้ม</b> (ให้คะแนนความพยายาม)</small></div>
+          </div>
+        </div>
+
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin:20px 0 12px">
+          <div class="sla-kind-pills">${kindPills}</div>
+          <div class="ad-sub" style="font-size:12px;color:#64748b">แสดงสถิติความเร็วตามรายชื่อเซลส์และแอดมิน</div>
+        </div>
+
+        <div class="tscroll"><table style="min-width:900px"><thead><tr>
+          <th class="nosort">เซลส์ / แอดมิน</th>
+          <th>ตรวจ</th><th>ทันเวลา</th><th>ช้า</th>
+          <th>แต้มที่ถูกหัก</th><th>ช้าช่วงเดินทาง</th>
+          <th>ตอบนอกเวลา</th><th>ตอบเฉลี่ย</th>
+        </tr></thead><tbody>
+        ${repRows}</tbody></table></div>
+        <p class="rv-hint" style="margin:12px 0 0;font-size:12px;color:#64748b">💡 คลิกแถวเซลส์เพื่อดูรายการสนทนาทั้งหมด &middot; คลิกรายการเพื่อเปิดแชทโดยตรงที่หน้า Inbox</p>
+        ${detailSection}
+      </section>`;
   }
 function boardShell() {
     return `<div class="page-head"><div><h1>Board</h1><div class="meta-line"><span>ลูกค้าแยกตามความคืบหน้าของแชท</span></div></div></div>
@@ -2180,8 +2617,8 @@ function boardShell() {
           <span><b>${num(d.total)}</b> แชท · 💡 ลากการ์ดสีขาวไปวางที่กล่องสถานะที่ต้องการได้เลย</span>
         </div>
       </div>
-      <div class="kanban">${d.columns.map((c) => `<section class="col" data-col-status="${c.status}">
-        <h4><span><i class="col-dot" style="background:${STATUS_COLOR[c.status]}"></i>${STATUS_TH[c.status]}</span><span>${num(c.total)}</span></h4>
+      <div class="kanban">${d.columns.map((c, idx) => `<section class="col" data-col-status="${c.status}">
+        <h4><span><span class="col-num-badge">${idx + 1}</span><i class="col-dot" style="background:${STATUS_COLOR[c.status]}"></i>${STATUS_TH[c.status]}</span><span>${num(c.total)}</span></h4>
         ${c.cards.map(leadCard).join('') || '<div class="empty" style="padding:20px">ไม่มีแชท</div>'}
         ${c.total > c.cards.length ? `<div class="ad-sub" style="text-align:center;padding:8px 0">แสดง ${c.cards.length} จาก ${num(c.total)}</div>` : ''}</section>`).join('')}</div>`;
     initBoardDragDrop(box);
@@ -2216,13 +2653,18 @@ function boardShell() {
     if (!s.data) return;
     const d = s.data; const st = d.stats;
     const rows = d.rows.filter((r) => !s.tab || (s.tab === 'scheduled' ? r.dueDate : r.kind === s.tab));
-    const tabs = [['', 'ทั้งหมด', d.total], ['reply', 'ลูกค้ารอตอบ', st.reply], ['chase', 'ถึงเวลาตามต่อ', st.chase], ['scheduled', 'นัดตามไว้', st.scheduled]];
+    const tabs = [
+      ['', '🌐 ทั้งหมด', d.total, 'all'],
+      ['reply', '⚡ ลูกค้ารอตอบ', st.reply, 'reply'],
+      ['chase', '⏳ ถึงเวลาตามต่อ', st.chase, 'chase'],
+      ['scheduled', '📅 นัดตามไว้', st.scheduled, 'scheduled']
+    ];
     box.innerHTML = `<div class="grid-4" style="margin-bottom:16px">
         <div class="stat"><div class="k-label">ลูกค้ารอตอบ</div><div class="k-value">${num(st.reply)}</div></div>
         <div class="stat"><div class="k-label">ถึงเวลาตามต่อ (เงียบ &gt; 24 ชม.)</div><div class="k-value">${num(st.chase)}</div></div>
         <div class="stat"><div class="k-label">นัดตามเกินกำหนด / วันนี้</div><div class="k-value">${num(st.due)}</div></div>
         <div class="stat"><div class="k-label">นัดตามทั้งหมด</div><div class="k-value">${num(st.scheduled)}</div></div></div>
-      <section class="card filters"><div class="pills">${tabs.map(([k, l, n]) => `<button class="pill ${s.tab === k ? 'active' : ''}" data-act="ftab" data-tab="${k}">${l} (${num(n)})</button>`).join('')}</div>
+      <section class="card filters"><div class="pills">${tabs.map(([k, l, n, cls]) => `<button type="button" class="pill ${cls} ${s.tab === k ? 'active' : ''}" data-act="ftab" data-tab="${k}">${l} <b class="tab-badge">${num(n)}</b></button>`).join('')}</div>
         <span class="label">ทีมขาย</span>${repSelect('frep', s.rep)}</section>
       <section class="card table-card"><div class="tscroll"><table style="min-width:860px"><thead><tr><th class="nosort">ลูกค้า</th><th class="nosort">ข้อความล่าสุด</th><th class="nosort">สถานะตาม</th><th class="nosort">ความคืบหน้า</th><th class="nosort">ผู้ดูแล</th><th class="nosort">นัด / บันทึก</th></tr></thead><tbody>
       ${rows.length ? rows.map((r) => `<tr class="click-row" data-act="open-chat" data-id="${esc(r.id)}">
@@ -2637,6 +3079,25 @@ function boardShell() {
       }
       else if (act === 'menu') { S.menu = S.menu === el.dataset.menu ? null : el.dataset.menu; render(); }
       else if (act === 'goto') { S.menu = null; location.hash = '#/' + el.dataset.to; }
+      else if (act === 'toggle-sidebar') {
+        S.sidebarCollapsed = !S.sidebarCollapsed;
+        try { localStorage.setItem('beq_sidebar_collapsed', S.sidebarCollapsed ? '1' : '0'); } catch (_) {}
+        const sidebar = document.querySelector('.app-sidebar');
+        const shell = document.querySelector('.app-shell');
+        if (sidebar && shell) {
+          sidebar.classList.toggle('collapsed', S.sidebarCollapsed);
+          shell.classList.toggle('sidebar-collapsed', S.sidebarCollapsed);
+          const temp = document.createElement('div');
+          temp.innerHTML = sidebarHtml();
+          sidebar.replaceWith(temp.firstElementChild);
+          const toggleBtn = document.querySelector('.header-toggle-btn');
+          if (toggleBtn) {
+            toggleBtn.title = S.sidebarCollapsed ? 'ขยายเมนูด้านซ้าย' : 'ย่อเมนูด้านซ้าย';
+          }
+        } else {
+          render();
+        }
+      }
       else if (act === 'logout') { await api('/api/logout', { method: 'POST' }); S.me = null; S.filters = null; S.menu = null; render(); }
       else if (act === 'supabase-sync-now') {
         const btn = el;
@@ -2668,6 +3129,40 @@ function boardShell() {
       else if (act === 'page') { d.pageNo += Number(el.dataset.dir); renderTable(); }
       else if (act === 'select-chat') { if (S.chat.id !== el.dataset.id) openChat(el.dataset.id); }
       else if (act === 'istatus') { S.inbox.status = el.dataset.status; renderInboxTools(); renderInboxList(); }
+      else if (act === 'inbox-folder') { S.inbox.folder = el.dataset.folder; renderInboxTools(); renderInboxList(); }
+      else if (act === 'inbox-channel') { S.inbox.channel = el.dataset.channel; renderInboxTools(); renderInboxList(); }
+      else if (act === 'set-ai-mode') { S.aiMode = el.dataset.mode; render(); }
+      else if (act === 'takeover-chat') {
+        S.chat.takenOver = !S.chat.takenOver;
+        S.flash = { type: 'ok', text: S.chat.takenOver ? '⚡ เปิดโหมด Manual Control: พนักงานเข้าควบคุมแชทแล้ว' : '✨ เปิดโหมด BEQ Copilot: ผู้ช่วย AI พร้อมช่วยตอบและวิเคราะห์เคส' };
+        renderChatViews();
+      }
+      else if (act === 'regenerate-summary') {
+        S.flash = { type: 'ok', text: '🔄 รีเฟรช AI Medical Analysis ล่าสุดเรียบร้อยแล้ว' };
+        renderInboxInfo();
+      }
+      else if (act === 'info-tab') {
+        S.chat.tab = el.dataset.tab;
+        renderInboxInfo();
+      }
+      else if (act === 'star-chat') {
+        const curL = currentLead();
+        if (curL) {
+          curL.starred = !curL.starred;
+          S.flash = { type: 'ok', text: curL.starred ? '⭐ บันทึกเป็นแชทสำคัญแล้ว' : 'ยกเลิกแชทสำคัญแล้ว' };
+          renderInboxTools(); renderInboxList(); renderInboxInfo();
+        }
+      }
+      else if (act === 'quick-call') {
+        const p = el.dataset.phone;
+        if (p) window.open('tel:' + p);
+        else { S.flash = { type: 'err', text: 'ไม่พบเบอร์โทรศัพท์ของลูกค้าท่านนี้' }; render(); }
+      }
+      else if (act === 'copy-chat-link') {
+        navigator.clipboard.writeText(location.href);
+        S.flash = { type: 'ok', text: '📋 คัดลอกลิงก์แชทแล้ว' };
+        render();
+      }
       else if (act === 'open-chat') openChat(el.dataset.id);
       else if (act === 'close-chat') closeChat();
       else if (act === 'ftab') { S.followup.tab = el.dataset.tab; renderFollowBody(); }
@@ -2933,6 +3428,12 @@ function boardShell() {
       else if (S.route === 'followup') { render(); loadFollowups(); }
       else if (S.route === 'quality') { render(); loadQuality(); }
       else render();
+      return;
+    }
+    if (b === 'branch-select') {
+      S.branch = ev.target.value;
+      S.flash = { type: 'ok', text: `🏥 เลือกสาขา: ${ev.target.value}` };
+      render();
       return;
     }
     if (['platform', 'page', 'campaign', 'agency', 'rep', 'status'].includes(b)) { d[b] = ev.target.value; render(); loadDash(); }
