@@ -268,7 +268,7 @@ async function main() {
   ] };
   const rg = { from: '2026-11-01', to: '2026-11-09' };
   const sr = sla.buildSla(sdata, false, rg, Date.parse('2026-11-09T12:00:00+07:00'));
-  const R1 = sr.reps.find((r) => r.repId === 'R1'); const R2 = sr.reps.find((r) => r.repId === 'R2');
+  const R1 = sr.reps.find((r) => r.rep === 'R1' || r.repId === 'R1' || r.repId.startsWith('R1')); const R2 = sr.reps.find((r) => r.rep === 'R2' || r.repId === 'R2' || r.repId.startsWith('R2'));
   assert.deepEqual([R1.turns, R1.onTime, R1.late, R1.deducted, R1.commuteLate, R1.nightReplies], [6, 2, 4, 1, 2, 0]);
   assert.deepEqual([R2.turns, R2.onTime, R2.late, R2.deducted, R2.commuteLate, R2.nightReplies], [3, 0, 3, 1.5, 0, 1]);
   assert.equal(R1.points, -1); assert.equal(sr.totals.deducted, 2.5);
