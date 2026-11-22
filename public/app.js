@@ -161,6 +161,34 @@
     return { score: 'COOL 💬', intent: 'สอบถามข้อมูลทั่วไป', cls: 'cool' };
   }
 
+  function analyzeLeadConversation(lead, messages) {
+    if (!lead && (!messages || !messages.length)) return null;
+    const allText = [
+      lead?.customerMsg || '',
+      lead?.reason || '',
+      ...(messages || []).map(m => m.text || '')
+    ].join(' ').toLowerCase();
+
+    let hairIssue = 'ผมร่วง / ปรึกษาฟื้นฟูเส้นผมทั่วไป';
+    if (allText.includes('เว้า') || allText.includes('ตัว m') || allText.includes('ร่น') || allText.includes('ไรผม')) {
+      hairIssue = 'หน้าผากเว้าลึกรูปตัว M / ไรผมร่นสูง';
+    } else if (allText.includes('ไข่ดาว') || allText.includes('กลางศีรษะ') || allText.includes('บางกลาง')) {
+      hairIssue = 'ผมบางบริเวณกลางศีรษะ (Crown)';
+    } else if (allText.includes('ร่วง') || allText.includes('บาง') || allText.includes('กรรมพันธุ์')) {
+      hairIssue = 'ผมร่วงพันธุกรรม / ผมบางระยะเริ่มต้น';
+    }
+
+    let sentiment = { label: 'สอบถามข้อมูลทั่วไป', icon: '💬', cls: 'cool', tip: 'ส่งข้อมูลโปรแกรมการรักษาและเคสรีวิวเปรียบเทียบ' };
+    if (allText.includes('จอง') || allText.includes('นัด') || allText.includes('โอน') || allText.includes('มัดจำ')) {
+      sentiment = { label: 'พร้อมนัดหมายตรวจประเมิน', icon: '🎯', cls: 'hot', tip: 'ลูกค้ามีความพร้อมสูง แนะนำเชิญล็อคคิวนัดตรวจประเมินกับแพทย์ที่สาขา' };
+    } else if (allText.includes('ราคา') || allText.includes('โปร') || allText.includes('กี่บาท') || allText.includes('เท่าไหร่') || allText.includes('กราฟ')) {
+      sentiment = { label: 'สนใจแพ็กเกจและราคา', icon: '⚡', cls: 'warm', tip: 'ส่งเรทราคาประเมินเบื้องต้น พร้อมเสนอสิทธิพิเศษเฉพาะรอบนี้' };
+    }
+
+    return { hairIssue, sentiment };
+  }
+
+
   // เส้นผมแบบนามธรรม ใช้เป็นพื้นหลังของแถบสรุปและหน้าล็อกอิน
   function strandsSvg(count, opacity) {
     let p = '';
@@ -1911,7 +1939,7 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
 
   function renderChatViews() {
     if (S.route === 'inbox') {
-      document.querySelectorAll('.conv').forEach((el) => el.classList.toggle('active', el.dataset.id === S.chat.id));
+      document.querySelectorAll('.cura-conv-card, .conv').forEach((el) => el.classList.toggle('active', el.dataset.id === S.chat.id));
       renderInboxChat(); renderInboxInfo();
     } else renderDrawer();
   }
