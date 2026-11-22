@@ -1,0 +1,635 @@
+
+/* ==========================================================================
+   CURA AI INBOX (CLINICS INDUSTRY) - EXACT COMPONENT CSS
+   Canvas: #F4F6FB | Panels: #FFFFFF | Accent: #4F46E5 | Border: #E2E8F0
+   ========================================================================== */
+
+/* Inbox Page Header */
+.cura-inbox-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.cura-inbox-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.cura-inbox-title-wrap h1 {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 700;
+  color: #0f172a;
+  letter-spacing: -0.02em;
+}
+
+.cura-copilot-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: linear-gradient(135deg, #eff6ff, #f0fdf4);
+  border: 1px solid #bfdbfe;
+  color: #2563eb;
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.cura-copilot-pill .pulse-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #2563eb;
+  box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.7);
+  animation: curaPulse 2s infinite;
+}
+
+@keyframes curaPulse {
+  0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.7); }
+  70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(37, 99, 235, 0); }
+  100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(37, 99, 235, 0); }
+}
+
+/* 3 Major Panels Container (Full viewport height match) */
+.cura-panels-row {
+  display: flex;
+  flex-direction: row;
+  gap: 12px;
+  height: calc(100vh - 170px);
+  min-height: 620px;
+  width: 100%;
+}
+
+/* Panel 1: Folders & Conversation List Combined */
+.cura-panel-left {
+  width: 420px;
+  min-width: 380px;
+  max-width: 440px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 24px;
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.04);
+  display: flex;
+  flex-direction: row;
+  overflow: hidden;
+}
+
+/* Panel 1 - Sub Column A: Folders Rail */
+.cura-rail-col {
+  width: 170px;
+  min-width: 160px;
+  background: #fafbfd;
+  border-right: 1px solid #f1f5f9;
+  padding: 16px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  overflow-y: auto;
+}
+
+.cura-rail-block {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cura-block-label {
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #94a3b8;
+  padding: 4px 8px;
+}
+
+.cura-rail-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  color: #475569;
+  transition: all 0.15s ease;
+  text-align: left;
+}
+
+.cura-rail-item:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.cura-rail-item.active {
+  background: #eff6ff;
+  color: #4f46e5;
+  font-weight: 700;
+}
+
+.cura-item-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: #e2e8f0;
+  color: #475569;
+}
+
+.cura-item-badge.unreplied {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.cura-item-badge.starred {
+  background: #fef3c7;
+  color: #d97706;
+}
+
+/* Channels List in Rail */
+.cura-chan-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 12.5px;
+  color: #64748b;
+  font-weight: 500;
+  transition: all 0.15s ease;
+  width: 100%;
+  text-align: left;
+}
+
+.cura-chan-btn:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.cura-chan-btn.active {
+  background: #eef2ff;
+  color: #4f46e5;
+  font-weight: 700;
+}
+
+/* Panel 1 - Sub Column B: Conversation List */
+.cura-convs-col {
+  flex: 1;
+  background: #ffffff;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.cura-conv-search-wrap {
+  padding: 14px 12px 10px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.cura-search-inner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 7px 12px;
+  color: #94a3b8;
+}
+
+.cura-search-inner input {
+  border: none;
+  background: transparent;
+  width: 100%;
+  font-size: 13px;
+  color: #0f172a;
+  outline: none;
+}
+
+.cura-conv-feed {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  padding: 6px;
+  gap: 4px;
+}
+
+.cura-conv-card {
+  display: flex;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 16px;
+  background: #ffffff;
+  border: 1px solid transparent;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.16s ease;
+  width: 100%;
+}
+
+.cura-conv-card:hover {
+  background: #f8fafc;
+  border-color: #f1f5f9;
+}
+
+.cura-conv-card.active {
+  background: #f4f6fb;
+  border-color: #c7d2fe;
+  box-shadow: 0 2px 8px rgba(79, 70, 229, 0.06);
+}
+
+.cura-avatar-shell {
+  position: relative;
+  flex-shrink: 0;
+}
+
+/* Organic Asymmetric Blob Avatar */
+.cura-blob-avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  font-weight: 700;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
+  transition: transform 0.2s ease;
+}
+
+.cura-conv-card:hover .cura-blob-avatar {
+  transform: scale(1.04);
+}
+
+.cura-chan-badge-overlay {
+  position: absolute;
+  bottom: -2px;
+  right: -2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid #ffffff;
+}
+
+.cura-card-content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.cura-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.cura-card-name {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #0f172a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cura-card-time {
+  font-size: 11px;
+  color: #94a3b8;
+  white-space: nowrap;
+}
+
+.cura-card-snippet {
+  font-size: 12px;
+  color: #64748b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.35;
+}
+
+.cura-card-footer {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 3px;
+}
+
+.cura-ai-pill {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #4f46e5;
+  background: #eef2ff;
+  border: 1px solid #c7d2fe;
+  padding: 1px 7px;
+  border-radius: 999px;
+}
+
+.cura-tag-pill {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: #065f46;
+  background: #d1fae5;
+  padding: 1px 6px;
+  border-radius: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 90px;
+}
+
+/* Panel 2: Center Active Chat Area */
+.cura-panel-center {
+  flex: 1;
+  min-width: 380px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 24px;
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.04);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.cura-thread-header {
+  height: 64px;
+  background: #ffffff;
+  border-bottom: 1px solid #f1f5f9;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 20px;
+}
+
+.cura-thread-user-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.cura-thread-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cura-thread-title b {
+  font-size: 15px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.cura-thread-sub {
+  font-size: 12px;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 1px;
+}
+
+.cura-takeover-btn {
+  background: #4f46e5;
+  color: #ffffff;
+  border: none;
+  border-radius: 999px;
+  padding: 8px 18px;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(79, 70, 229, 0.3);
+  transition: all 0.15s ease;
+}
+
+.cura-takeover-btn:hover {
+  background: #4338ca;
+  transform: translateY(-1px);
+}
+
+.cura-ai-summary-box {
+  margin: 12px 18px 4px;
+  background: linear-gradient(135deg, #f8fafc, #eff6ff);
+  border: 1px solid #bfdbfe;
+  border-radius: 14px;
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12.5px;
+}
+
+.cura-ai-summary-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.cura-ai-summary-badge {
+  background: #2563eb;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+.cura-thread-feed {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  background: #fbfcfd;
+}
+
+.cura-date-divider {
+  text-align: center;
+  margin: 6px 0;
+}
+
+.cura-date-divider span {
+  font-size: 11px;
+  color: #94a3b8;
+  background: #f1f5f9;
+  padding: 3px 12px;
+  border-radius: 999px;
+}
+
+.cura-bubble-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+.cura-bubble-row.out {
+  justify-content: flex-end;
+}
+
+.cura-bubble {
+  max-width: 72%;
+  padding: 12px 18px;
+  border-radius: 20px;
+  font-size: 14px;
+  line-height: 1.55;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.cura-bubble.in {
+  background: #ffffff;
+  color: #0f172a;
+  border: 1px solid #e2e8f0;
+  border-bottom-left-radius: 4px;
+}
+
+.cura-bubble.out {
+  background: #4f46e5;
+  color: #ffffff;
+  border-bottom-right-radius: 4px;
+  box-shadow: 0 4px 14px rgba(79, 70, 229, 0.28);
+}
+
+.cura-bubble-time {
+  font-size: 11px;
+  margin-top: 5px;
+  opacity: 0.75;
+  display: flex;
+  gap: 6px;
+}
+
+.cura-composer-box {
+  background: #ffffff;
+  border-top: 1px solid #f1f5f9;
+  padding: 14px 20px;
+}
+
+/* Panel 3: Right Contact Info & CRM Panel */
+.cura-panel-right {
+  width: 320px;
+  min-width: 300px;
+  max-width: 340px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 24px;
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.04);
+  padding: 20px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  overflow-y: auto;
+}
+
+.cura-profile-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 8px;
+}
+
+.cura-profile-header-name {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.cura-profile-pill-tabs {
+  display: flex;
+  background: #f1f5f9;
+  border-radius: 12px;
+  padding: 3px;
+  gap: 2px;
+}
+
+.cura-pill-tab {
+  flex: 1;
+  background: transparent;
+  border: none;
+  padding: 6px 0;
+  border-radius: 9px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.cura-pill-tab.active {
+  background: #ffffff;
+  color: #0f172a;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+.cura-section-card {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.cura-section-card-title {
+  padding: 10px 14px;
+  border-bottom: 1px solid #edf2f7;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #334155;
+}
+
+.cura-section-card-body {
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-size: 12.5px;
+}
+
+.cura-field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cura-field-group label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.cura-field-group input, .cura-field-group select {
+  padding: 7px 10px;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  font-size: 12.5px;
+  color: #0f172a;
+}
+
+.cura-detail-row {
+  display: flex;
+  justify-content: space-between;
+}
+
+.cura-detail-row span {
+  color: #64748b;
+}
+
+.cura-detail-row b {
+  color: #0f172a;
+}

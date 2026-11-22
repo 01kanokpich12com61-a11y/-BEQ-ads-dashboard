@@ -10,7 +10,7 @@
       data: null, loading: false, err: null, sort: 'spend', dir: 'desc', search: '', pageNo: 1 },
     settings: null, flash: null, loginErr: '',
     board: { range: 'all', from: '', to: '', data: null, err: null },
-    inbox: { range: 'all', from: '', to: '', data: null, err: null, search: '', channel: '', status: '', pageNo: 1 },
+    inbox: { range: 'all', from: '', to: '', data: null, err: null, search: '', channel: '', status: '', folder: 'all', pageNo: 1 },
     review: { range: '30d', from: '', to: '', data: null, err: null, state: '', rep: '' },
     followup: { data: null, err: null, tab: '', rep: '' },
     audit: { data: null, err: null, action: '', q: '', from: '', to: '', limit: 100 },
@@ -1590,6 +1590,30 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
   const MONTHS = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
   const $id = (x) => document.getElementById(x);
 
+  function curaAvatarHtml(name, id, size = 42) {
+    const ch = String(name || '').replace(/^คุณ\s*/, '').trim().charAt(0) || '?';
+    let h = 0; for (const c of String(id || '')) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+    const blobColors = [
+      ['#6366f1', '#4f46e5'],
+      ['#8b5cf6', '#7c3aed'],
+      ['#ec4899', '#db2777'],
+      ['#3b82f6', '#2563eb'],
+      ['#06b6d4', '#0891b2'],
+      ['#10b981', '#059669'],
+      ['#f59e0b', '#d97706'],
+      ['#64748b', '#475569'],
+    ];
+    const pair = blobColors[h % blobColors.length];
+    const radiuses = [
+      '42% 58% 70% 30% / 45% 45% 55% 55%',
+      '50% 50% 34% 66% / 56% 68% 32% 44%',
+      '60% 40% 30% 70% / 60% 30% 70% 40%',
+      '38% 62% 63% 37% / 41% 44% 56% 59%',
+      '52% 48% 65% 35% / 43% 57% 43% 57%'
+    ];
+    const rad = radiuses[h % radiuses.length];
+    return `<div class="cura-blob-avatar" style="width:${size}px;height:${size}px;border-radius:${rad};background:linear-gradient(135deg, ${pair[0]}, ${pair[1]});font-size:${Math.round(size * 0.42)}px;">${esc(ch)}</div>`;
+  }
   function avatarHtml(name, id, size) {
     const ch = String(name).replace(/^คุณ\s*/, '').trim().charAt(0) || '?';
     let h = 0; for (const c of String(id)) h = (h * 31 + c.charCodeAt(0)) >>> 0;
@@ -1612,32 +1636,63 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
   async function loadInbox() { if (await fetchList('inbox', '/api/inbox')) renderInboxBody(); }
 
   function inboxShell() {
-    return `<div class="page-head inbox-head"><h1>Inbox</h1><div class="inline-range">${rangeBar('inbox')}</div></div>
-      <div id="inbox-body"><div class="loading">Loading…</div></div>`;
+    return `
+      <div class="cura-inbox-header">
+        <div class="cura-inbox-title-wrap">
+          <h1>Inbox</h1>
+          <span class="cura-copilot-pill"><span class="pulse-dot"></span> BEQ Copilot Active</span>
+        </div>
+        <div class="inline-range">${rangeBar('inbox')}</div>
+      </div>
+      <div id="inbox-body"><div class="loading">Loading…</div></div>
+    `;
   }
 
   function filteredRows() {
     const s = S.inbox; if (!s.data) return [];
     const q = s.search.trim().toLowerCase();
-    return s.data.rows.filter((r) => (!s.channel || r.channel === s.channel) && (!s.status || r.status === s.status)
-      && (!q || [r.name, r.id, r.ad].some((x) => String(x).toLowerCase().includes(q))));
+    const folder = s.folder || 'all';
+    return s.data.rows.filter((r) => {
+      if (s.channel && r.channel !== s.channel) return false;
+      if (s.status && r.status !== s.status) return false;
+      if (folder === 'unreplied') {
+        const isUnreplied = r.status === 'no_reply' || !r.last || r.last.from !== 'staff';
+        if (!isUnreplied) return false;
+      } else if (folder === 'starred') {
+        if (!r.starred && r.status !== 'converted' && r.status !== 'booked') return false;
+      }
+      if (q && ![r.name, r.id, r.ad, r.pageName].some((x) => String(x || '').toLowerCase().includes(q))) return false;
+      return true;
+    });
   }
 
   function renderInboxBody() {
     const box = $id('inbox-body'); const s = S.inbox; if (!box) return;
     if (s.err) { box.innerHTML = `<div class="notice err">${esc(s.err)}</div>`; return; }
     if (!s.data) return;
-    box.innerHTML = `<div class="mess">
-      <section class="mess-list">
-        <div class="ml-head"><h2>แชท</h2><span class="ml-count" id="ml-count"></span></div>
-        <label class="search">${icon('search')}<input id="isearch" data-bind="isearch" placeholder="ค้นหาแชท" value="${esc(s.search)}" autocomplete="off"></label>
-        <div id="mess-tools"></div>
-        <div class="conv-list" id="mess-list"></div>
-      </section>
-      <section class="mess-chat" id="mess-chat"></section>
-      <aside class="mess-info" id="mess-info"></aside></div>`;
+    box.innerHTML = `
+      <div class="cura-panels-row">
+        <!-- Panel 1: Folders Rail & Conversation List Combined (420px) -->
+        <div class="cura-panel-left">
+          <div class="cura-rail-col" id="mess-tools"></div>
+          <div class="cura-convs-col">
+            <div class="cura-conv-search-wrap">
+              <div class="cura-search-inner">
+                ${icon('search')}
+                <input id="isearch" data-bind="isearch" placeholder="Search conversations..." value="${esc(s.search)}" autocomplete="off">
+              </div>
+            </div>
+            <div class="cura-conv-feed" id="mess-list"></div>
+          </div>
+        </div>
+        <!-- Panel 2: Center Active Chat Area (Flex-1) -->
+        <div class="cura-panel-center" id="mess-chat"></div>
+        <!-- Panel 3: Right Contact & CRM Info Panel (320px) -->
+        <div class="cura-panel-right" id="mess-info"></div>
+      </div>
+    `;
     renderInboxTools(); renderInboxList();
-    if (s.focus) { const id = s.focus; s.focus = ''; openChat(id); return; } // มาจากหน้า Board (SLA)
+    if (s.focus) { const id = s.focus; s.focus = ''; openChat(id); return; }
     const ids = new Set(s.data.rows.map((r) => r.id));
     if (S.chat.id && ids.has(S.chat.id)) { renderInboxChat(); renderInboxInfo(); }
     else {
@@ -1648,38 +1703,82 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
 
   function renderInboxTools() {
     const el = $id('mess-tools'); const s = S.inbox; if (!el || !s.data) return;
+    const totalCount = s.data.rows.length;
+    const unrepliedCount = s.data.rows.filter((r) => r.status === 'no_reply' || !r.last || r.last.from !== 'staff').length;
+    const starredCount = s.data.rows.filter((r) => r.starred || r.status === 'converted' || r.status === 'booked').length;
+    const activeFolder = s.folder || 'all';
     const channels = [...new Set(s.data.rows.map((r) => r.channel))].sort();
-    const statusOpts = [['', 'ทั้งหมด'], ...STATUS_ORDER.map((k) => [k, STATUS_TH[k]])];
-    el.innerHTML = `<div class="sel"><select data-bind="istatus-sel" aria-label="สถานะ">
-      ${statusOpts.map(([k, l]) => `<option value="${k}" ${s.status === k ? 'selected' : ''}>${l}</option>`).join('')}
-      </select></div>
-      <div class="sel"><select data-bind="ichannel" aria-label="ช่องแชต"><option value="">ทุกช่องแชต</option>
-      ${channels.map((c) => `<option value="${esc(c)}" ${c === s.channel ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select></div>`;
+    el.innerHTML = `
+      <div class="cura-rail-block">
+        <div class="cura-block-label">Folders</div>
+        <button type="button" class="cura-rail-item ${activeFolder === 'all' ? 'active' : ''}" data-act="inbox-folder" data-folder="all">
+          <span>💬 All</span>
+          <span class="cura-item-badge">${num(totalCount)}</span>
+        </button>
+        <button type="button" class="cura-rail-item ${activeFolder === 'unreplied' ? 'active' : ''}" data-act="inbox-folder" data-folder="unreplied">
+          <span>⌛ Unreplied</span>
+          ${unrepliedCount > 0 ? `<span class="cura-item-badge unreplied">${unrepliedCount}</span>` : ''}
+        </button>
+        <button type="button" class="cura-rail-item ${activeFolder === 'starred' ? 'active' : ''}" data-act="inbox-folder" data-folder="starred">
+          <span>⭐ Starred</span>
+          ${starredCount > 0 ? `<span class="cura-item-badge starred">${starredCount}</span>` : ''}
+        </button>
+      </div>
+      <div class="cura-rail-block">
+        <div class="cura-block-label">Channels</div>
+        <button type="button" class="cura-chan-btn ${!s.channel ? 'active' : ''}" data-act="inbox-channel" data-channel="">
+          <span>🌐</span> <span>All Channels</span>
+        </button>
+        ${channels.map((c) => {
+          const iconStr = c === 'Instagram' ? '📸' : c === 'LINE' ? '🟢' : c === 'WhatsApp' ? '💚' : '🔵';
+          return `<button type="button" class="cura-chan-btn ${s.channel === c ? 'active' : ''}" data-act="inbox-channel" data-channel="${esc(c)}">
+            <span>${iconStr}</span> <span>${esc(c)}</span>
+          </button>`;
+        }).join('')}
+      </div>
+      <div class="cura-rail-block" style="margin-top:auto">
+        <div class="cura-block-label">Status Filter</div>
+        <div class="sel" style="width:100%"><select data-bind="istatus-sel" style="width:100%;font-size:12px;padding:6px 10px;border-radius:10px">
+          <option value="">ทุกสถานะ</option>
+          ${STATUS_ORDER.map((k) => `<option value="${k}" ${s.status === k ? 'selected' : ''}>${STATUS_TH[k]}</option>`).join('')}
+        </select></div>
+      </div>
+    `;
   }
 
   function renderInboxList() {
     const list = $id('mess-list'); if (!list) return;
     const rows = filteredRows(); const MAX = 300;
-    const cnt = $id('ml-count'); if (cnt) cnt.textContent = `${num(rows.length)} แชท`;
-    if (!rows.length) { list.innerHTML = '<div class="empty">ไม่พบแชทในช่วงวันที่หรือตัวกรองที่เลือก</div>'; return; }
+    if (!rows.length) {
+      list.innerHTML = '<div class="empty" style="padding:24px 10px;text-align:center">No conversations found</div>';
+      return;
+    }
     list.innerHTML = rows.slice(0, MAX).map((r) => {
-      const pv = r.last ? `${r.last.from === 'staff' ? 'คุณ: ' : ''}${esc(r.last.text)} · ${ago(r.last.at)}` : `ยังไม่มีข้อความ · ${esc(r.date)}`;
+      const isSelected = r.id === S.chat.id;
+      const snippet = r.last ? esc(r.last.text) : 'No messages yet';
+      const timeStr = r.last ? ago(r.last.at) : esc(r.date);
       const ch = r.platform || r.channel || 'Facebook';
-      const logoSvg = getBrandLogo(ch, 14);
-      const chColor = ch === 'Instagram' ? '#c13584' : ch === 'LINE' ? '#06c755' : ch === 'WhatsApp' ? '#25d366' : '#1877f2';
-      const chBg   = ch === 'Instagram' ? '#fce7f3' : ch === 'LINE' ? '#f0fdf4' : ch === 'WhatsApp' ? '#f0fdf4' : '#e0f2fe';
-      const pageLabel = r.pageName ? `<span style="font-size:11px;color:var(--brand-deep);background:#e4eedc;padding:1px 6px;border-radius:4px;white-space:nowrap">${esc(r.pageName)}</span>` : '';
-      return `<button class="conv ${r.id === S.chat.id ? 'active' : ''}" data-act="select-chat" data-id="${esc(r.id)}">${avatarHtml(r.name, r.id, 48)}
-        <span class="conv-main" style="display:flex;flex-direction:column;min-width:0;flex:1;overflow:hidden">
-          <b style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:14px;line-height:1.3">${esc(r.name)}</b>
-          <span style="display:flex;align-items:center;gap:4px;flex-wrap:nowrap;overflow:hidden">
-            <span style="display:inline-flex;align-items:center;gap:3px;font-size:11px;font-weight:600;color:${chColor};background:${chBg};padding:1px 6px;border-radius:4px;white-space:nowrap;flex-shrink:0">${logoSvg} ${esc(ch)}</span>
-            ${pageLabel}
-          </span>
-          <small style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--muted);font-size:12px">${pv}</small>
-        </span>
-        <i class="s-dot" style="background:${STATUS_COLOR[r.status] || '#8a948f'};flex-shrink:0" title="${esc(STATUS_TH[r.status] || r.status)}"></i></button>`;
-    }).join('') + (rows.length > MAX ? `<div class="ad-sub" style="text-align:center;padding:10px">แสดง ${MAX} จาก ${num(rows.length)} แชท ใช้ช่องค้นหาเพื่อกรอง</div>` : '');
+      const miniLogo = getBrandLogo(ch, 12);
+      return `
+        <div class="cura-conv-card ${isSelected ? 'active' : ''}" data-act="select-chat" data-id="${esc(r.id)}">
+          <div class="cura-avatar-shell">
+            ${curaAvatarHtml(r.name, r.id, 40)}
+            <span class="cura-chan-badge-overlay" title="${esc(ch)}">${miniLogo}</span>
+          </div>
+          <div class="cura-card-content">
+            <div class="cura-card-head">
+              <span class="cura-card-name">${esc(r.name)}</span>
+              <span class="cura-card-time">${timeStr}</span>
+            </div>
+            <div class="cura-card-snippet">${snippet}</div>
+            <div class="cura-card-footer">
+              <span class="cura-ai-pill">AI</span>
+              ${r.pageName ? `<span class="cura-tag-pill">${esc(r.pageName)}</span>` : ''}
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('') + (rows.length > MAX ? `<div class="ad-sub" style="text-align:center;padding:10px">Showing ${MAX} of ${num(rows.length)}</div>` : '');
   }
 
   function currentLead() {
@@ -1690,38 +1789,124 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
   function renderInboxChat() {
     const box = $id('mess-chat'); if (!box) return;
     const c = S.chat; const l = currentLead();
-    if (!l) { box.innerHTML = '<div class="empty" style="margin:auto">เลือกแชทจากรายการด้านซ้าย</div>'; return; }
+    if (!l) { box.innerHTML = '<div class="empty" style="margin:auto">เลือกบทสนทนาจากรายการด้านซ้าย</div>'; return; }
     const d = c.data; let body;
     if (c.err) body = `<div class="notice err" style="margin:16px">${esc(c.err)}</div>`;
-    else if (c.loading || !d) body = '<div class="loading">Loading…</div>';
-    else if (!d.messages.length) body = '<div class="empty">ยังไม่มีข้อความของแชทนี้<br>ต้องเชื่อมระบบแชทของคลินิกเพื่อดึงข้อความจริง</div>';
+    else if (c.loading || !d) body = '<div class="loading">Loading chat messages…</div>';
+    else if (!d.messages.length) body = '<div class="empty">No messages in this conversation</div>';
     else {
       const ms = d.messages;
       body = ms.map((m, i) => {
         const gap = i === 0 || atMs(m.at) - atMs(ms[i - 1].at) >= 3600e3 || m.at.slice(0, 10) !== ms[i - 1].at.slice(0, 10);
-        const sep = gap ? `<div class="day-sep"><span>${esc(sepLabel(m.at))}</span></div>` : '';
-        return `${sep}<div class="msg ${m.from === 'staff' ? 'out' : 'in'}"><div class="bubble" title="${esc(m.at)}">${esc(m.text)}</div></div>`;
+        const sep = gap ? `<div class="cura-date-divider"><span>${esc(sepLabel(m.at))}</span></div>` : '';
+        const isStaff = m.from === 'staff';
+        return `
+          ${sep}
+          <div class="cura-bubble-row ${isStaff ? 'out' : 'in'}">
+            ${!isStaff ? curaAvatarHtml(l.name, l.id, 32) : ''}
+            <div class="cura-bubble ${isStaff ? 'out' : 'in'}" title="${esc(m.at)}">
+              <div>${esc(m.text)}</div>
+              <div class="cura-bubble-time">
+                <span>${ago(m.at)}</span>
+                ${isStaff ? '<span>· AI / Staff ✓</span>' : ''}
+              </div>
+            </div>
+          </div>
+        `;
       }).join('');
-      const last = ms[ms.length - 1];
-      if (last.from === 'staff') { const a = ago(last.at); body += `<div class="sent">${a === 'ตอนนี้' ? 'ส่งเมื่อสักครู่' : `ส่งเมื่อ ${esc(a)}ที่แล้ว`}</div>`; }
     }
-    box.innerHTML = `<header class="mc-head">${avatarHtml(l.name, l.id, 40)}<div><b>${esc(l.name)}</b><div>${chanHtml(l.channel)}</div></div><span class="grow"></span>${statusHtml(l.status)}</header>
-      <div class="chat-scroll" id="chat-scroll">${body}</div>
-      ${d && d.demo ? '<div class="demo-note">ข้อความตัวอย่าง (โหมดเดโม)</div>' : ''}
-      <div class="composer-wrap">${d && !c.err && !c.loading ? composerHtml(d) : ''}</div>`;
+    const aiAnalysis = analyzeLeadConversation(l, d && d.messages);
+    const aiSummaryCard = aiAnalysis ? `
+      <div class="cura-ai-summary-box">
+        <div class="cura-ai-summary-header">
+          <span class="cura-ai-summary-badge">✨ AI Co-pilot Summary</span>
+          <span class="sentiment-pill sentiment-${aiAnalysis.sentiment.cls}">${aiAnalysis.sentiment.icon} ${esc(aiAnalysis.sentiment.label)}</span>
+        </div>
+        <div><b>🩺 Problem:</b> ${esc(aiAnalysis.hairIssue)}</div>
+        <div><b>💡 Strategy:</b> ${esc(aiAnalysis.sentiment.tip)}</div>
+      </div>
+    ` : '';
+    box.innerHTML = `
+      <div class="cura-thread-header">
+        <div class="cura-thread-user-info">
+          ${curaAvatarHtml(l.name, l.id, 38)}
+          <div>
+            <div class="cura-thread-title">
+              <b>${esc(l.name)}</b>
+              <span>${statusHtml(l.status)}</span>
+            </div>
+            <div class="cura-thread-sub">
+              <span>${chanHtml(l.channel)}</span>
+              <span>· Assigned to: <b>${esc(l.rep || 'Cura AI')}</b></span>
+            </div>
+          </div>
+        </div>
+        <div>
+          <button type="button" class="cura-takeover-btn" data-act="takeover-chat">
+            Take Over Chat
+          </button>
+        </div>
+      </div>
+      ${aiSummaryCard}
+      <div class="cura-thread-feed" id="chat-scroll">${body}</div>
+      <div class="cura-composer-box">
+        ${d && !c.err && !c.loading ? composerHtml(d) : ''}
+      </div>
+    `;
     const sc = $id('chat-scroll'); if (sc) sc.scrollTop = sc.scrollHeight;
   }
 
   function renderInboxInfo() {
     const box = $id('mess-info'); if (!box) return;
     const l = currentLead();
-    if (!l) { box.innerHTML = ''; return; }
-    const row = (k, v) => `<dt>${k}</dt><dd>${v}</dd>`;
-    box.innerHTML = `<div class="info-top">${avatarHtml(l.name, l.id, 80)}<b>${esc(l.name)}</b>${chanHtml(l.channel)}${statusHtml(l.status)}</div>
-      <details open><summary>ข้อมูลแชท</summary><dl>${row('ช่องแชต', esc(l.channel))}${row('วันเริ่มคุย', esc(l.date))}${row('ความคืบหน้า', esc(STATUS_TH[l.status] || l.status))}${row('โฆษณา', esc(l.ad || '—'))}</dl></details>
-      <details open><summary>จัดการลีด</summary><div class="info-tools">${statusSelectHtml(l)}${S.chat.data && S.chat.data.lead && S.chat.data.lead.id === l.id ? followFormHtml() : ''}</div></details>
-      ${S.chat.data && S.chat.data.review ? `<details open><summary>รีวิวแชท</summary><dl>${row('คะแนน', `<span class="q-badge q-${scoreClass(S.chat.data.review.score)}">${S.chat.data.review.score}%</span>`)}${row('ผู้ตรวจ', esc(S.chat.data.review.reviewer))}${row('ความเห็น', esc(S.chat.data.review.note || '—'))}</dl></details>` : ''}
-      <details open><summary>การขาย</summary><dl>${row('ผู้ดูแล', esc(l.rep || '—'))}${row('ยอดขาย', l.value ? baht(l.value) : '—')}${row('หมายเหตุ', esc(l.reason || '—'))}</dl></details>`;
+    if (!l) { box.innerHTML = '<div class="empty">No contact selected</div>'; return; }
+    box.innerHTML = `
+      <!-- Profile Header -->
+      <div class="cura-profile-center">
+        ${curaAvatarHtml(l.name, l.id, 64)}
+        <h3 class="cura-profile-header-name">${esc(l.name)}</h3>
+        <div style="display:flex;gap:6px;align-items:center">
+          ${chanHtml(l.channel)}
+          ${statusHtml(l.status)}
+        </div>
+      </div>
+      <!-- Segmented Tabs -->
+      <div class="cura-profile-pill-tabs">
+        <button type="button" class="cura-pill-tab active">Overview</button>
+        <button type="button" class="cura-pill-tab">Activity Log</button>
+        <button type="button" class="cura-pill-tab">Gallery</button>
+      </div>
+      <!-- Conversation Actions Card -->
+      <div class="cura-section-card">
+        <div class="cura-section-card-title">⚡ Conversation Actions</div>
+        <div class="cura-section-card-body">
+          <div class="cura-field-group">
+            <label>Branch / Clinic</label>
+            <select><option>BEQ Hair Clinic (Main)</option><option>BEQ Thonglor</option></select>
+          </div>
+          <div class="cura-field-group">
+            <label>Assigned Agent</label>
+            <input type="text" value="${esc(l.rep || 'Cura AI Assistant')}" readonly style="background:#f1f5f9">
+          </div>
+          <div class="cura-field-group">
+            <label>Lead Stage / Status</label>
+            ${statusSelectHtml(l)}
+          </div>
+          ${S.chat.data && S.chat.data.lead && S.chat.data.lead.id === l.id ? followFormHtml() : ''}
+        </div>
+      </div>
+      <!-- Contact Details Card -->
+      <div class="cura-section-card">
+        <div class="cura-section-card-title">👤 Contact Details</div>
+        <div class="cura-section-card-body">
+          <div class="cura-detail-row"><span>Channel:</span> <b>${esc(l.channel)}</b></div>
+          <div class="cura-detail-row"><span>Started Date:</span> <b>${esc(l.date)}</b></div>
+          <div class="cura-detail-row"><span>Phone:</span> <b>${esc(l.phone || '—')}</b></div>
+          <div class="cura-detail-row"><span>Ad Source:</span> <b>${esc(l.ad || 'Direct / Organic')}</b></div>
+          ${l.pageName ? `<div class="cura-detail-row"><span>Page:</span> <b>${esc(l.pageName)}</b></div>` : ''}
+        </div>
+      </div>
+    `;
   }
 
   function renderChatViews() {
