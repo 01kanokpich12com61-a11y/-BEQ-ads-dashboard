@@ -491,7 +491,7 @@
 
   async function uploadAdImage(adId, adName, file) {
     if (!file) return;
-    if (file.size > 10_000_000) { alert('รูปภาพมีขนาดใหญ่เกิน 10 MB'); return; }
+    if (file.size > 30_000_000) { alert('ไฟล์มีขนาดใหญ่เกิน 30 MB'); return; }
     const reader = new FileReader();
     reader.onload = async (e) => {
       try {
@@ -501,18 +501,41 @@
           method: 'POST',
           body: { adId, adName, imageData, mimeType },
         });
-        S.flash = { type: 'ok', text: `อัปโหลดรูปให้โฆษณา "${res.adName || adName}" สำเร็จแล้ว!` };
-        S.dash.data = null; // รีเฟรชข้อมูล Dashboard เพื่อให้รูปโชว์
+        S.flash = { type: 'ok', text: `อัปโหลด${res.isVideo ? 'วิดีโอ' : 'รูปภาพ'}ให้โฆษณา "${res.adName || adName}" สำเร็จแล้ว!` };
+        closeAdMediaModal();
+        S.dash.data = null;
         if (S.route === 'dashboard') {
           await loadDash(true);
+        } else if (S.route === 'quality') {
+          await loadQuality();
         } else {
           await loadUpload();
         }
       } catch (err) {
-        alert('อัปโหลดรูปไม่สำเร็จ: ' + err.message);
+        alert('อัปโหลดไฟล์ไม่สำเร็จ: ' + err.message);
       }
     };
     reader.readAsDataURL(file);
+  }
+
+  async function saveAdMediaUrl(adId, adName, rawUrl) {
+    const url = String(rawUrl || '').trim();
+    if (!url) return;
+    const isVid = /\.(mp4|webm|mov)(\?|$)/i.test(url) || url.includes('video');
+    try {
+      const res = await api('/api/upload/ad-image', {
+        method: 'POST',
+        body: { adId, adName, ...(isVid ? { videoUrl: url } : { mediaUrl: url }) },
+      });
+      S.flash = { type: 'ok', text: `บันทึกลิงก์${res.isVideo ? 'วิดีโอ' : 'รูปภาพ'}ให้โฆษณา "${res.adName || adName}" สำเร็จแล้ว!` };
+      closeAdMediaModal();
+      S.dash.data = null;
+      if (S.route === 'dashboard') await loadDash(true);
+      else if (S.route === 'quality') await loadQuality();
+      else await loadUpload();
+    } catch (err) {
+      alert('บันทึกลิงก์ไม่สำเร็จ: ' + err.message);
+    }
   }
 
   function handleUploadFile(file) {
@@ -617,6 +640,10 @@
         'conversion rate ranking': null,
         // Purchases
         'purchases': 'purchases', 'การซื้อ': 'purchases',
+        // Media (Image & Video)
+        'image': 'thumb', 'image_url': 'thumb', 'thumbnail_url': 'thumb', 'thumb': 'thumb', 'รูปภาพ': 'thumb', 'ลิงก์รูป': 'thumb',
+        'video': 'videoUrl', 'video_url': 'videoUrl', 'วิดีโอ': 'videoUrl', 'ลิงก์วิดีโอ': 'videoUrl',
+        'creative': 'creative', 'creative_type': 'creative',
       };
     } else {
       COL_MAP = {
@@ -699,7 +726,7 @@
       <div class="seg">
         <button data-act="upload-tab" data-tab="leads" class="${u.tab === 'leads' ? 'active' : ''}">👥 นำเข้า Leads (ลูกค้า & แชท)</button>
         <button data-act="upload-tab" data-tab="campaigns" class="${u.tab === 'campaigns' ? 'active' : ''}">📊 นำเข้าแคมเปญ Ads (โชว์ Dashboard)</button>
-        <button data-act="upload-tab" data-tab="images" class="${u.tab === 'images' ? 'active' : ''}">🖼️ รูปภาพ Ads</button>
+        <button data-act="upload-tab" data-tab="images" class="${u.tab === 'images' ? 'active' : ''}">🎬 รูปภาพ & วิดีโอ Ads</button>
         <button data-act="upload-tab" data-tab="manage" class="${u.tab === 'manage' ? 'active' : ''}">⚙️ จัดการ & ลบข้อมูลในระบบ</button>
       </div>
     </div>`;
@@ -708,31 +735,48 @@
   function renderImagesTab(u) {
     const ads = u.ads || [];
     return `<div class="card panel">
-      <h3>🖼️ จัดการรูปภาพโฆษณา (Ad Creatives)</h3>
-      <p class="sub">เลือกรูปภาพเพื่อแสดงในคอลัมน์ Creative ในหน้า Dashboard และ Quality เพื่อให้เห็นรูปโฆษณาจริงประกอบตัวเลขสถิติ</p>
-      ${!ads.length ? `<div class="notice warn" style="margin-top:14px">ยังไม่มีข้อมูลโฆษณาในระบบ — กรุณานำเข้าไฟล์แคมเปญ Ads ที่แท็บ "📊 นำเข้าแคมเปญ Ads" ก่อน เพื่อให้มีรายชื่อโฆษณามาจับคู่กับรูป</div>` : `
-      <div class="tscroll" style="margin-top:16px"><table style="min-width:650px">
+      <h3>🎬 จัดการรูปภาพและวิดีโอแคมเปญโฆษณา (Ad Creatives: Image & Video)</h3>
+      <p class="sub">อัปโหลดไฟล์รูปภาพ (JPG, PNG, WebP) หรือไฟล์วิดีโอ (MP4, WebM) หรือวางลิงก์สื่อ เพื่อให้แสดงทั้งในหน้า Dashboard และ Quality Analysis</p>
+      ${!ads.length ? `<div class="notice warn" style="margin-top:14px">ยังไม่มีข้อมูลโฆษณาในระบบ — กรุณานำเข้าไฟล์แคมเปญ Ads หรือเชื่อมต่อ Meta API ก่อน</div>` : `
+      <div class="tscroll" style="margin-top:16px"><table style="min-width:720px">
         <thead><tr>
-          <th class="nosort" style="width:70px">รูปภาพ</th>
-          <th class="nosort">ชื่อโฆษณา (Ad Name)</th>
-          <th class="nosort" style="width:180px">จัดการรูปภาพ</th>
+          <th class="nosort" style="width:110px">ตัวอย่างสื่อ</th>
+          <th class="nosort">ชื่อโฆษณา / แคมเปญ</th>
+          <th class="nosort" style="width:110px">ประเภท</th>
+          <th class="nosort" style="width:270px">จัดการรูปภาพ & วิดีโอ</th>
         </tr></thead>
         <tbody>
-          ${ads.map((a) => `<tr>
+          ${ads.map((a) => {
+            const mData = esc(JSON.stringify({ id: a.id, name: a.name, campaign: a.campaign || '', creative: a.creative || 'IMAGE', thumb: a.thumb, videoUrl: a.videoUrl }));
+            const isVid = Boolean(a.videoUrl) || a.creative === 'VIDEO' || a.creative === 'STORY';
+            return `<tr>
             <td>
-              ${a.thumb ? `<img class="thumb" src="${esc(a.thumb)}" alt="" style="width:48px;height:48px;border-radius:10px;object-fit:cover;box-shadow:0 1px 3px rgba(0,0,0,.15);cursor:pointer" onclick="window.open('${esc(a.thumb)}')">` : `<span class="thumb" style="width:48px;height:48px;border-radius:10px;background:#eceae2;display:grid;place-items:center;color:var(--muted);font-size:11px">ไม่มีรูป</span>`}
+              <div class="ad-media-box" data-act="open-ad-media" data-ad-media="${mData}" title="คลิกเพื่อดูตัวอย่างรูป/เล่นวิดีโอ">
+                ${a.thumb
+                  ? `<img src="${esc(a.thumb)}" alt="" referrerpolicy="no-referrer" loading="lazy">`
+                  : (a.videoUrl && !String(a.videoUrl).startsWith('demo-reel:')
+                      ? `<video src="${esc(a.videoUrl)}" muted playsinline preload="metadata"></video>`
+                      : `<div style="width:100%;height:100%;display:grid;place-items:center;color:#a7f3d0;font-size:18px">${isVid ? '🎬' : '🖼️'}</div>`)}
+                ${isVid ? `<span class="ad-media-play-badge">▶</span>` : ''}
+                <span class="ad-media-type-chip">${esc(a.creative || 'IMAGE')}</span>
+              </div>
             </td>
             <td>
               <b style="font-size:14.5px">${esc(a.name)}</b>
-              <div class="ad-sub">${esc(a.id)}</div>
+              <div class="ad-sub">${esc(a.campaign ? a.campaign + ' · ' : '')}${esc(a.id)}</div>
             </td>
+            <td><span class="chip ${isVid ? 'good' : ''}" style="font-size:11.5px">${isVid ? '🎬 VIDEO' : '🖼️ ' + esc(a.creative || 'IMAGE')}</span></td>
             <td>
-              <label class="btn primary" style="cursor:pointer;display:inline-flex;align-items:center;gap:6px;font-size:13px;padding:6px 14px">
-                📷 ${a.thumb ? 'เปลี่ยนรูป' : 'เลือกรูปภาพ'}
-                <input type="file" accept="image/*" style="display:none" data-act="ad-img-file" data-ad-id="${esc(a.id)}" data-ad-name="${esc(a.name)}">
-              </label>
+              <div style="display:flex;gap:6px;flex-wrap:wrap">
+                <label class="btn primary" style="cursor:pointer;display:inline-flex;align-items:center;gap:6px;font-size:12.5px;padding:6px 12px">
+                  📤 อัปโหลดรูป/วิดีโอ
+                  <input type="file" accept="image/*,video/mp4,video/webm,video/quicktime" style="display:none" data-act="ad-img-file" data-ad-id="${esc(a.id)}" data-ad-name="${esc(a.name)}">
+                </label>
+                <button type="button" class="btn" style="font-size:12px;padding:6px 10px" data-act="prompt-ad-url" data-ad-id="${esc(a.id)}" data-ad-name="${esc(a.name)}">🔗 วางลิงก์</button>
+              </div>
             </td>
-          </tr>`).join('')}
+          </tr>`;
+          }).join('')}
         </tbody>
       </table></div>`}
     </div>`;
@@ -1088,9 +1132,16 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
                         ? `<span class="q-badge ${postPending > 0 ? 'q-poor' : 'q-good'}" style="margin-left:auto;font-size:11px">${postPending > 0 ? `🔴 ยังไม่ตอบ ${postPending}` : '🟢 ตอบครบแล้ว'}</span>`
                         : '<span class="rv-hint" style="margin-left:auto;font-size:11px">⚪ ยังไม่มีคอมเมนต์</span>'}
                     </div>
-                    <div style="font-size:13.5px;color:var(--ink-1, #1e293b);line-height:1.5;margin-bottom:6px;word-break:break-word">
+                    <div style="font-size:13.5px;color:var(--ink-1, #1e293b);line-height:1.5;margin-bottom:8px;word-break:break-word">
                       ${esc(String(p.content || '').slice(0, 240))}${(p.content || '').length > 240 ? '…' : ''}
                     </div>
+                    ${(p.videoUrl || p.mediaUrl) ? `
+                      <div style="margin:8px 0 10px;max-width:340px;border-radius:10px;overflow:hidden;border:1px solid #d3e7da;background:#022c22">
+                        ${p.videoUrl
+                          ? `<video src="${esc(p.videoUrl)}" ${p.mediaUrl ? `poster="${esc(p.mediaUrl)}"` : ''} controls playsinline preload="metadata" style="width:100%;max-height:220px;display:block"></video>`
+                          : `<a href="${esc(p.mediaUrl)}" target="_blank" rel="noopener"><img src="${esc(p.mediaUrl)}" alt="" referrerpolicy="no-referrer" loading="lazy" style="width:100%;max-height:220px;object-fit:cover;display:block"></a>`}
+                      </div>
+                    ` : ''}
                     <div style="display:flex;align-items:center;gap:12px;font-size:11.5px">
                       ${p.permalink ? `<a href="${esc(p.permalink)}" target="_blank" style="color:var(--brand);font-weight:600;display:inline-flex;align-items:center;gap:4px">🔗 เปิดโพสต์จริงบน ${esc(platName)}</a>` : ''}
                       <span style="color:var(--muted)">💬 ${comms.length} คอมเมนต์</span>
@@ -1145,11 +1196,205 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
   }
 
   /* ═══════════════════════════════════════════
+     AD CREATIVE MEDIA PREVIEW (IMAGE & VIDEO LIGHTBOX)
+  ═══════════════════════════════════════════ */
+  function adMediaThumbHtml(r) {
+    const cType = String(r.creative || 'IMAGE').toUpperCase();
+    const isVid = Boolean(r.videoUrl) || cType === 'VIDEO' || cType === 'STORY';
+    const isRealVideoUrl = Boolean(r.videoUrl && !String(r.videoUrl).startsWith('demo-reel:'));
+    const mediaPayload = esc(JSON.stringify({
+      id: r.id, name: r.name, campaign: r.campaign || '', adset: r.adset || '',
+      creative: cType, thumb: r.thumb || null, videoUrl: r.videoUrl || null,
+      reach: r.reach || 0, impressions: r.impressions || 0, spend: r.spend || 0,
+      ctr: r.ctr || 0, costMessage: r.costMessage || 0, purchases: r.purchases || 0,
+      qualityScore: r.qualityScore, qualityLabel: r.qualityLabel,
+    }));
+
+    return `<div class="ad-media-cell">
+      <div class="ad-media-box" data-act="open-ad-media" data-ad-media="${mediaPayload}" title="คลิกเพื่อดูรูปขนาดใหญ่ / เล่นวิดีโอโฆษณา">
+        ${isRealVideoUrl && !r.thumb
+          ? `<video src="${esc(r.videoUrl)}" muted loop playsinline preload="metadata"></video>`
+          : (r.thumb
+              ? `<img src="${esc(r.thumb)}" alt="${esc(r.name)}" referrerpolicy="no-referrer" loading="lazy">`
+              : `<div style="width:100%;height:100%;display:grid;place-items:center;color:#a7f3d0;font-size:18px">${isVid ? '🎬' : cType === 'CAROUSEL' ? '📑' : '🖼️'}</div>`)}
+        ${isVid ? `<span class="ad-media-play-badge">▶</span>` : ''}
+        <span class="ad-media-type-chip">${isVid ? '🎬 ' + cType : '🖼️ ' + cType}</span>
+        <label class="ad-media-upload-mini" title="อัปโหลดเปลี่ยนรูป/วิดีโอ">
+          📷
+          <input type="file" accept="image/*,video/mp4,video/webm,video/quicktime" style="display:none" data-act="dash-ad-img" data-ad-id="${esc(r.id)}" data-ad-name="${esc(r.name)}">
+        </label>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:2px">
+        <span class="creative-lbl" style="font-weight:700;font-size:12px;color:#064e3b">${isVid ? '🎬 Video / Reel' : cType === 'CAROUSEL' ? '📑 Carousel' : '🖼️ Image'}</span>
+        <button type="button" class="btn" data-act="open-ad-media" data-ad-media="${mediaPayload}" style="padding:2px 8px;font-size:10.5px;border-radius:999px;background:#ecfdf5;border-color:#a7f3d0;color:#059669;font-weight:700">
+          ${isVid ? '▶ เล่นวิดีโอ' : '🔍 ดูรูปโฆษณา'}
+        </button>
+      </div>
+    </div>`;
+  }
+
+  let _demoReelAnimId = null;
+  function closeAdMediaModal() {
+    if (_demoReelAnimId) { cancelAnimationFrame(_demoReelAnimId); _demoReelAnimId = null; }
+    const old = document.getElementById('ad-media-modal-root');
+    if (old) old.remove();
+  }
+
+  function openAdMediaModal(r) {
+    closeAdMediaModal();
+    const cType = String(r.creative || 'IMAGE').toUpperCase();
+    const isVid = Boolean(r.videoUrl) || cType === 'VIDEO' || cType === 'STORY';
+    const isRealVideoUrl = Boolean(r.videoUrl && !String(r.videoUrl).startsWith('demo-reel:'));
+
+    const wrap = document.createElement('div');
+    wrap.id = 'ad-media-modal-root';
+    wrap.className = 'ad-media-modal-overlay';
+    wrap.innerHTML = `
+      <div class="ad-media-modal">
+        <div class="ad-media-modal-head">
+          <div style="min-width:0">
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+              <span class="chip good" style="font-size:11px">${isVid ? '🎬 VIDEO AD' : '🖼️ ' + esc(cType) + ' AD'}</span>
+              <b style="font-size:16px;color:#064e3b">${esc(r.name)}</b>
+            </div>
+            <div style="font-size:12px;color:var(--muted);margin-top:2px">📊 แคมเปญ: <b>${esc(r.campaign || '—')}</b>${r.adset ? ' · ชุดโฆษณา: ' + esc(r.adset) : ''} · ID: <code>${esc(r.id)}</code></div>
+          </div>
+          <button type="button" class="icon-btn" data-act="close-ad-media" aria-label="ปิด">✕</button>
+        </div>
+        <div class="ad-media-stage" id="ad-media-stage-box">
+          ${isRealVideoUrl
+            ? `<video src="${esc(r.videoUrl)}" ${r.thumb ? `poster="${esc(r.thumb)}"` : ''} controls autoplay playsinline style="width:100%;max-height:460px"></video>`
+            : (isVid
+                ? `<div style="position:relative;width:100%;display:flex;flex-direction:column;align-items:center;padding:14px">
+                    <canvas id="demo-reel-canvas" width="560" height="340" style="max-width:100%;border-radius:14px;box-shadow:0 8px 28px rgba(0,0,0,0.4)"></canvas>
+                    <div style="display:flex;align-items:center;gap:12px;margin-top:10px;color:#a7f3d0;font-size:12px">
+                      <button type="button" id="demo-reel-toggle" class="btn primary" style="padding:4px 14px;font-size:12px">⏸ Pause Reel</button>
+                      <span id="demo-reel-timer">00:00 / 00:15 · HD Clinic Reel Preview</span>
+                    </div>
+                  </div>`
+                : (r.thumb
+                    ? `<img src="${esc(r.thumb)}" alt="${esc(r.name)}" referrerpolicy="no-referrer">`
+                    : `<div style="color:#a7f3d0;padding:40px;text-align:center">ยังไม่มีรูปหรือวิดีโอสำหรับโฆษณานี้</div>`))}
+        </div>
+        <div class="ad-media-modal-body">
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(105px,1fr));gap:10px;background:#f0f7f3;padding:12px 14px;border-radius:14px;border:1px solid #d3e7da;margin-bottom:14px">
+            <div><div style="font-size:11px;color:var(--muted)">Spend (งบใช้ไป)</div><b style="font-size:14.5px;color:#064e3b">฿${Number(r.spend || 0).toLocaleString()}</b></div>
+            <div><div style="font-size:11px;color:var(--muted)">Reach</div><b style="font-size:14.5px">${Number(r.reach || 0).toLocaleString()}</b></div>
+            <div><div style="font-size:11px;color:var(--muted)">Impressions</div><b style="font-size:14.5px">${Number(r.impressions || 0).toLocaleString()}</b></div>
+            <div><div style="font-size:11px;color:var(--muted)">CTR</div><b style="font-size:14.5px">${Number(r.ctr || 0).toFixed(2)}%</b></div>
+            <div><div style="font-size:11px;color:var(--muted)">Purchases</div><b style="font-size:14.5px;color:#059669">${Number(r.purchases || 0).toLocaleString()}</b></div>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <label class="btn primary" style="cursor:pointer;display:inline-flex;align-items:center;gap:6px;font-size:13px">
+                📤 อัปโหลดไฟล์รูปภาพ / วิดีโอ (MP4)
+                <input type="file" accept="image/*,video/mp4,video/webm,video/quicktime" style="display:none" data-act="dash-ad-img" data-ad-id="${esc(r.id)}" data-ad-name="${esc(r.name)}">
+              </label>
+              <button type="button" class="btn" data-act="prompt-ad-url" data-ad-id="${esc(r.id)}" data-ad-name="${esc(r.name)}" style="font-size:13px">🔗 วางลิงก์รูป/วิดีโอ</button>
+            </div>
+            <button type="button" class="btn" data-act="close-ad-media">ปิดหน้าต่าง</button>
+          </div>
+        </div>
+      </div>
+    `;
+    wrap.addEventListener('click', (ev) => { if (ev.target === wrap) closeAdMediaModal(); });
+    document.body.appendChild(wrap);
+
+    // ถ้าเป็นวิดีโอพรีวิวโหมดสาธิต วาดแอนิเมชันวิดีโอคลินิกแบบสดๆ บน Canvas
+    const cv = document.getElementById('demo-reel-canvas');
+    if (cv) {
+      const ctx = cv.getContext('2d');
+      let playing = true;
+      let startTs = performance.now();
+      let elapsed = 0;
+      const btnToggle = document.getElementById('demo-reel-toggle');
+      const timerEl = document.getElementById('demo-reel-timer');
+      if (btnToggle) {
+        btnToggle.addEventListener('click', () => {
+          playing = !playing;
+          if (playing) startTs = performance.now() - elapsed;
+          btnToggle.textContent = playing ? '⏸ Pause Reel' : '▶ Play Reel';
+        });
+      }
+      const drawReel = (now) => {
+        if (!document.getElementById('demo-reel-canvas')) return;
+        if (playing) elapsed = (now - startTs) % 15000;
+        const sec = elapsed / 1000;
+        const progress = sec / 15;
+
+        const grad = ctx.createLinearGradient(0, 0, cv.width, cv.height);
+        grad.addColorStop(0, '#022c22');
+        grad.addColorStop(0.5, '#065f46');
+        grad.addColorStop(1, '#059669');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, cv.width, cv.height);
+
+        // วงกลมเคลื่อนไหวพื้นหลัง
+        for (let i = 0; i < 5; i++) {
+          const x = ((i * 130 + sec * 45) % (cv.width + 120)) - 60;
+          const y = 70 + Math.sin(sec * 2 + i) * 40 + i * 35;
+          ctx.beginPath();
+          ctx.arc(x, y, 36 + i * 8, 0, Math.PI * 2);
+          ctx.fillStyle = 'rgba(110, 231, 183, 0.12)';
+          ctx.fill();
+        }
+
+        // ป้าย BEQ Clinic Reel
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+        ctx.fillRect(20, 18, 175, 28);
+        ctx.fillStyle = '#6ee7b7';
+        ctx.font = 'bold 12px sans-serif';
+        ctx.fillText('🎬 BEQ CLINIC VIDEO AD', 32, 36);
+
+        // ชื่อแคมเปญและโฆษณาเคลื่อนไหว
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 24px sans-serif';
+        ctx.fillText(String(r.name || 'BEQ Hair Transplant'), 28, 125);
+
+        ctx.fillStyle = '#a7f3d0';
+        ctx.font = '600 15px sans-serif';
+        ctx.fillText(`Campaign: ${r.campaign || 'Hair Wellness'} · ${r.adset || 'Target Audience'}`, 28, 158);
+
+        // แอนิเมชันกราฟผลลัพธ์ Before -> After
+        const phase = Math.floor(sec / 5);
+        const phaseLabels = [
+          '✨ Step 1: ตรวจสภาพรากผมด้วยกล้อง AI Microscope',
+          '🌿 Step 2: เทคนิคปลูกผมถาวร FUE / DHI แผลเล็ก ฟื้นตัวไว',
+          '🏆 Step 3: ผลลัพธ์ผมดกดำเป็นธรรมชาติ ความพึงพอใจ 99.4%'
+        ];
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.14)';
+        ctx.fillRect(28, 185, cv.width - 56, 54);
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 15px sans-serif';
+        ctx.fillText(phaseLabels[phase] || phaseLabels[0], 44, 218);
+
+        // แถบสถิติสดในวิดีโอ
+        ctx.fillStyle = '#6ee7b7';
+        ctx.font = 'bold 13px sans-serif';
+        ctx.fillText(`CTR: ${Number(r.ctr || 1.98).toFixed(2)}%   |   Messages: ${Number(r.purchases || 12) * 8}   |   Purchases: ${r.purchases || 12} เคส`, 28, 282);
+
+        // Progress bar ด้านล่างวิดีโอ
+        ctx.fillStyle = 'rgba(255,255,255,0.2)';
+        ctx.fillRect(0, cv.height - 8, cv.width, 8);
+        ctx.fillStyle = '#34d399';
+        ctx.fillRect(0, cv.height - 8, cv.width * progress, 8);
+
+        if (timerEl) {
+          const sTxt = String(Math.floor(sec)).padStart(2, '0');
+          timerEl.textContent = `00:${sTxt} / 00:15 · HD Clinic Reel Preview`;
+        }
+        _demoReelAnimId = requestAnimationFrame(drawReel);
+      };
+      _demoReelAnimId = requestAnimationFrame(drawReel);
+    }
+  }
+
+  /* ═══════════════════════════════════════════
      QUALITY PAGE — คุณภาพแชทรายโฆษณา
   ═══════════════════════════════════════════ */
   function qualityShell() {
     return `<div class="page-head"><div><h1>${icon('spark')} คุณภาพแชทรายโฆษณา</h1>
-        <div class="meta-line"><span>ภาพรวมคุณภาพการสนทนาแยกตามโฆษณา — ใช้ข้อมูลช่วง 30 วันล่าสุด</span></div></div>
+        <div class="meta-line"><span>ภาพรวมคุณภาพการสนทนาแยกตามโฆษณา พร้อมรูปภาพและวิดีโอแคมเปญ — ใช้ข้อมูลช่วง 30 วันล่าสุด</span></div></div>
       <button class="btn" data-act="quality-reload">${icon('refresh')} รีเฟรช</button></div>
       <div id="quality-body"><div class="loading">Loading…</div></div>`;
   }
@@ -1176,12 +1421,15 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
       const goodChats = a.qualityChats ?? 0;
       const goodPct = leads ? (goodChats / leads) * 100 : 0;
       return {
-        id: a.id, name: a.name, campaign: a.campaign || '',
+        id: a.id, name: a.name, campaign: a.campaign || '', adset: a.adset || '', page: a.page || '',
+        creative: a.creative || 'IMAGE', thumb: a.thumb || null, videoUrl: a.videoUrl || null,
+        reach: a.reach || 0, impressions: a.impressions || 0, ctr: a.ctr || 0,
+        costMessage: a.costMessage || 0, purchases: a.purchases || 0,
         leads, goodChats, goodPct,
         qualityScore: a.qualityScore,
         qualityLabel: a.qualityLabel || 'none',
         spend: a.spend || 0, cpc: a.cpc || null,
-        firstResponseMin: null, // not in ad-level data; available from leads
+        firstResponseMin: null,
       };
     });
     return { ads };
@@ -1238,9 +1486,10 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
       </div>
 
       <section class="card table-card">
-        <div class="table-head"><div><h2>คุณภาพรายโฆษณา</h2><p>${num(ads.length)} ads</p></div></div>
-        <div class="tscroll"><table style="min-width:800px">
+        <div class="table-head"><div><h2>คุณภาพรายโฆษณา & สื่อแคมเปญ (Image / Video)</h2><p>${num(ads.length)} ads · คลิกที่รูปหรือปุ่มเล่นวิดีโอเพื่อดูสื่อโฆษณา</p></div></div>
+        <div class="tscroll"><table style="min-width:920px">
           <thead><tr>
+            <th class="nosort" style="width:190px">รูป / วิดีโอ (Creative)</th>
             ${thSort('name', 'ชื่อโฆษณา')}
             <th class="nosort">Campaign</th>
             ${thSort('leads', 'Leads')}
@@ -1249,13 +1498,14 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
             <th class="nosort">คุณภาพ</th>
           </tr></thead>
           <tbody>${ads.length ? ads.map((a) => `<tr>
+            <td>${adMediaThumbHtml(a)}</td>
             <td><div class="ad-name" title="${esc(a.name)}">${esc(a.name)}</div><div class="ad-sub">${esc(a.id)}</div></td>
             <td style="color:var(--muted)">${esc(a.campaign || '—')}</td>
             <td>${num(a.leads)}</td>
             <td>${a.leads ? pct(a.goodPct) : '—'}</td>
             <td>${baht(a.spend)}</td>
             <td><span class="q-badge q-${esc(a.qualityLabel || 'none')}">${a.qualityScore !== null ? num(a.qualityScore) + '%' : 'No chats'}</span></td>
-          </tr>`).join('') : `<tr><td colspan="6"><div class="empty">ไม่มีข้อมูลโฆษณาในช่วงที่เลือก</div></td></tr>`}
+          </tr>`).join('') : `<tr><td colspan="7"><div class="empty">ไม่มีข้อมูลโฆษณาในช่วงที่เลือก</div></td></tr>`}
           </tbody>
         </table></div>
       </section>`;
@@ -1264,10 +1514,11 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
   /* ---------------- login ---------------- */
   function renderLogin() {
     $app.innerHTML = `<div class="login-split">
-      <aside class="login-art">${strandsSvg(26, 0.13)}<img class="login-logo" src="/logo-full-white.png" alt="BEQ Group">
+      <aside class="login-art">${strandsSvg(26, 0.13)}<img class="login-logo" src="/logo-full-white.png" alt="BEQ Group" width="88">
         <h2>BEQ GROUP</h2>
         <p>ONE STOP HAIR BUSINESS PARTNER</p></aside>
       <main class="login-pane"><form class="login-card" data-form="login" autocomplete="on">
+        <div class="login-card-brand"><img src="/logo-mark.png" alt="BEQ"><span>BEQ Hair Wellness Suite</span></div>
         <h1>เข้าสู่ระบบ</h1><p>ใช้บัญชีผู้ดูแลของคลินิก</p>
         ${S.loginErr ? `<div class="notice err" style="margin-bottom:14px">${esc(S.loginErr)}</div>` : ''}
         <div class="form">
@@ -1425,7 +1676,7 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
 
   /* --- table --- */
   const COLS = [
-    ['name', 'Campaign / Ads'], ['creative', 'Creative'], ['reach', 'Reach'], ['impressions', 'Impressions'], ['cpm', 'CPM'], ['ctr', 'CTR'],
+    ['name', 'Campaign / Ads'], ['creative', 'รูป / วิดีโอ (Creative)'], ['reach', 'Reach'], ['impressions', 'Impressions'], ['cpm', 'CPM'], ['ctr', 'CTR'],
     ['costMessage', 'Cost / Msg'], ['cqc', 'CQC'], ['purchases', 'Purchases'], ['spend', 'Spend'], ['cpc', 'CPC'], ['qualityScore', 'Chat Quality'],
   ];
   function sparkSvg(vals, label) {
@@ -1453,12 +1704,12 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
     d.pageNo = Math.min(d.pageNo, pages);
     const slice = rows.slice((d.pageNo - 1) * PAGE_SIZE, d.pageNo * PAGE_SIZE);
     const keepFocus = document.activeElement && document.activeElement.id === 'tsearch';
-    card.innerHTML = `<div class="table-head"><div><h2>Campaign performance</h2><p>Ad-level results joined with sales chat quality · ${d.data.ads.length} ads</p></div>
+    card.innerHTML = `<div class="table-head"><div><h2>Campaign performance & Ad Media (Image / Video)</h2><p>Ad-level results joined with sales chat quality · ${d.data.ads.length} ads · คลิกที่รูปหรือปุ่มเล่นวิดีโอเพื่อดูสื่อโฆษณา</p></div>
       <label class="search">${icon('search')}<input id="tsearch" data-bind="search" placeholder="Search campaign or ad" value="${esc(d.search)}" autocomplete="off"></label></div>
       <div class="tscroll"><table><thead><tr>${COLS.map(([k, l]) => `<th data-act="sort" data-key="${k}" class="${k === 'creative' ? 'nosort' : ''}">${l}${d.sort === k ? (d.dir === 'asc' ? ' ▲' : ' ▼') : ''}</th>`).join('')}</tr></thead>
       <tbody>${slice.length ? slice.map((r) => {
         const hoverData = esc(JSON.stringify({
-          id: r.id, name: r.name, campaign: r.campaign, adset: r.adset, creative: r.creative, thumb: r.thumb,
+          id: r.id, name: r.name, campaign: r.campaign, adset: r.adset, creative: r.creative, thumb: r.thumb, videoUrl: r.videoUrl,
           reach: r.reach, impressions: r.impressions, spend: r.spend, cpm: r.cpm, ctr: r.ctr, purchases: r.purchases,
           costMessage: r.costMessage, qualityScore: r.qualityScore, qualityLabel: r.qualityLabel
         }));
@@ -1477,19 +1728,7 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
             ${pageBadge}
           </div>
         </td>
-        <td class="ad-hover-trigger" data-ad-hover="${hoverData}"><div class="creative">
-          <label class="dash-thumb-wrap" title="${r.thumb ? 'คลิกเพื่อเปลี่ยนรูปภาพ' : 'คลิกเพื่อใส่รูปโฆษณา'}">
-            ${r.thumb
-              ? `<img class="thumb" src="${esc(r.thumb)}" alt="" referrerpolicy="no-referrer" loading="lazy"><span class="thumb-badge">📷</span>`
-              : `<div class="thumb-creative-placeholder ct-${esc(String(r.creative || 'image').toLowerCase())}">
-                  <span class="creative-icon">${r.creative === 'VIDEO' ? '🎬' : r.creative === 'CAROUSEL' ? '📑' : '🖼️'}</span>
-                  <span class="creative-type-tag">${esc(String(r.creative || 'IMAGE').toUpperCase())}</span>
-                  <span class="thumb-hover-add">+ ใส่รูป</span>
-                </div>`}
-            <input type="file" accept="image/*" style="display:none" data-act="dash-ad-img" data-ad-id="${esc(r.id)}" data-ad-name="${esc(r.name)}">
-          </label>
-          <span class="creative-lbl">${esc(cap(String(r.creative || 'IMAGE').toLowerCase()))}</span>
-        </div></td>
+        <td class="ad-hover-trigger" data-ad-hover="${hoverData}">${adMediaThumbHtml(r)}</td>
         <td>${num(r.reach)}</td><td>${num(r.impressions)}</td><td>${baht(r.cpm)}</td><td>${pct(r.ctr)}</td><td>${baht(r.costMessage)}</td>
         <td>${r.cqc === null ? '—' : baht(r.cqc)}</td><td>${num(r.purchases)}</td><td class="spend">${baht(r.spend)}</td><td>${baht(r.cpc)}</td>
         <td><div class="q-cell">${sparkSvg(r.spark, r.qualityLabel)}<span class="q-badge q-${r.qualityLabel}">${r.qualityScore === null ? 'No chats' : `${QLABEL[r.qualityLabel]} · ${r.qualityScore}%`}</span></div></td></tr>`;
@@ -2880,16 +3119,29 @@ function boardShell() {
           <div>
             <h3 style="margin:0;display:flex;align-items:center;gap:8px;color:#166534">
               ⚡ ฐานข้อมูล Supabase Cloud (kv table)
-              ${(s.supabase && s.supabase.connected) ? '<span class="chip good" style="font-size:11px">เชื่อมต่อแล้ว (Active)</span>' : '<span class="chip" style="font-size:11px">ไม่ได้เชื่อมต่อ</span>'}
+              ${(s.supabase && s.supabase.connected) ? '<span class="chip good" style="font-size:11px">เชื่อมต่อแล้ว (Active)</span>' : '<span class="chip" style="font-size:11px">ไม่ได้เชื่อมต่อ (ใช้ Local SQLite)</span>'}
             </h3>
             <p class="sub" style="margin:4px 0 0">
-              สถานะ: <b>${(s.supabase && s.supabase.connected) ? `เชื่อมโยงกับโปรเจกต์ (${esc(s.supabase.url)}) เรียบร้อย` : 'ระบบใช้ Local SQLite'}</b> · ข้อมูลซิงค์อัตโนมัติ Real-time ตลอดเวลา
+              สถานะ: <b>${(s.supabase && s.supabase.connected) ? `เชื่อมโยงกับโปรเจกต์ (${esc(s.supabase.url)}) เรียบร้อย` : 'ระบบใช้ Local SQLite (สามารถใส่ URL & Key ด้านล่างเพื่อเชื่อม Cloud DB ได้ทันที)'}</b>
             </p>
           </div>
           <button class="btn primary" type="button" data-act="supabase-sync-now" style="background:#16a34a;border-color:#15803d;display:inline-flex;align-items:center;gap:6px">
             🔄 ดึงข้อมูลล่าสุดจาก Supabase เดี๋ยวนี้
           </button>
         </div>
+        <details style="margin-top:12px;background:#ffffff;padding:10px 14px;border-radius:10px;border:1px solid #bbf7d0" ${(s.supabase && s.supabase.connected) ? '' : ''}>
+          <summary style="cursor:pointer;font-weight:700;font-size:13px;color:#166534">⚙️ ตั้งค่าการเชื่อมต่อ Supabase Cloud URL & API Key</summary>
+          <form class="form" data-form="supabase-settings" autocomplete="off" style="margin-top:10px">
+            <div style="display:grid;grid-template-columns:1.2fr 1fr;gap:10px">
+              <div class="field" style="margin:0"><label>Supabase Project URL</label><input type="url" name="url" value="${esc((s.supabase && s.supabase.fullUrl) || '')}" placeholder="https://xxxx.supabase.co"></div>
+              <div class="field" style="margin:0"><label>Supabase API Key (anon / service_role) ${(s.supabase && s.supabase.hasKey) ? `<span class="chip good" style="margin-left:6px">บันทึกแล้ว ${esc(s.supabase.keyHint)}</span>` : ''}</label><input type="password" name="key" placeholder="${(s.supabase && s.supabase.hasKey) ? 'เว้นว่างไว้ถ้าไม่ต้องการเปลี่ยน' : 'eyJhbGciOiJIUzI1NiIsInR5cCI...'}" autocomplete="new-password"></div>
+            </div>
+            <div class="row-actions" style="margin-top:10px">
+              <button class="btn primary" type="submit" data-after="sync">💾 บันทึก & ซิงค์ข้อมูลจาก Supabase</button>
+              <button class="btn" type="submit" data-after="save">บันทึกค่า</button>
+            </div>
+          </form>
+        </details>
       </section>
 
       <section class="card panel"><h3>แหล่งข้อมูล</h3>
@@ -2904,17 +3156,20 @@ function boardShell() {
         <section class="card panel" style="margin:0;height:100%">
           <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
             <div>
-              <h3 style="margin:0">🔗 เชื่อมต่อ Meta API</h3>
-              <p class="sub" style="margin:4px 0 0">วาง Token ดูแลทั้ง 3 เพจ แล้วกดบันทึกหรือดึงเพจ</p>
+              <h3 style="margin:0">🔗 เชื่อมต่อ Meta API (Ads, รูป/วิดีโอแคมเปญ & เพจ)</h3>
+              <p class="sub" style="margin:4px 0 0">วาง Token แล้วกดบันทึก & ทดสอบ หรือกดซิงค์ข้อมูลทั้งหมดในคลิกเดียว</p>
             </div>
-            <button class="btn primary" type="button" data-act="meta-discover" style="font-size:12px;padding:6px 12px">🔄 ดึงเพจทั้งหมด</button>
+            <div style="display:flex;gap:6px;flex-wrap:wrap">
+              <button class="btn primary" type="button" data-act="meta-sync-all" style="font-size:12px;padding:6px 12px">🚀 ซิงค์ข้อมูล Meta ทั้งหมด</button>
+              <button class="btn" type="button" data-act="meta-discover" style="font-size:12px;padding:6px 12px">🔄 ดึงเพจทั้งหมด</button>
+            </div>
           </div>
           <form class="form" data-form="meta" autocomplete="off" style="margin-top:14px">
             <div class="field"><label>ชื่อคลินิก / องค์กร</label><input type="text" name="clinicName" value="${esc(s.clinicName)}" placeholder="เช่น BEQ GROUP" maxlength="80"></div>
-            <div class="field"><label>Meta Ad Account ID หลัก</label><input type="text" name="adAccountId" value="${esc(m.adAccountId)}" placeholder="เช่น 1234567890 หรือ act_1234567890" inputmode="numeric"><small>ดูได้ที่ Ads Manager (ตัวเลขหลัง act_)</small></div>
+            <div class="field"><label>Meta Ad Account ID หลัก</label><input type="text" name="adAccountId" value="${esc(m.adAccountId)}" placeholder="เช่น 1234567890 หรือเว้นว่างเพื่อค้นหาอัตโนมัติจาก Token" inputmode="numeric"><small>ดูได้ที่ Ads Manager (หากเว้นว่าง ระบบจะค้นหา Ad Account แรกจาก Token ให้อัตโนมัติ)</small></div>
             <div class="field"><label>Access Token ${m.hasToken ? `<span class="chip good" style="margin-left:6px">บันทึกแล้ว ${esc(m.tokenHint)}</span>` : ''}</label>
               <input type="password" name="accessToken" placeholder="${m.hasToken ? 'เว้นว่างไว้ถ้าไม่ต้องการเปลี่ยน' : 'วาง System User Token ที่นี่'}" autocomplete="new-password">
-              <small>สิทธิ์: <code>pages_show_list</code>, <code>pages_messaging</code>, <code>ads_read</code></small>
+              <small>สิทธิ์: <code>pages_show_list</code>, <code>pages_messaging</code>, <code>ads_read</code>, <code>read_insights</code></small>
             </div>
             <details style="margin:10px 0;background:#f9f8f4;padding:10px 14px;border-radius:8px;border:1px solid var(--line-soft)">
               <summary style="cursor:pointer;font-weight:600;font-size:13px;color:var(--text-soft)">⚙️ ตัวเลือกขั้นสูง (App ID / Secret)</summary>
@@ -2922,7 +3177,7 @@ function boardShell() {
                 <div class="field" style="margin:0"><label>App ID</label><input type="text" name="appId" value="${esc(m.appId)}" placeholder="App ID"></div>
                 <div class="field" style="margin:0"><label>App Secret</label><input type="password" name="appSecret" placeholder="${m.hasSecret ? 'บันทึกแล้ว' : 'App Secret'}" autocomplete="new-password"></div>
               </div>
-              <div class="field" style="margin:10px 0 0"><label>API Version</label><input type="text" name="apiVersion" value="${esc(m.apiVersion)}" placeholder="v21.0"></div>
+              <div class="field" style="margin:10px 0 0"><label>API Version</label><input type="text" name="apiVersion" value="${esc(m.apiVersion)}" placeholder="v25.0"></div>
             </details>
             <div class="row-actions" style="margin-top:14px">
               <button class="btn primary" type="submit" data-after="test">บันทึก & ทดสอบ</button>
@@ -2936,9 +3191,9 @@ function boardShell() {
         <section class="card panel" style="margin:0;height:100%;background:#fbfaf6;border:1px solid var(--line)">
           <div style="display:flex;justify-content:space-between;align-items:center">
             <h3 id="page-edit-heading" style="margin:0">➕ เพิ่มหรือแก้ไขข้อมูลเพจ</h3>
-            <button class="btn" type="button" id="p-cancel-btn" style="display:none;font-size:12px;padding:4px 8px" onclick="document.getElementById('page-edit-form').reset();document.getElementById('page-edit-heading').textContent='➕ เพิ่มหรือแก้ไขข้อมูลเพจ';this.style.display='none';">ล้างฟอร์ม</button>
+            <button class="btn" type="button" id="p-cancel-btn" data-act="page-edit-cancel" style="display:none;font-size:12px;padding:4px 8px">ล้างฟอร์ม</button>
           </div>
-          <p class="sub" style="margin:4px 0 14px">ตั้งชื่อเล่นเพจ, แก้ไข Page ID, ผูก Ad Account หรือเปลี่ยนแพลตฟอร์ม</p>
+          <p class="sub" style="margin:4px 0 14px">ตั้งชื่อเล่นเพจ, แก้ไข Page ID, ผูก Ad Account เฉพาะเพจ หรือเปลี่ยนแพลตฟอร์ม</p>
           <form class="form" id="page-edit-form" data-form="pages-add" autocomplete="off">
             <div class="field"><label>ชื่อเพจ (เช่น เพจปลูกผมหลัก, สาขา 2)</label><input type="text" id="p-name" name="name" placeholder="ชื่อเพจที่ต้องการแสดง..." required></div>
             <div style="display:grid;grid-template-columns:1.2fr 1fr;gap:10px">
@@ -2952,7 +3207,7 @@ function boardShell() {
                 </select></div>
               </div>
             </div>
-            <div class="field"><label>Meta Ad Account ID สำหรับเพจนี้ (ไม่บังคับ)</label><input type="text" id="p-adAccountId" name="adAccountId" placeholder="เช่น act_12345 หรือตัวเลข"><small>หากไม่ใส่ จะใช้ Ad Account หลักจากกล่องซ้ายมือ</small></div>
+            <div class="field"><label>Meta Ad Account ID สำหรับเพจนี้ (ไม่บังคับ)</label><input type="text" id="p-adAccountId" name="adAccountId" placeholder="เช่น act_12345 หรือตัวเลข"><small>รองรับหลาย Ad Account — ระบบจะดึงแคมเปญจากทุก Ad Account ที่ผูกไว้</small></div>
             <div class="row-actions" style="margin-top:16px">
               <button class="btn primary" type="submit" id="p-submit-btn" style="width:100%;justify-content:center">💾 บันทึกข้อมูลเพจ</button>
             </div>
@@ -2963,12 +3218,29 @@ function boardShell() {
       <section class="card panel"><h3>Webhook รับข้อความ Facebook Messenger & Instagram Direct</h3>
         <p class="sub">ให้ Meta ส่งข้อความลูกค้าทั้งจาก Facebook และ Instagram เข้ามาที่ระบบนี้อัตโนมัติ (URL เดียวกัน)</p>
         <div class="form">
-          <div class="field"><label>Callback URL</label><input type="text" readonly value="${esc(location.origin + s.webhook.path)}" onclick="this.select()"><small>ถ้ายังรันบนเครื่องตัวเอง ให้ใช้ tunnel เช่น Cloudflare Tunnel / ngrok แล้วใช้ URL ที่ได้ + <code>/webhook</code></small></div>
-          <div class="field"><label>Verify Token</label><input type="text" readonly value="${esc(s.webhook.verifyToken)}" onclick="this.select()"><small>นำไปกรอกช่อง Verify token ตอนตั้ง Webhook ที่ Meta</small></div>
+          <div class="field"><label>Callback URL</label><input type="text" readonly value="${esc(location.origin + s.webhook.path)}" data-act="select-input"><small>ถ้ายังรันบนเครื่องตัวเอง ให้ใช้ tunnel เช่น Cloudflare Tunnel / ngrok แล้วใช้ URL ที่ได้ + <code>/webhook</code></small></div>
+          <div class="field"><label>Verify Token</label><input type="text" readonly value="${esc(s.webhook.verifyToken)}" data-act="select-input"><small>นำไปกรอกช่อง Verify token ตอนตั้ง Webhook ที่ Meta</small></div>
           <div class="field"><label>สถานะ App Secret</label><div>${s.webhook.hasSecret ? '<span class="chip good">บันทึกแล้ว — ตรวจลายเซ็น Webhook ได้</span>' : '<span class="chip">ยังไม่ได้บันทึก — ระบบจะปฏิเสธทุกข้อความจากเพจจนกว่าจะกรอก App Secret ด้านบน</span>'}</div></div></div>
         <ol class="steps"><li>ที่ Meta App → Messenger (หรือ Instagram Graph API) → Webhooks กรอก Callback URL และ Verify Token ด้านบน</li>
           <li>Subscribe ฟิลด์ <code>messages</code>, <code>message_echoes</code>, <code>messaging_referrals</code> (สำหรับ Facebook) และ <code>messages</code> (สำหรับ Instagram)</li>
           <li>ผูกเพจและบัญชี IG เข้ากับ Webhook (Add subscriptions) และให้สิทธิ์ <code>pages_messaging</code>, <code>instagram_basic</code>, <code>instagram_manage_messages</code></li></ol></section>
+
+      <section class="card panel" style="background:linear-gradient(135deg,#fafffa 0%,#f0fdf4 100%);border:1.5px solid #bbf7d0">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+          <div>
+            <h3 style="margin:0;color:#166534">📊 เชื่อมต่อ Google Sheets Auto-Sync & Backup</h3>
+            <p class="sub" style="margin:4px 0 0">ดึงข้อมูลลูกค้า/แคมเปญจากลิงก์ Google Sheets และสำรองข้อมูลแชทใหม่เข้า Google Sheets อัตโนมัติ${(s.sheets && s.sheets.lastSyncAt) ? ` · ซิงค์ล่าสุด: <b>${esc(fmtTs(s.sheets.lastSyncAt))}</b>` : ''}</p>
+          </div>
+        </div>
+        <form class="form" data-form="sheets-settings" autocomplete="off" style="margin-top:12px">
+          <div class="field"><label>ลิงก์ Google Sheet (เปิดสิทธิ์ Anyone with the link)</label><input type="url" name="sheetUrl" value="${esc((s.sheets && s.sheets.lastUrl) || 'https://docs.google.com/spreadsheets/d/1hDT2bqqFFCPdiZn0K7pJVXjo-KmUgjgaLtMOpcONjpk/edit?usp=sharing')}" placeholder="https://docs.google.com/spreadsheets/d/.../edit?usp=sharing"></div>
+          <div class="field"><label>Apps Script Webhook URL สำหรับส่งข้อมูลแชทเข้า Sheet อัตโนมัติ (ไม่บังคับ)</label><input type="url" name="appsScriptUrl" value="${esc((s.sheets && s.sheets.appsScriptUrl) || '')}" placeholder="https://script.google.com/macros/s/.../exec"></div>
+          <div class="row-actions">
+            <button class="btn primary" type="submit" data-after="sync">📥 บันทึก & ทดสอบดึงข้อมูลจาก Google Sheet</button>
+            <button class="btn" type="submit" data-after="save">บันทึกการตั้งค่า Sheet</button>
+          </div>
+        </form>
+      </section>
 
       <section class="card panel" style="border:1.5px solid #06c755;background:#fcfdfa">
         <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
@@ -3021,29 +3293,41 @@ function boardShell() {
         </form>
       </section>
 
-      <section class="card panel"><h3>เชื่อมต่อ LINE Official Account (Messaging API)</h3>
-        <p class="sub">เชื่อมต่อกับ LINE Developers เพื่อดึงข้อความจากลูกค้า LINE OA เข้ามาในระบบ</p>
-        <form class="form" data-form="line-settings" autocomplete="off">
+      <section class="card panel">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+          <div>
+            <h3 style="margin:0">เชื่อมต่อ LINE Official Account (Messaging API) ${(s.line && s.line.botName) ? `<span class="chip good" style="font-size:11.5px;margin-left:6px">🟢 ${esc(s.line.botName)}${s.line.basicId ? ' (' + esc(s.line.basicId) + ')' : ''}</span>` : ''}</h3>
+            <p class="sub" style="margin:4px 0 0">เชื่อมต่อกับ LINE Developers เพื่อรับและตอบแชทลูกค้า LINE OA จากหน้า Inbox ได้โดยตรง</p>
+          </div>
+        </div>
+        <form class="form" data-form="line-settings" autocomplete="off" style="margin-top:12px">
           <div class="field"><label>Channel ID</label><input type="text" name="channelId" value="${esc((s.line && s.line.channelId) || '')}" placeholder="เช่น 2001234567"></div>
           <div class="field"><label>Channel Secret ${(s.line && s.line.hasSecret) ? '<span class="chip good" style="margin-left:6px">บันทึกแล้ว</span>' : ''}</label><input type="password" name="channelSecret" placeholder="${(s.line && s.line.hasSecret) ? 'เว้นว่างไว้ถ้าไม่ต้องการเปลี่ยน' : 'คัดลอกจาก LINE Developers Console'}" autocomplete="new-password"></div>
           <div class="field"><label>Channel Access Token (long-lived) ${(s.line && s.line.hasToken) ? `<span class="chip good" style="margin-left:6px">บันทึกแล้ว ${esc(s.line.tokenHint)}</span>` : ''}</label><input type="password" name="channelAccessToken" placeholder="${(s.line && s.line.hasToken) ? 'เว้นว่างไว้ถ้าไม่ต้องการเปลี่ยน' : 'Issue token ที่แท็บ Messaging API'}" autocomplete="new-password"></div>
-          <div class="field"><label>Webhook URL สำหรับใส่ใน LINE Console</label><input type="text" readonly value="${esc(location.origin + ((s.line && s.line.webhookPath) || '/webhook/line'))}" onclick="this.select()"><small>นำ URL นี้ไปใส่ที่ LINE Developers Console → Messaging API → Webhook settings แล้วกด "Verify" และเปิด "Use webhook"</small></div>
+          <div class="field"><label>Webhook URL สำหรับใส่ใน LINE Console</label><input type="text" readonly value="${esc(location.origin + ((s.line && s.line.webhookPath) || '/webhook/line'))}" data-act="select-input"><small>นำ URL นี้ไปใส่ที่ LINE Developers Console → Messaging API → Webhook settings แล้วกด "Verify" และเปิด "Use webhook"</small></div>
           <div class="row-actions">
-            <button class="btn primary" type="submit">บันทึกการเชื่อมต่อ LINE</button>
+            <button class="btn primary" type="submit" data-after="test">บันทึก & ทดสอบการเชื่อมต่อ LINE OA</button>
+            <button class="btn" type="submit" data-after="save">บันทึก</button>
           </div>
         </form>
       </section>
 
-      <section class="card panel"><h3>เชื่อมต่อ WhatsApp Business (Cloud API)</h3>
-        <p class="sub">เชื่อมต่อกับ Meta for Developers WhatsApp Cloud API เพื่อรับข้อความลูกค้าผ่าน WhatsApp</p>
-        <form class="form" data-form="whatsapp-settings" autocomplete="off">
+      <section class="card panel">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+          <div>
+            <h3 style="margin:0">เชื่อมต่อ WhatsApp Business (Cloud API) ${(s.whatsapp && s.whatsapp.verifiedName) ? `<span class="chip good" style="font-size:11.5px;margin-left:6px">🟢 ${esc(s.whatsapp.verifiedName)} (${esc(s.whatsapp.displayPhone || '')})</span>` : ''}</h3>
+            <p class="sub" style="margin:4px 0 0">เชื่อมต่อกับ Meta for Developers WhatsApp Cloud API เพื่อรับและตอบแชทลูกค้าผ่าน WhatsApp</p>
+          </div>
+        </div>
+        <form class="form" data-form="whatsapp-settings" autocomplete="off" style="margin-top:12px">
           <div class="field"><label>WhatsApp Business Account ID (WABA ID)</label><input type="text" name="wabaId" value="${esc((s.whatsapp && s.whatsapp.wabaId) || '')}" placeholder="เช่น 109876543210"></div>
           <div class="field"><label>Phone Number ID</label><input type="text" name="phoneId" value="${esc((s.whatsapp && s.whatsapp.phoneId) || '')}" placeholder="เช่น 102345678901"><small>ดูได้ที่ Meta Developer Dashboard → WhatsApp → API Setup</small></div>
           <div class="field"><label>Permanent Access Token ${(s.whatsapp && s.whatsapp.hasToken) ? `<span class="chip good" style="margin-left:6px">บันทึกแล้ว ${esc(s.whatsapp.tokenHint)}</span>` : ''}</label><input type="password" name="accessToken" placeholder="${(s.whatsapp && s.whatsapp.hasToken) ? 'เว้นว่างไว้ถ้าไม่ต้องการเปลี่ยน' : 'System User Token หรือ Cloud API Token'}" autocomplete="new-password"></div>
-          <div class="field"><label>Webhook Callback URL</label><input type="text" readonly value="${esc(location.origin + ((s.whatsapp && s.whatsapp.webhookPath) || '/webhook/whatsapp'))}" onclick="this.select()"></div>
-          <div class="field"><label>Verify Token</label><input type="text" readonly value="${esc((s.whatsapp && s.whatsapp.verifyToken) || (s.webhook && s.webhook.verifyToken) || '')}" onclick="this.select()"></div>
+          <div class="field"><label>Webhook Callback URL</label><input type="text" readonly value="${esc(location.origin + ((s.whatsapp && s.whatsapp.webhookPath) || '/webhook/whatsapp'))}" data-act="select-input"></div>
+          <div class="field"><label>Verify Token</label><input type="text" readonly value="${esc((s.whatsapp && s.whatsapp.verifyToken) || (s.webhook && s.webhook.verifyToken) || '')}" data-act="select-input"></div>
           <div class="row-actions">
-            <button class="btn primary" type="submit">บันทึกการเชื่อมต่อ WhatsApp</button>
+            <button class="btn primary" type="submit" data-after="test">บันทึก & ทดสอบการเชื่อมต่อ WhatsApp</button>
+            <button class="btn" type="submit" data-after="save">บันทึก</button>
           </div>
         </form>
       </section>
@@ -3239,6 +3523,81 @@ function boardShell() {
           document.getElementById('p-cancel-btn').style.display = 'inline-block';
           document.getElementById('page-edit-form').scrollIntoView({ behavior: 'smooth' });
         } catch (_) {}
+      }
+      else if (act === 'page-edit-cancel') {
+        const f = document.getElementById('page-edit-form');
+        if (f) f.reset();
+        const h = document.getElementById('page-edit-heading');
+        if (h) h.textContent = '➕ เพิ่มหรือแก้ไขข้อมูลเพจ';
+        el.style.display = 'none';
+      }
+      else if (act === 'select-input') {
+        if (typeof el.select === 'function') el.select();
+      }
+      else if (act === 'open-ad-media') {
+        if (ev.target && ev.target.closest && ev.target.closest('.ad-media-upload-mini')) return;
+        try {
+          const r = JSON.parse(el.dataset.adMedia);
+          openAdMediaModal(r);
+        } catch (err) {
+          console.error('open-ad-media error:', err);
+        }
+      }
+      else if (act === 'close-ad-media') {
+        closeAdMediaModal();
+      }
+      else if (act === 'prompt-ad-url') {
+        const adId = el.dataset.adId;
+        const adName = el.dataset.adName;
+        const rawUrl = prompt(`วางลิงก์รูปภาพ (JPG/PNG/WebP) หรือลิงก์วิดีโอ (MP4/WebM) สำหรับโฆษณา:\n"${adName || adId}"`, 'https://');
+        if (rawUrl && rawUrl.trim() && rawUrl.trim() !== 'https://') {
+          await saveAdMediaUrl(adId, adName, rawUrl.trim());
+        }
+      }
+      else if (act === 'line-notify-test') {
+        el.disabled = true;
+        const orig = el.textContent;
+        el.textContent = '⏳ กำลังส่งทดสอบ...';
+        try {
+          const r = await api('/api/notifications/test-line', { method: 'POST' });
+          if (r && r.ok) {
+            S.flash = { type: 'ok', text: '✅ ส่งข้อความทดสอบเข้า LINE สำเร็จแล้ว!' };
+          } else {
+            S.flash = { type: 'err', text: '❌ ส่งทดสอบไม่สำเร็จ: ' + ((r && r.error) || 'กรุณาเปิดใช้งานและบันทึก Token / Webhook URL ก่อนกดทดสอบ') };
+          }
+          render();
+        } catch (e) {
+          S.flash = { type: 'err', text: '❌ ข้อผิดพลาด: ' + (e.message || 'ส่งแจ้งเตือน LINE ไม่สำเร็จ') };
+          render();
+        } finally {
+          el.disabled = false;
+          el.textContent = orig;
+        }
+      }
+      else if (act === 'meta-sync-all') {
+        el.disabled = true;
+        const orig = el.textContent;
+        el.textContent = '⏳ กำลังซิงค์ข้อมูล Meta ทั้งหมด...';
+        try {
+          const r = await api('/api/meta/sync-all', { method: 'POST' });
+          if (r && r.ok) {
+            S.settings = r.settings;
+            S.me.mode = 'meta';
+            S.filters = await api('/api/filters').catch(() => null);
+            S.dash.data = null;
+            S.flash = {
+              type: 'ok',
+              text: `🚀 ซิงค์ข้อมูลจาก Meta สำเร็จครบวงจร! บัญชี: ${r.accountName} · แคมเปญ: ${r.campaignsCount} แคมเปญ · โฆษณา (พร้อมรูป/วิดีโอ): ${r.adsCount} รายการ · เพจ: ${r.pagesCount} เพจ`
+            };
+            render();
+          }
+        } catch (e) {
+          S.flash = { type: 'err', text: '❌ ซิงค์ข้อมูล Meta ไม่สำเร็จ: ' + (e.message || 'ตรวจสอบ Access Token และสิทธิ์ ads_read, pages_show_list') };
+          render();
+        } finally {
+          el.disabled = false;
+          el.textContent = orig;
+        }
       }
       else if (act === 'meta-discover') {
         el.disabled = true;
@@ -3495,13 +3854,83 @@ function boardShell() {
         } finally {
           if (btn) { btn.disabled = false; btn.textContent = '📥 ซิงค์จาก Google Sheet ทันที'; }
         }
+      } else if (type === 'sheets-settings') {
+        const after = (ev.submitter && ev.submitter.dataset.after) || 'save';
+        const saved = await api('/api/settings/sheets', { method: 'PUT', body: fd });
+        S.settings = { ...saved, lineNotify: (S.settings && S.settings.lineNotify) || {} };
+        if (after === 'sync' && fd.sheetUrl) {
+          const r = await api('/api/upload/sheets-sync', { method: 'POST', body: { sheetUrl: fd.sheetUrl } });
+          const rows = parseCsv(r.csvText);
+          if (!rows.length) throw new Error('ไม่พบข้อมูลใน Google Sheet นี้ — ตรวจสอบหัวตารางและลองใหม่');
+          const endpoint = S.upload.detectedType === 'campaigns' ? '/api/upload/campaigns' : '/api/upload/leads';
+          const imp = await api(endpoint, { method: 'POST', body: { rows, replace: false, platform: 'Facebook', pageName: 'Google Sheets Sync' } });
+          S.filters = null;
+          S.dash.data = null;
+          S.flash = { type: 'ok', text: `✅ บันทึกและซิงค์ข้อมูลจาก Google Sheet สำเร็จแล้ว (${imp.added || rows.length} แถว)!` };
+        } else {
+          S.flash = { type: 'ok', text: 'บันทึกการตั้งค่า Google Sheets เรียบร้อยแล้ว' };
+        }
+        render();
+      } else if (type === 'supabase-settings') {
+        const after = (ev.submitter && ev.submitter.dataset.after) || 'save';
+        const saved = await api('/api/settings/supabase', { method: 'PUT', body: fd });
+        S.settings = { ...saved, lineNotify: (S.settings && S.settings.lineNotify) || {} };
+        if (after === 'sync') {
+          const r = await api('/api/settings/supabase/sync', { method: 'POST' });
+          S.filters = await api('/api/filters').catch(() => null);
+          S.dash.data = null;
+          S.flash = { type: 'ok', text: `✅ ${r.message || 'เชื่อมต่อและซิงค์ข้อมูลจาก Supabase สำเร็จแล้ว'}` };
+        } else {
+          S.flash = { type: 'ok', text: 'บันทึกการตั้งค่า Supabase Cloud เรียบร้อยแล้ว' };
+        }
+        render();
+      } else if (type === 'line-notify-settings') {
+        const payload = {
+          enabled: Boolean(form.querySelector('[name="enabled"]')?.checked),
+          token: fd.token || '',
+          webhookUrl: fd.webhookUrl || '',
+          notifyOnStatusChange: Boolean(form.querySelector('[name="notifyOnStatusChange"]')?.checked),
+          notifyOnOverdue: Boolean(form.querySelector('[name="notifyOnOverdue"]')?.checked),
+          notifyOnNewReply: Boolean(form.querySelector('[name="notifyOnNewReply"]')?.checked),
+          notifyOnChase: Boolean(form.querySelector('[name="notifyOnChase"]')?.checked),
+        };
+        const r = await api('/api/settings/line-notify', { method: 'POST', body: payload });
+        if (S.settings) S.settings.lineNotify = r.config || payload;
+        S.flash = { type: 'ok', text: '✅ บันทึกการตั้งค่าแจ้งเตือน LINE เรียบร้อยแล้ว' };
+        render();
       } else if (type === 'line-settings') {
-        S.settings = await api('/api/settings/line', { method: 'PUT', body: fd });
-        S.flash = { type: 'ok', text: 'บันทึกการตั้งค่า LINE Official Account เรียบร้อยแล้ว' };
+        const after = (ev.submitter && ev.submitter.dataset.after) || 'save';
+        const saved = await api('/api/settings/line', { method: 'PUT', body: fd });
+        S.settings = { ...saved, lineNotify: (S.settings && S.settings.lineNotify) || {} };
+        if (after === 'test') {
+          const r = await api('/api/settings/line/test', { method: 'POST' });
+          if (r.ok) {
+            S.settings = { ...r.settings, lineNotify: (S.settings && S.settings.lineNotify) || {} };
+            S.filters = await api('/api/filters').catch(() => null);
+            S.flash = { type: 'ok', text: `✅ เชื่อมต่อ LINE OA สำเร็จ: ${r.bot.displayName}${r.bot.basicId ? ' (' + r.bot.basicId + ')' : ''}` };
+          } else {
+            S.flash = { type: 'err', text: '❌ ทดสอบ LINE OA ไม่สำเร็จ: ' + (r.error || 'ตรวจสอบ Channel Access Token') };
+          }
+        } else {
+          S.flash = { type: 'ok', text: 'บันทึกการตั้งค่า LINE Official Account เรียบร้อยแล้ว' };
+        }
         render();
       } else if (type === 'whatsapp-settings') {
-        S.settings = await api('/api/settings/whatsapp', { method: 'PUT', body: fd });
-        S.flash = { type: 'ok', text: 'บันทึกการตั้งค่า WhatsApp Business เรียบร้อยแล้ว' };
+        const after = (ev.submitter && ev.submitter.dataset.after) || 'save';
+        const saved = await api('/api/settings/whatsapp', { method: 'PUT', body: fd });
+        S.settings = { ...saved, lineNotify: (S.settings && S.settings.lineNotify) || {} };
+        if (after === 'test') {
+          const r = await api('/api/settings/whatsapp/test', { method: 'POST' });
+          if (r.ok) {
+            S.settings = { ...r.settings, lineNotify: (S.settings && S.settings.lineNotify) || {} };
+            S.filters = await api('/api/filters').catch(() => null);
+            S.flash = { type: 'ok', text: `✅ เชื่อมต่อ WhatsApp Business สำเร็จ: ${r.phone.verifiedName} (${r.phone.displayPhone})` };
+          } else {
+            S.flash = { type: 'err', text: '❌ ทดสอบ WhatsApp ไม่สำเร็จ: ' + (r.error || 'ตรวจสอบ Phone Number ID และ Permanent Access Token') };
+          }
+        } else {
+          S.flash = { type: 'ok', text: 'บันทึกการตั้งค่า WhatsApp Business เรียบร้อยแล้ว' };
+        }
         render();
       } else if (type === 'reply') {
         const text = String(fd.text || '').trim(); if (text) await sendReply(text);
@@ -3583,14 +4012,17 @@ function boardShell() {
       const r = JSON.parse(trigger.dataset.adHover);
       const qColor = { excellent: '#15803d', good: '#2563eb', average: '#d97706', poor: '#dc2626' }[r.qualityLabel] || '#64748b';
       const cType = String(r.creative || 'IMAGE').toUpperCase();
-      const mediaHtml = r.thumb
-        ? `<img src="${esc(r.thumb)}" referrerpolicy="no-referrer" alt="${esc(r.name)}">`
-        : `<div style="font-size:40px;opacity:0.4">${cType === 'VIDEO' ? '🎬' : cType === 'CAROUSEL' ? '🎠' : '🖼️'}</div>`;
+      const isRealVid = Boolean(r.videoUrl && !String(r.videoUrl).startsWith('demo-reel:'));
+      const mediaHtml = isRealVid
+        ? `<video src="${esc(r.videoUrl)}" ${r.thumb ? `poster="${esc(r.thumb)}"` : ''} autoplay muted loop playsinline style="width:100%;height:100%;object-fit:cover"></video>`
+        : (r.thumb
+            ? `<img src="${esc(r.thumb)}" referrerpolicy="no-referrer" alt="${esc(r.name)}">`
+            : `<div style="font-size:40px;opacity:0.4">${cType === 'VIDEO' ? '🎬' : cType === 'CAROUSEL' ? '🎠' : '🖼️'}</div>`);
 
       pop.innerHTML = `
         <div class="ad-popover-media">
           ${mediaHtml}
-          <span class="ad-popover-badge">${cType}</span>
+          <span class="ad-popover-badge">${(r.videoUrl || cType === 'VIDEO') ? '🎬 VIDEO' : cType}</span>
         </div>
         <div class="ad-popover-title" style="font-weight:700;font-size:14px;color:var(--ink, #0f172a);line-height:1.4">${esc(r.name)}</div>
         <div class="ad-popover-campaign" style="font-size:12px;color:var(--muted, #64748b)">📊 ${esc(r.campaign)}${r.adset ? ' — ' + esc(r.adset) : ''}</div>

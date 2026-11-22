@@ -73,12 +73,13 @@ const MIME = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8',
   '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon', '.json': 'application/json',
   '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp',
+  '.mp4': 'video/mp4', '.webm': 'video/webm', '.mov': 'video/quicktime',
 };
 const SECURITY_HEADERS = {
   'X-Content-Type-Options': 'nosniff',
   'X-Frame-Options': 'DENY',
   'Referrer-Policy': 'no-referrer',
-  'Content-Security-Policy': "default-src 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; frame-ancestors 'none'",
+  'Content-Security-Policy': "default-src 'self'; img-src 'self' data: blob: https:; media-src 'self' data: blob: https:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; frame-ancestors 'none'",
 };
 
 function send(res, status, body, headers = {}) {
@@ -376,34 +377,54 @@ setTimeout(autoRestoreFromSheets, 1500);
 
 // รับข้อความจาก LINE Official Account Webhook
 async function handleLineWebhook(body) {
+  const s = meta.getSettings();
+  const ln = s.line || {};
+  const lineToken = ln.channelAccessToken || process.env.LINE_CHANNEL_ACCESS_TOKEN || '';
   for (const ev of body.events || []) {
     if (ev.type !== 'message' || !ev.message) continue;
     const userId = ev.source?.userId;
     if (!userId) continue;
-    const text = ev.message.text || (ev.message.type === 'image' ? '[รูปภาพ]' : '[ข้อความ]');
+    const text = ev.message.text || (ev.message.type === 'image' ? '[รูปภาพ]' : ev.message.type === 'video' ? '[วิดีโอ]' : '[ข้อความ]');
     const pageId = 'P-LINE';
-    const pageName = 'LINE Official Account';
+    const pageName = ln.botName || 'LINE Official Account';
     recordPage(pageId, pageName, 'LINE');
     let leads = store.read('leads.json', []);
     let lead = leads.find((l) => l.psid === userId || l.phone === userId);
     if (!lead) {
-      const name = `LINE ลูกค้า ${userId.slice(-4)}`;
-      lead = ops.findOrCreateLead({ psid: userId, pageId, name, adId: 'Direct', channel: 'LINE' }).lead;
-      lead.platform = 'LINE';
-      lead.pageName = pageName;
-      lead.pageId = pageId;
+      let name = `LINE ลูกค้า ${userId.slice(-4)}`;
+      if (lineToken) {
+        try {
+          const profRes = await fetch(`https://api.line.me/v2/bot/profile/${encodeURIComponent(userId)}`, {
+            headers: { Authorization: `Bearer ${lineToken}` },
+            signal: AbortSignal.timeout(8000),
+          });
+          if (profRes.ok) {
+            const prof = await profRes.json();
+            if (prof && prof.displayName) name = prof.displayName;
+          }
+        } catch {}
+      }
+      lead = ops.findOrCreateLead({ psid: userId, pageId, name, adId: 'Direct', channel: 'LINE', platform: 'LINE', pageName }).lead;
     }
     ops.addMessage(lead.id, {
       from: 'customer', text, mid: ev.message.id || undefined,
       at: ops.nowStamp(ev.timestamp || Date.now()), via: 'line',
     });
     pushToSheets(lead, text).catch(() => {});
+    try {
+      const lineConf = line.getLineConfig();
+      if (lineConf.enabled && lineConf.notifyOnNewReply) {
+        line.sendLineNotification(line.formatNewReplyAlert({ ...lead, lastText: text })).catch(() => {});
+      }
+    } catch {}
   }
 }
 
 // รับข้อความจาก WhatsApp Business Webhook
 async function handleWhatsAppWebhook(body) {
   if (body.object !== 'whatsapp_business_account') return;
+  const s = meta.getSettings();
+  const wa = s.whatsapp || {};
   for (const entry of body.entry || []) {
     for (const change of entry.changes || []) {
       const val = change.value;
@@ -414,16 +435,13 @@ async function handleWhatsAppWebhook(body) {
         if (!waId) continue;
         const text = msg.text?.body || (msg.type ? `[${msg.type}]` : '[ข้อความ]');
         const pageId = 'P-WhatsApp';
-        const pageName = 'WhatsApp Business';
+        const pageName = wa.verifiedName || 'WhatsApp Business';
         recordPage(pageId, pageName, 'WhatsApp');
         let leads = store.read('leads.json', []);
         let lead = leads.find((l) => l.psid === waId || l.phone === waId);
         if (!lead) {
           const name = contactMap.get(waId) || `WhatsApp ${waId}`;
-          lead = ops.findOrCreateLead({ psid: waId, pageId, name, adId: 'Direct', channel: 'WhatsApp' }).lead;
-          lead.platform = 'WhatsApp';
-          lead.pageName = pageName;
-          lead.pageId = pageId;
+          lead = ops.findOrCreateLead({ psid: waId, pageId, name, adId: 'Direct', channel: 'WhatsApp', platform: 'WhatsApp', pageName }).lead;
           lead.phone = waId;
         }
         const ts = msg.timestamp ? parseInt(msg.timestamp, 10) * 1000 : Date.now();
@@ -432,6 +450,12 @@ async function handleWhatsAppWebhook(body) {
           at: ops.nowStamp(ts), via: 'whatsapp',
         });
         pushToSheets(lead, text).catch(() => {});
+        try {
+          const lineConf = line.getLineConfig();
+          if (lineConf.enabled && lineConf.notifyOnNewReply) {
+            line.sendLineNotification(line.formatNewReplyAlert({ ...lead, lastText: text })).catch(() => {});
+          }
+        } catch {}
       }
     }
   }
@@ -443,6 +467,7 @@ function publicSettings() {
   const ln = s.line || {};
   const wa = s.whatsapp || {};
   const sh = s.sheets || {};
+  const sbCfg = store.getSupabaseConfig ? store.getSupabaseConfig() : { url: config.supabaseUrl || '', key: config.supabaseKey || '' };
   return {
     mode: providers.currentMode(),
     clinicName: s.clinicName || 'BEQ Group',
@@ -463,6 +488,8 @@ function publicSettings() {
       hasSecret: Boolean(ln.channelSecret),
       hasToken: Boolean(ln.channelAccessToken),
       tokenHint: ln.channelAccessToken ? `••••${ln.channelAccessToken.slice(-4)}` : '',
+      botName: ln.botName || '',
+      basicId: ln.basicId || '',
       connectedAt: ln.connectedAt || null,
       webhookPath: '/webhook/line',
     },
@@ -471,18 +498,24 @@ function publicSettings() {
       phoneId: wa.phoneId || '',
       hasToken: Boolean(wa.accessToken),
       tokenHint: wa.accessToken ? `••••${wa.accessToken.slice(-4)}` : '',
+      verifiedName: wa.verifiedName || '',
+      displayPhone: wa.displayPhone || '',
       connectedAt: wa.connectedAt || null,
       webhookPath: '/webhook/whatsapp',
       verifyToken: webhookToken(),
     },
     sheets: {
       lastUrl: sh.lastUrl || '',
+      appsScriptUrl: sh.appsScriptUrl || '',
       lastSyncAt: sh.lastSyncAt || null,
       hasAppsScript: Boolean(sh.appsScriptUrl),
     },
     supabase: {
-      connected: store.hasSupabase,
-      url: config.supabaseUrl ? config.supabaseUrl.replace(/^https?:\/\//, '').split('.')[0] : '',
+      connected: Boolean(sbCfg.url && sbCfg.key),
+      fullUrl: sbCfg.url || '',
+      url: sbCfg.url ? sbCfg.url.replace(/^https?:\/\//, '').split('.')[0] : '',
+      hasKey: Boolean(sbCfg.key),
+      keyHint: sbCfg.key ? `••••${sbCfg.key.slice(-4)}` : '',
       backend: store.backend,
     },
   };
@@ -1042,7 +1075,9 @@ async function api(req, res, url, session) {
       const adName = clean(r.adName || r.ad_name || r.name || r.ad, 100) || campName;
       const adId = clean(r.adId || r.ad_id || r.id, 50) || adName;
       const adset = clean(r.adset || r.adset_name || r.adsetName, 100) || '';
-      const creative = clean(r.creative || r.creative_type, 20) || 'IMAGE';
+      const rawThumb = clean(r.thumb || r.thumbnail_url || r.image_url || r.image || r['รูปภาพ'] || r['ลิงก์รูป'], 1000) || null;
+      const rawVideo = clean(r.videoUrl || r.video_url || r.video || r['วิดีโอ'] || r['ลิงก์วิดีโอ'], 1000) || null;
+      const creative = clean(r.creative || r.creative_type, 20) || (rawVideo ? 'VIDEO' : 'IMAGE');
 
       const pageName = clean(r.pageName || r.page, 80) || uploadPageName;
       const platform = clean(r.platform, 30) || uploadPlatform;
@@ -1060,13 +1095,16 @@ async function api(req, res, url, session) {
           platform,
           agencyId: 'In-house',
           creative,
-          thumb: null,
+          thumb: rawThumb,
+          videoUrl: rawVideo,
         });
       } else {
         const existingAd = adMap.get(adId);
         if (pageId && (!existingAd.pageId || existingAd.pageId === 'P1')) existingAd.pageId = pageId;
         if (pageName && (!existingAd.pageName || existingAd.pageName === 'Facebook เพจหลัก')) existingAd.pageName = pageName;
         if (platform && !existingAd.platform) existingAd.platform = platform;
+        if (rawThumb && !existingAd.thumb) existingAd.thumb = rawThumb;
+        if (rawVideo && !existingAd.videoUrl) { existingAd.videoUrl = rawVideo; existingAd.creative = 'VIDEO'; }
       }
 
       const spend = Math.max(0, parseFloat(String(r.spend || r.amount_spent || 0).replace(/[^0-9.]/g, '')) || 0);
@@ -1261,6 +1299,7 @@ async function api(req, res, url, session) {
     const b = await readJson(req);
     const cur = (meta.getSettings().line) || {};
     const next = {
+      ...cur,
       channelId: clean(b.channelId, 50),
       connectedAt: new Date().toISOString(),
     };
@@ -1274,11 +1313,45 @@ async function api(req, res, url, session) {
     return send(res, 200, publicSettings());
   }
 
+  if (route === 'POST /api/settings/line/test') {
+    if (!auth.isAdmin(session.user)) return send(res, 403, { error: 'เฉพาะผู้ดูแล (admin) เท่านั้น' });
+    const cur = (meta.getSettings().line) || {};
+    const token = cur.channelAccessToken || process.env.LINE_CHANNEL_ACCESS_TOKEN || '';
+    if (!token) return send(res, 200, { ok: false, error: 'กรุณาบันทึก Channel Access Token (long-lived) ก่อนกดทดสอบ' });
+    try {
+      const res = await fetch('https://api.line.me/v2/bot/info', {
+        headers: { Authorization: `Bearer ${token}` },
+        signal: AbortSignal.timeout(15000),
+      });
+      const info = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        return send(res, 200, { ok: false, error: info.message || `LINE API ตอบกลับสถานะ HTTP ${res.status}` });
+      }
+      const botName = info.displayName || 'LINE Official Account';
+      const basicId = info.basicId || '';
+      meta.saveSettings({
+        line: {
+          ...cur,
+          botName,
+          basicId,
+          botUserId: info.userId || '',
+          connectedAt: new Date().toISOString(),
+        }
+      });
+      recordPage('P-LINE', `${botName}${basicId ? ' (' + basicId + ')' : ''}`, 'LINE');
+      audit.log(session.user.username, 'line_test', `เชื่อมต่อ LINE OA สำเร็จ: ${botName} (${basicId})`, clientIp(req));
+      return send(res, 200, { ok: true, bot: { displayName: botName, basicId, userId: info.userId }, settings: publicSettings() });
+    } catch (e) {
+      return send(res, 200, { ok: false, error: e.message || 'ไม่สามารถเชื่อมต่อ LINE Messaging API ได้' });
+    }
+  }
+
   if (route === 'PUT /api/settings/whatsapp') {
     if (!auth.isAdmin(session.user)) return send(res, 403, { error: 'เฉพาะผู้ดูแล (admin) เท่านั้น' });
     const b = await readJson(req);
     const cur = (meta.getSettings().whatsapp) || {};
     const next = {
+      ...cur,
       wabaId: clean(b.wabaId, 50),
       phoneId: clean(b.phoneId, 50),
       connectedAt: new Date().toISOString(),
@@ -1288,6 +1361,62 @@ async function api(req, res, url, session) {
 
     meta.saveSettings({ whatsapp: next });
     audit.log(session.user.username, 'whatsapp_settings_save', `ตั้งค่า WhatsApp Business Phone ID: ${next.phoneId || '—'}`, clientIp(req));
+    return send(res, 200, publicSettings());
+  }
+
+  if (route === 'POST /api/settings/whatsapp/test') {
+    if (!auth.isAdmin(session.user)) return send(res, 403, { error: 'เฉพาะผู้ดูแล (admin) เท่านั้น' });
+    const s = meta.getSettings();
+    const wa = s.whatsapp || {};
+    const m = s.meta || {};
+    const token = wa.accessToken || m.accessToken || '';
+    const phoneId = wa.phoneId || '';
+    if (!phoneId) return send(res, 200, { ok: false, error: 'กรุณาระบุ Phone Number ID ก่อนกดทดสอบ' });
+    if (!token) return send(res, 200, { ok: false, error: 'กรุณาระบุ Permanent Access Token ก่อนกดทดสอบ' });
+    try {
+      const version = m.apiVersion || config.metaApiVersion;
+      const info = await meta.graph(phoneId, { fields: 'id,display_phone_number,verified_name,quality_rating' }, token, version);
+      const verifiedName = info.verified_name || 'WhatsApp Business';
+      const displayPhone = info.display_phone_number || phoneId;
+      meta.saveSettings({
+        whatsapp: {
+          ...wa,
+          verifiedName,
+          displayPhone,
+          connectedAt: new Date().toISOString(),
+        }
+      });
+      recordPage('P-WhatsApp', `${verifiedName} (${displayPhone})`, 'WhatsApp');
+      audit.log(session.user.username, 'whatsapp_test', `เชื่อมต่อ WhatsApp สำเร็จ: ${verifiedName} (${displayPhone})`, clientIp(req));
+      return send(res, 200, { ok: true, phone: { verifiedName, displayPhone, qualityRating: info.quality_rating }, settings: publicSettings() });
+    } catch (e) {
+      return send(res, 200, { ok: false, error: e.message || 'ไม่สามารถเชื่อมต่อ WhatsApp Cloud API ได้' });
+    }
+  }
+
+  if (route === 'PUT /api/settings/sheets') {
+    if (!auth.isAdmin(session.user)) return send(res, 403, { error: 'เฉพาะผู้ดูแล (admin) เท่านั้น' });
+    const b = await readJson(req);
+    const cur = (meta.getSettings().sheets) || {};
+    const next = {
+      ...cur,
+      lastUrl: clean(b.sheetUrl !== undefined ? b.sheetUrl : cur.lastUrl, 1000),
+      appsScriptUrl: clean(b.appsScriptUrl !== undefined ? b.appsScriptUrl : cur.appsScriptUrl, 1000),
+      autoSync: b.autoSync !== undefined ? Boolean(b.autoSync) : true,
+    };
+    meta.saveSettings({ sheets: next });
+    audit.log(session.user.username, 'sheets_settings_save', `ตั้งค่า Google Sheets: ${next.lastUrl ? 'บันทึก URL แล้ว' : '—'}`, clientIp(req));
+    return send(res, 200, publicSettings());
+  }
+
+  if (route === 'PUT /api/settings/supabase') {
+    if (!auth.isAdmin(session.user)) return send(res, 403, { error: 'เฉพาะผู้ดูแล (admin) เท่านั้น' });
+    const b = await readJson(req);
+    const cur = (meta.getSettings().supabase) || {};
+    const nextUrl = clean(b.url !== undefined ? b.url : cur.url, 500).replace(/\/+$/, '');
+    const nextKey = clean(b.key, 2000) || cur.key || '';
+    meta.saveSettings({ supabase: { url: nextUrl, key: nextKey, updatedAt: new Date().toISOString() } });
+    audit.log(session.user.username, 'supabase_settings_save', `ตั้งค่า Supabase URL: ${nextUrl || '—'}`, clientIp(req));
     return send(res, 200, publicSettings());
   }
 
@@ -1694,17 +1823,105 @@ async function api(req, res, url, session) {
 
   if (route === 'POST /api/settings/meta/test') {
     const m = meta.getSettings().meta || {};
-    if (!m.adAccountId) return send(res, 200, { ok: false, error: 'กรุณาระบุ Meta Ad Account ID ก่อนกดทดสอบ' });
     if (!m.accessToken) return send(res, 200, { ok: false, error: 'กรุณาระบุ Access Token ก่อนกดทดสอบ' });
     try {
       const info = await meta.testConnection(m);
       // เมื่อทดสอบสำเร็จ บันทึกสถานะเชื่อมต่อ และสลับ mode เป็น 'meta' ให้อัตโนมัติทันที
-      meta.saveSettings({ mode: 'meta', meta: { accountName: info.name, currency: info.currency, connectedAt: new Date().toISOString() } });
+      meta.saveSettings({
+        mode: 'meta',
+        meta: {
+          ...(info.adAccountId ? { adAccountId: info.adAccountId } : {}),
+          accountName: info.name,
+          currency: info.currency,
+          connectedAt: new Date().toISOString(),
+        }
+      });
+      meta.clearCache();
       audit.log(session.user.username, 'meta_test', `สำเร็จ: ${info.name}`, clientIp(req));
       return send(res, 200, { ok: true, account: info, settings: publicSettings() });
     } catch (e) {
       audit.log(session.user.username, 'meta_test', `ไม่สำเร็จ: ${e.message}`, clientIp(req));
       return send(res, 200, { ok: false, error: e.message });
+    }
+  }
+
+  if (route === 'POST /api/meta/sync-all') {
+    if (!auth.isAdmin(session.user)) return send(res, 403, { error: 'เฉพาะผู้ดูแล (admin) เท่านั้น' });
+    const m = meta.getSettings().meta || {};
+    if (!m.accessToken) return send(res, 400, { error: 'กรุณาบันทึก Access Token ก่อนซิงค์ข้อมูล' });
+    try {
+      // 1. ทดสอบและค้นหา Ad Account
+      const info = await meta.testConnection(m);
+      meta.saveSettings({
+        mode: 'meta',
+        meta: {
+          ...(info.adAccountId ? { adAccountId: info.adAccountId } : {}),
+          accountName: info.name,
+          currency: info.currency,
+          connectedAt: new Date().toISOString(),
+        }
+      });
+      meta.clearCache();
+
+      // 2. ค้นหาและซิงค์เพจ Facebook + Instagram
+      let pages = store.read('pages.json', []);
+      let pagesAdded = 0;
+      let pagesUpdated = 0;
+      try {
+        const fbPages = await meta.fetchManagedPages();
+        for (const fp of fbPages) {
+          const id = String(fp.id);
+          const name = clean(fp.name, 120);
+          if (!name || name.startsWith('Page ') || id === '111432947713900' || id === '1040829309417229') continue;
+          const pTok = fp.access_token || '';
+          const idx = pages.findIndex((p) => p.id === id || String(p.id) === id);
+          if (idx >= 0) {
+            pages[idx].name = name;
+            if (pTok) pages[idx].pageToken = pTok;
+            if (!pages[idx].platform) pages[idx].platform = 'Facebook';
+            pagesUpdated++;
+          } else {
+            pages.push({ id, name, platform: 'Facebook', color: '#1877f2', ...(pTok ? { pageToken: pTok } : {}) });
+            pagesAdded++;
+          }
+          if (fp.instagram_business_account && fp.instagram_business_account.id) {
+            const ig = fp.instagram_business_account;
+            const igId = String(ig.id);
+            const igName = clean(ig.username || ig.name || `IG - ${name}`, 120);
+            const igIdx = pages.findIndex((p) => p.id === igId || String(p.id) === igId);
+            if (igIdx >= 0) {
+              pages[igIdx].name = igName;
+              pages[igIdx].platform = 'Instagram';
+              pages[igIdx].fbPageId = id;
+              if (pTok) pages[igIdx].pageToken = pTok;
+              pagesUpdated++;
+            } else {
+              pages.push({ id: igId, name: igName, platform: 'Instagram', fbPageId: id, color: '#e1306c', ...(pTok ? { pageToken: pTok } : {}) });
+              pagesAdded++;
+            }
+          }
+        }
+        store.write('pages.json', pages);
+      } catch (_) {}
+
+      // 3. ดึงแคมเปญ โฆษณา รูปภาพ วิดีโอ และสถิติ (30 วันล่าสุด)
+      const range = resolveRange({ range: '30d' });
+      const dashData = await meta.load({ from: range.prevFrom, to: range.to });
+
+      audit.log(session.user.username, 'meta_sync_all', `ซิงค์ Meta ครบวงจร: ${info.name} (${(dashData.ads || []).length} ads, ${pages.length} pages)`, clientIp(req));
+      return send(res, 200, {
+        ok: true,
+        accountName: info.name,
+        adAccountId: info.adAccountId || m.adAccountId,
+        pagesCount: pages.length,
+        pagesAdded,
+        pagesUpdated,
+        campaignsCount: (dashData.campaigns || []).length,
+        adsCount: (dashData.ads || []).length,
+        settings: publicSettings(),
+      });
+    } catch (e) {
+      return send(res, 500, { error: e.message || 'ซิงค์ข้อมูลจาก Meta ไม่สำเร็จ' });
     }
   }
 
@@ -1731,11 +1948,11 @@ async function api(req, res, url, session) {
 
   if (route === 'POST /api/settings/supabase/sync') {
     if (!auth.isAdmin(session.user)) return send(res, 403, { error: 'เฉพาะผู้ดูแล (admin) เท่านั้น' });
-    if (!store.hasSupabase) return send(res, 400, { error: 'ยังไม่ได้เชื่อมต่อ Supabase ใน .env' });
+    if (!store.hasSupabase) return send(res, 400, { error: 'ยังไม่ได้ตั้งค่า Supabase URL และ API Key' });
     try {
-      await store.initFromSupabase();
-      audit.log(session.user.username, 'supabase_sync', 'ดึงข้อมูลล่าสุดจาก Supabase Cloud สำเร็จ', clientIp(req));
-      return send(res, 200, { ok: true, message: 'ดึงข้อมูลล่าสุดจาก Supabase สำเร็จแล้ว' });
+      const r = await store.initFromSupabase(true);
+      audit.log(session.user.username, 'supabase_sync', `ดึงข้อมูลล่าสุดจาก Supabase Cloud สำเร็จ (${r.count || 0} ตาราง)`, clientIp(req));
+      return send(res, 200, { ok: true, count: r.count || 0, message: `ดึงข้อมูลล่าสุดจาก Supabase สำเร็จแล้ว (${r.count || 0} รายการ)` });
     } catch (err) {
       return send(res, 500, { error: 'ดึงข้อมูลไม่สำเร็จ: ' + err.message });
     }
@@ -1761,41 +1978,98 @@ async function api(req, res, url, session) {
 
   if (route === 'POST /api/upload/ad-image') {
     if (!auth.isAdmin(session.user)) return send(res, 403, { error: 'เฉพาะผู้ดูแล (admin) เท่านั้น' });
-    const b = await readJson(req, 15_000_000); // 15MB รองรับรูปคุณภาพสูง
-    const { adId, adName, imageData, mimeType } = b;
-    if (!imageData) return send(res, 400, { error: 'ต้องส่งข้อมูลรูปภาพ (imageData)' });
+    const b = await readJson(req, 40_000_000); // 40MB รองรับทั้งรูปภาพความละเอียดสูงและไฟล์วิดีโอสั้น (MP4/WebM)
+    const { adId, adName, imageData, mimeType, mediaUrl, videoUrl: directVideoUrl } = b;
 
-    const ALLOWED_MIME = { 'image/jpeg': 'jpg', 'image/jpg': 'jpg', 'image/png': 'png', 'image/gif': 'gif', 'image/webp': 'webp' };
-    const ext = ALLOWED_MIME[mimeType] || ALLOWED_MIME[imageData.match(/^data:([^;]+);base64,/)?.[1]] || 'jpg';
-    if (!Object.values(ALLOWED_MIME).includes(ext)) return send(res, 400, { error: 'รองรับเฉพาะ JPEG, PNG, GIF, WebP' });
+    let finalThumb = null;
+    let finalVideo = null;
+    let isVideo = false;
 
-    // ถอด base64 header ออกก่อน decode
-    const base64Data = imageData.replace(/^data:[^;]+;base64,/, '');
-    const buf = Buffer.from(base64Data, 'base64');
-    if (buf.length > 10_000_000) return send(res, 400, { error: 'รูปใหญ่เกิน 10 MB หลัง decode' });
+    if (directVideoUrl || mediaUrl) {
+      const cleanUrl = clean(directVideoUrl || mediaUrl, 1500);
+      if (!cleanUrl) return send(res, 400, { error: 'กรุณาระบุ URL ของรูปภาพหรือวิดีโอ' });
+      isVideo = Boolean(directVideoUrl) || /\.(mp4|webm|mov)(\?|$)/i.test(cleanUrl);
+      if (isVideo) finalVideo = cleanUrl;
+      else finalThumb = cleanUrl;
+    } else {
+      if (!imageData) return send(res, 400, { error: 'ต้องส่งข้อมูลไฟล์รูปภาพหรือวิดีโอ (imageData)' });
 
-    const safeName = (adId || adName || 'ad').replace(/[^a-zA-Z0-9ก-๙-]/g, '_').slice(0, 40);
-    const filename = `${Date.now()}-${safeName}.${ext}`;
-    const uploadsDir = path.join(config.publicDir, 'ad-images');
-    if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
-    fs.writeFileSync(path.join(uploadsDir, filename), buf);
-    const url = `/ad-images/${filename}`;
+      const ALLOWED_MIME = {
+        'image/jpeg': 'jpg', 'image/jpg': 'jpg', 'image/png': 'png', 'image/gif': 'gif', 'image/webp': 'webp',
+        'video/mp4': 'mp4', 'video/webm': 'webm', 'video/quicktime': 'mov',
+      };
+      const detectedMime = mimeType || imageData.match(/^data:([^;]+);base64,/)?.[1] || '';
+      const ext = ALLOWED_MIME[detectedMime] || 'jpg';
+      if (!Object.values(ALLOWED_MIME).includes(ext)) {
+        return send(res, 400, { error: 'รองรับเฉพาะไฟล์รูปภาพ (JPEG, PNG, GIF, WebP) และวิดีโอ (MP4, WebM, MOV)' });
+      }
+      isVideo = ['mp4', 'webm', 'mov'].includes(ext);
 
-    // อัปเดต thumb ของ ad ใน campaigns_data.json
+      // ถอด base64 header ออกก่อน decode
+      const base64Data = imageData.replace(/^data:[^;]+;base64,/, '');
+      const buf = Buffer.from(base64Data, 'base64');
+      if (buf.length > 30_000_000) return send(res, 400, { error: 'ไฟล์มีขนาดใหญ่เกิน 30 MB' });
+
+      const safeName = (adId || adName || 'ad').replace(/[^a-zA-Z0-9ก-๙-]/g, '_').slice(0, 40);
+      const filename = `${Date.now()}-${safeName}.${ext}`;
+      const uploadsDir = path.join(config.publicDir, 'ad-images');
+      if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+      fs.writeFileSync(path.join(uploadsDir, filename), buf);
+      const url = `/ad-images/${filename}`;
+      if (isVideo) finalVideo = url;
+      else finalThumb = url;
+    }
+
+    // 1. บันทึกลง ad_media.json เพื่อให้แสดงผลได้ทุกโหมด (Demo, Live, Meta API)
+    const adMedia = store.read('ad_media.json', {});
+    const key = adId || adName;
+    if (key) {
+      const prev = adMedia[key] || {};
+      adMedia[key] = {
+        ...prev,
+        ...(finalThumb ? { thumb: finalThumb } : {}),
+        ...(finalVideo ? { videoUrl: finalVideo, creative: 'VIDEO' } : {}),
+        updatedAt: new Date().toISOString(),
+      };
+      store.write('ad_media.json', adMedia);
+    }
+
+    // 2. อัปเดตใน campaigns_data.json ด้วย (ถ้ามี)
     const campData = store.read('campaigns_data.json', { ads: [], daily: [], campaigns: [] });
     const ad = (campData.ads || []).find((a) => a.id === adId || a.name === adName || a.name === adId);
     if (ad) {
-      ad.thumb = url;
+      if (finalThumb) ad.thumb = finalThumb;
+      if (finalVideo) { ad.videoUrl = finalVideo; ad.creative = 'VIDEO'; }
       store.write('campaigns_data.json', campData);
     }
-    audit.log(session.user.username, 'image_upload', `อัปโหลดรูปโฆษณา: ${filename}${ad ? ' → ' + ad.name : ' (ยังไม่จับคู่กับโฆษณา)'}`, clientIp(req));
-    return send(res, 200, { ok: true, url, adName: ad ? ad.name : null, adUpdated: Boolean(ad) });
+
+    const savedUrl = finalVideo || finalThumb;
+    audit.log(session.user.username, 'image_upload', `อัปโหลด${isVideo ? 'วิดีโอ' : 'รูป'}โฆษณา: ${savedUrl}${adId ? ' → ' + (adName || adId) : ''}`, clientIp(req));
+    return send(res, 200, { ok: true, url: savedUrl, thumb: finalThumb, videoUrl: finalVideo, isVideo, adName: ad ? ad.name : (adName || adId || null), adUpdated: true });
   }
 
   if (route === 'GET /api/upload/ad-images') {
+    const range = resolveRange({ range: '30d' });
+    const activeData = await providers.load(range).catch(() => ({ ads: [], campaigns: [] }));
     const campData = store.read('campaigns_data.json', { ads: [], daily: [], campaigns: [] });
-    const ads = (campData.ads || []).map((a) => ({ id: a.id, name: a.name, thumb: a.thumb || null }));
-    return send(res, 200, { ads });
+    const adMedia = store.read('ad_media.json', {});
+    const campNameMap = new Map([
+      ...((activeData.campaigns || []).map((c) => [c.id, c.name])),
+      ...((campData.campaigns || []).map((c) => [c.id, c.name])),
+    ]);
+    const adMap = new Map();
+    for (const a of [...(activeData.ads || []), ...(campData.ads || [])]) {
+      const ov = adMedia[a.id] || adMedia[a.name] || {};
+      adMap.set(a.id, {
+        id: a.id,
+        name: a.name,
+        campaign: campNameMap.get(a.campaignId) || a.campaign || '',
+        creative: ov.creative || a.creative || 'IMAGE',
+        thumb: ov.thumb || a.thumb || null,
+        videoUrl: ov.videoUrl || a.videoUrl || null,
+      });
+    }
+    return send(res, 200, { ads: [...adMap.values()] });
   }
 
   return send(res, 404, { error: 'ไม่พบ API นี้' });
