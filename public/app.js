@@ -93,11 +93,11 @@
           const rep2 = secondWorst;
           return `⏱️ **อันดับผู้ที่ถูกหักคะแนน SLA มากที่สุด:**\n\n` +
             `🥇 **อันดับ 1:** **${rep1.rep}**\n` +
-            `• คะแนน: <b style="color:#ef4444">${rep1.points} แต้ม</b>\n` +
+            `• คะแนน: **<span style="color:#ef4444">${rep1.points} แต้ม</span>**\n` +
             `• ตอบช้า: **${rep1.late}** จาก ${rep1.turns} รอบ\n` +
             `• เวลาเฉลี่ย: **${rep1.avgMin ? num(rep1.avgMin, 1) + ' นาที' : '—'}**\n\n` +
             (rep2 ? `🥈 **อันดับ 2:** **${rep2.rep}**\n` +
-            `• คะแนน: <b style="color:#f59e0b">${rep2.points} แต้ม</b>\n` +
+            `• คะแนน: **<span style="color:#f59e0b">${rep2.points} แต้ม</span>**\n` +
             `• ตอบช้า: **${rep2.late}** จาก ${rep2.turns} รอบ\n` +
             `• เวลาเฉลี่ย: **${rep2.avgMin ? num(rep2.avgMin, 1) + ' นาที' : '—'}**\n\n` : '') +
             `📌 *เกณฑ์ SLA 15 นาที:* ช่วง 10:00–19:00 น. ตอบเกิน 15 นาที หัก 1 แต้ม / อ่านแล้วไม่ตอบ หัก 0.5 แต้มครับ (ดูรายละเอียดได้ที่เมนู **SLA & Review**)`;
@@ -105,7 +105,7 @@
         if (txt.includes('ดี') || txt.includes('สูงสุด') || txt.includes('เร็วสุด')) {
           return `🏆 **ผู้ที่ทำคะแนน SLA ตอบแชทได้ดีที่สุด:**\n\n` +
             `🌟 **${best.rep}**\n` +
-            `• คะแนนผลงาน: <b style="color:#10b981">${best.points} แต้ม</b>\n` +
+            `• คะแนนผลงาน: **<span style="color:#10b981">${best.points} แต้ม</span>**\n` +
             `• ตอบทันเวลา: **${best.onTime} / ${best.turns} รอบ**\n` +
             `• เวลาตอบเฉลี่ย: **${best.avgMin ? num(best.avgMin, 1) + ' นาที' : 'เร็วมาก'}** 🚀`;
         }
@@ -128,7 +128,7 @@
           `• **ทักแชท (Messages):** **${num(k.messages?.value || 0)}** ข้อความ\n` +
           `• **ต้นทุนต่อแชท (Cost/Msg):** **${baht(k.costMessage?.value || 0)}**\n` +
           `• **ยอดซื้อ (Purchases):** **${num(k.purchases?.value || 0)}** เคส\n` +
-          `• **รายได้ปิดการขาย (Revenue):** <b style="color:#10b981">${baht(k.revenue?.value || 0)}</b> ${k.roas?.value ? `(ROAS: <b>${num(k.roas.value, 2)}×</b>)` : ''}`;
+          `• **รายได้ปิดการขาย (Revenue):** **<span style="color:#10b981">${baht(k.revenue?.value || 0)}</span>** ${k.roas?.value ? `(ROAS: **${num(k.roas.value, 2)}×**)` : ''}`;
       }
     }
 
@@ -148,7 +148,7 @@
       const unreplied = inboxRows.filter(r => r.status === 'no_reply' || !r.last || r.last.from !== 'staff').length;
       return `💬 **สรุปข้อมูล Unified Inbox ของคลินิก:**\n\n` +
         `• **แชททั้งหมดในระบบ:** **${num(total)} บทสนทนา**\n` +
-        `• **แชทที่ยังรอการตอบกลับ (Unreplied):** <b style="color:#ef4444">${num(unreplied)} แชท</b> ⚠️\n` +
+        `• **แชทที่ยังรอการตอบกลับ (Unreplied):** **<span style="color:#ef4444">${num(unreplied)} แชท</span>** ⚠️\n` +
         `• **ช่องทางที่เชื่อมต่อ:** Facebook Messenger, Instagram Direct, LINE Official Account, WhatsApp Business\n` +
         `• **ฟังก์ชันเด่น:** AI Smart Replies ตอบไวใน 1 วินาที, ประเมินกราฟต์ผมอัตโนมัติ และระบบมอบหมายเซลล์`;
     }
@@ -854,9 +854,9 @@
   function formatGhostText(txt) {
     if (!txt) return '';
     let html = esc(txt);
-    html = html.replace(/&lt;b style="color:(#[0-9a-fA-F]{3,6})"&gt;([\s\S]*?)&lt;\/b&gt;/g, '<strong style="color:$1;font-weight:700">$2</strong>');
-    html = html.replace(/&lt;b&gt;([\s\S]*?)&lt;\/b&gt;/g, '<strong>$1</strong>');
-    html = html.replace(/&lt;span style="color:(#[0-9a-fA-F]{3,6})"&gt;([\s\S]*?)&lt;\/span&gt;/g, '<span style="color:$1;font-weight:700">$2</span>');
+    html = html.replace(/&lt;b\s+style=(?:&quot;|")color:\s*(#[0-9a-fA-F]{3,6})(?:&quot;|")&gt;([\s\S]*?)&lt;\/b&gt;/gi, '<strong style="color:$1;font-weight:700">$2</strong>');
+    html = html.replace(/&lt;span\s+style=(?:&quot;|")color:\s*(#[0-9a-fA-F]{3,6})(?:&quot;|")&gt;([\s\S]*?)&lt;\/span&gt;/gi, '<span style="color:$1;font-weight:700">$2</span>');
+    html = html.replace(/&lt;b&gt;([\s\S]*?)&lt;\/b&gt;/gi, '<strong>$1</strong>');
     html = html.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
     html = html.replace(/\*(.+?)\*/g, '<i>$1</i>');
     html = html.replace(/^([0-9]+)\.\s+(.+)$/gm, '<div style="margin-left:4px;margin-bottom:4px"><span style="color:#059669;font-weight:700">$1.</span> $2</div>');
