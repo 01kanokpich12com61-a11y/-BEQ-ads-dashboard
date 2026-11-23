@@ -362,6 +362,30 @@ async function main() {
   const p1Inbox = (await call('GET', '/api/inbox?range=90d&page=P1')).json;
   assert.ok(p1Inbox.rows.length > 0);
   assert.ok(p1Inbox.rows.every((r) => r.pageId === 'P1' || (r.pageName && r.pageName.includes('Bangkok'))));
+
+  // ทดสอบการอัปโหลดไฟล์ลีดของเพจ Beq Hair Wellness Center (มีทั้ง Facebook และ Instagram)
+  const upBeq = (await call('POST', '/api/upload/leads', {
+    platform: 'Facebook',
+    pageName: 'Beq Hair Wellness Center',
+    rows: [
+      { name: 'คุณสมศักดิ์ Wellness FB', platform: 'Facebook', channel: 'Messenger', message: 'สนใจคอร์สฟื้นฟูรากผม BEQ Wellness ค่ะ' },
+      { name: 'คุณศศิธร Wellness IG', platform: 'Instagram', channel: 'Instagram', message: 'ทักทางไอจี beq_wellness เรื่อง PRP ค่ะ' },
+    ],
+  })).json;
+  assert.equal(upBeq.ok, true);
+  assert.equal(upBeq.added, 2);
+
+  const beqFbLead = (await call('GET', '/api/inbox?range=90d&page=122342237846683')).json.rows.find((r) => r.name === 'คุณสมศักดิ์ Wellness FB');
+  assert.ok(beqFbLead, 'ต้องพบ Facebook lead ของ Beq Hair Wellness Center');
+  assert.equal(beqFbLead.pageId, '122342237846683');
+  assert.equal(beqFbLead.pageName, 'Beq Hair Wellness Center');
+
+  const beqIgLead = (await call('GET', '/api/inbox?range=90d&page=17841401019079620')).json.rows.find((r) => r.name === 'คุณศศิธร Wellness IG');
+  assert.ok(beqIgLead, 'ต้องพบ Instagram lead ของ beq_wellness');
+  assert.equal(beqIgLead.pageId, '17841401019079620');
+  assert.equal(beqIgLead.pageName, 'beq_wellness');
+  assert.equal(beqIgLead.platform, 'Instagram');
+
   ok('แยก Inbox ตามแต่ละแพลตฟอร์ม (Facebook/Instagram) และตามเพจ พร้อมแยกข้อความแชทไม่ให้ผสมกัน');
 
   await call('POST', '/api/logout');

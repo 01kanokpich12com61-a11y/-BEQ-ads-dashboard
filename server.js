@@ -1084,25 +1084,27 @@ async function api(req, res, url, session) {
       let resolvedPageId = clean(r.pageId, 50);
       let pageName = rawRowPage;
 
+      const checkStr = `${uploadPageName} ${rawRowPage} ${rawRowPlat} ${rawRowChan} ${r.pageId || ''} ${r.adId || ''} ${r.campaign || ''}`.toLowerCase();
+      const isNayBrand = /nay|109373461849494|17841448814795762/.test(checkStr);
+      const isBeqWellness = /wellness|122342237846683|17841401019079620/.test(checkStr) || (!isNayBrand && /beq/.test(checkStr));
+
       if (platform === 'Instagram') {
-        const checkStr = `${uploadPageName} ${rawRowPage} ${rawRowPlat} ${rawRowChan}`.toLowerCase();
-        if (checkStr.includes('beq') || checkStr.includes('wellness') || checkStr.includes('17841401019079620')) {
-          const igBeq = knownPages.find((p) => p.platform === 'Instagram' && (p.name.includes('beq') || p.id === '17841401019079620'));
+        if (isBeqWellness) {
+          const igBeq = knownPages.find((p) => p.platform === 'Instagram' && (p.id === '17841401019079620' || p.name.includes('beq') || p.name.includes('wellness')));
           pageName = igBeq ? igBeq.name : 'beq_wellness';
           resolvedPageId = igBeq ? igBeq.id : '17841401019079620';
         } else {
-          const igNay = knownPages.find((p) => p.platform === 'Instagram' && (p.name.includes('nay') || p.id === '17841448814795762'));
+          const igNay = knownPages.find((p) => p.platform === 'Instagram' && (p.id === '17841448814795762' || p.name.includes('nay')));
           pageName = igNay ? igNay.name : 'dr.nay_hairtransplant';
           resolvedPageId = igNay ? igNay.id : '17841448814795762';
         }
       } else if (platform === 'Facebook') {
-        const checkStr = `${uploadPageName} ${rawRowPage}`.toLowerCase();
-        if (checkStr.includes('nay') || checkStr.includes('109373461849494')) {
+        if (isNayBrand) {
           const fbNay = knownPages.find((p) => p.platform === 'Facebook' && (p.id === '109373461849494' || p.name.includes('Nay')));
           pageName = fbNay ? fbNay.name : 'Dr. Nay Hair Transplant by BEQ ปลูกผมถาวร';
           resolvedPageId = fbNay ? fbNay.id : '109373461849494';
-        } else if (checkStr.includes('wellness') || checkStr.includes('122342237846683')) {
-          const fbWel = knownPages.find((p) => p.platform === 'Facebook' && (p.id === '122342237846683' || p.name.includes('Wellness')));
+        } else if (isBeqWellness) {
+          const fbWel = knownPages.find((p) => p.platform === 'Facebook' && (p.id === '122342237846683' || p.name.includes('Wellness') || p.name.includes('Beq')));
           pageName = fbWel ? fbWel.name : 'Beq Hair Wellness Center';
           resolvedPageId = fbWel ? fbWel.id : '122342237846683';
         } else {
