@@ -3241,18 +3241,6 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
           </div>
         </div>
       </div>
-      <div class="cura-rail-block">
-        <div class="cura-block-label">CHANNELS</div>
-        <button type="button" class="cura-chan-btn ${!s.channel ? 'active' : ''}" data-act="inbox-channel" data-channel="">
-          <span>🌐</span> <span>All Channels</span>
-        </button>
-        ${channels.map((c) => {
-          const logo = getBrandLogo(c, 14);
-          return `<button type="button" class="cura-chan-btn ${s.channel === c ? 'active' : ''}" data-act="inbox-channel" data-channel="${esc(c)}">
-            <span style="display:inline-flex;align-items:center">${logo}</span> <span>${esc(c)}</span>
-          </button>`;
-        }).join('')}
-      </div>
       <div class="cura-rail-block" style="margin-top:auto">
         <div class="cura-block-label">STATUS PIPELINE</div>
         <div class="sel" style="width:100%"><select data-bind="istatus-sel" style="width:100%;font-size:12px;padding:6px 10px;border-radius:10px">
