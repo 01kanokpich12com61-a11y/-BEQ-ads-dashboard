@@ -4477,7 +4477,7 @@ function boardShell() {
     } catch (e) { if (e.message !== 'กรุณาเข้าสู่ระบบ') { S.flash = { type: 'err', text: e.message }; render(); } }
   });
 
-  document.addEventListener('change', (ev) => {
+  document.addEventListener('change', async (ev) => {
     if (ev.target.dataset && (ev.target.dataset.act === 'ad-img-file' || ev.target.dataset.act === 'dash-ad-img')) {
       const file = ev.target.files && ev.target.files[0];
       if (file) uploadAdImage(ev.target.dataset.adId, ev.target.dataset.adName, file);
