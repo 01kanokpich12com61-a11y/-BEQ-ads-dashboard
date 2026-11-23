@@ -318,6 +318,31 @@ async function main() {
   const idx = await fetch(base + '/'); assert.equal(idx.status, 200); assert.equal((await fetch(base + '/extra.css')).status, 200);
   const trav = await fetch(base + '/..%2Fserver.js'); assert.notEqual(trav.status, 200); ok('static + กัน path traversal');
 
+  // นำเข้าลีด Facebook และ Instagram และแยก Inbox ตามแพลตฟอร์มและเพจ
+  const upRes = (await call('POST', '/api/upload/leads', {
+    rows: [
+      { name: 'คุณนภา (FB)', channel: 'Messenger', platform: 'Facebook', pageName: 'Hairlab Clinic Bangkok', adId: 'AD-FB-1', date: '2026-11-20', status: 'กำลังดำเนินการ' },
+      { name: 'คุณก้อง (IG)', channel: 'Instagram', platform: 'Instagram', pageName: 'dr.nay_hairtransplant', adId: 'AD-IG-1', date: '2026-11-20', status: 'มีคุณสมบัติ' },
+    ],
+    replace: false,
+  })).json;
+  assert.equal(upRes.ok, true);
+  assert.equal(upRes.added, 2);
+
+  // ตรวจสอบ Inbox กรองแยกตามแพลตฟอร์ม Facebook, Instagram และตามเพจ
+  const fbInbox = (await call('GET', '/api/inbox?range=90d&platform=Facebook')).json;
+  assert.ok(fbInbox.rows.length > 0);
+  assert.ok(fbInbox.rows.every((r) => r.platform.toLowerCase() === 'facebook'));
+
+  const igInbox = (await call('GET', '/api/inbox?range=90d&platform=Instagram')).json;
+  assert.ok(igInbox.rows.length > 0);
+  assert.ok(igInbox.rows.every((r) => r.platform.toLowerCase() === 'instagram'));
+
+  const p1Inbox = (await call('GET', '/api/inbox?range=90d&page=P1')).json;
+  assert.ok(p1Inbox.rows.length > 0);
+  assert.ok(p1Inbox.rows.every((r) => r.pageId === 'P1' || (r.pageName && r.pageName.includes('Bangkok'))));
+  ok('แยก Inbox ตามแต่ละแพลตฟอร์ม (Facebook/Instagram) และตามเพจ');
+
   await call('POST', '/api/logout');
   assert.equal((await call('GET', '/api/me')).status, 401); ok('ล็อกเอาต์');
   server.close();

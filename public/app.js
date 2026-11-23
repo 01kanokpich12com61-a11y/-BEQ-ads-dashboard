@@ -12,7 +12,7 @@
       data: null, loading: false, err: null, sort: 'spend', dir: 'desc', search: '', pageNo: 1 },
     settings: null, flash: null, loginErr: '',
     board: { range: 'all', from: '', to: '', data: null, err: null },
-    inbox: { range: 'all', from: '', to: '', data: null, err: null, search: '', channel: '', status: '', folder: 'all', pageNo: 1 },
+    inbox: { range: 'all', from: '', to: '', data: null, err: null, search: '', channel: '', page: '', status: '', folder: 'all', pageNo: 1 },
     review: { range: '30d', from: '', to: '', data: null, err: null, state: '', rep: '' },
     followup: { data: null, err: null, tab: '', rep: '' },
     notifications: { data: null, unread: 0, list: [] },
@@ -23,7 +23,7 @@
     chat: { id: null, loading: false, data: null, err: null, sending: false, msg: null },
     users: { data: null, err: null, result: null },
     sla: { data: null, err: null, open: '', kind: '' },
-    upload: { data: null, err: null, loading: false, rows: [], result: null, tab: 'leads', detectedType: 'leads', summary: null },
+    upload: { data: null, err: null, loading: false, rows: [], result: null, tab: 'leads', detectedType: 'leads', summary: null, platform: 'Facebook', pageName: '' },
     quality: { data: null, err: null, loading: false, campaign: '', minQuality: '', sort: 'leads', sortDir: 'desc' },
     comments: { data: null, loading: false, err: null, range: '30d', from: '', to: '', filterStatus: 'all' },
     cmdPaletteOpen: false,
@@ -1241,8 +1241,10 @@
       COL_MAP = {
         'ชื่อ': 'name', 'ชื่อ-นามสกุล': 'name', 'ชื่อจริง': 'name', 'ชื่อเต็ม': 'name', 'ชื่อลูกค้า': 'name',
         'name': 'name', 'full_name': 'name', 'fullname': 'name', 'first_name': 'name', 'customer': 'name', 'customer_name': 'name', 'lead_name': 'name',
-        'ช่องทาง': 'channel', 'ช่องทางติดต่อ': 'channel', 'แพลตฟอร์ม': 'channel',
-        'channel': 'channel', 'platform': 'channel',
+        'แพลตฟอร์ม': 'platform', 'platform': 'platform',
+        'ช่องทาง': 'channel', 'ช่องทางติดต่อ': 'channel', 'channel': 'channel',
+        'เพจ': 'pageName', 'ชื่อเพจ': 'pageName', 'เพจ facebook': 'pageName', 'เพจ ig': 'pageName', 'เพจ instagram': 'pageName',
+        'page': 'pageName', 'page_name': 'pageName', 'page name': 'pageName', 'pagename': 'pageName', 'page_id': 'pageId', 'page id': 'pageId',
         'source': 'source',
         'form': 'adId', 'form name': 'adId', 'form_name': 'adId',
         'ad id': 'adId', 'adid': 'adId', 'ad_id': 'adId', 'ad': 'adId', 'ad name': 'adId', 'ad_name': 'adId',
@@ -1408,23 +1410,23 @@
     const curPage = u.pageName || '';
     return `<div class="grid-2" style="margin:14px 0 16px;background:#f8faf6;padding:14px 16px;border-radius:12px;border:1px solid var(--line-soft)">
       <div class="field" style="margin-bottom:0">
-        <label style="font-weight:600">🌐 แพลตฟอร์ม</label>
+        <label style="font-weight:600">🌐 แพลตฟอร์มหลักของไฟล์นี้</label>
         <div class="sel" style="width:100%"><select id="upload-platform-input" style="width:100%">
-          <option value="Facebook" ${curPlatform === 'Facebook' ? 'selected' : ''}>Facebook</option>
-          <option value="LINE" ${curPlatform === 'LINE' ? 'selected' : ''}>LINE Official Account</option>
-          <option value="WhatsApp" ${curPlatform === 'WhatsApp' ? 'selected' : ''}>WhatsApp Business</option>
-          <option value="Instagram" ${curPlatform === 'Instagram' ? 'selected' : ''}>Instagram</option>
-          <option value="Direct" ${curPlatform === 'Direct' ? 'selected' : ''}>Direct / อื่นๆ</option>
+          <option value="Facebook" ${curPlatform === 'Facebook' ? 'selected' : ''}>🔵 Facebook</option>
+          <option value="Instagram" ${curPlatform === 'Instagram' ? 'selected' : ''}>📸 Instagram</option>
+          <option value="LINE" ${curPlatform === 'LINE' ? 'selected' : ''}>🟢 LINE Official Account</option>
+          <option value="WhatsApp" ${curPlatform === 'WhatsApp' ? 'selected' : ''}>💚 WhatsApp Business</option>
+          <option value="Direct" ${curPlatform === 'Direct' ? 'selected' : ''}>🌐 Direct / อื่นๆ</option>
         </select></div>
-        <small>ระบุว่าไฟล์นี้เป็นข้อมูลของแพลตฟอร์มใด (เช่น Facebook, LINE)</small>
+        <small>ระบุแพลตฟอร์ม (หากในไฟล์มีคอลัมน์ แพลตฟอร์ม / ช่องทาง ระบบจะตรวจจับ Facebook หรือ Instagram แยกให้ตามแต่ละแถว)</small>
       </div>
       <div class="field" style="margin-bottom:0">
-        <label style="font-weight:600">📄 ชื่อเพจ / บัญชี</label>
-        <input type="text" id="upload-page-input" placeholder="เช่น เพจรักเพื่อน, Hairlab Clinic, LINE OA คลินิก" value="${esc(curPage)}" list="known-pages-list">
+        <label style="font-weight:600">📄 ชื่อเพจ / บัญชี (Page Name)</label>
+        <input type="text" id="upload-page-input" placeholder="เช่น Pavicon Hair Clinic, dr.nay_hairtransplant" value="${esc(curPage)}" list="known-pages-list">
         <datalist id="known-pages-list">
-          ${pages.map((p) => `<option value="${esc(p.name)}">`).join('')}
+          ${pages.map((p) => `<option value="${esc(p.name)}">${p.platform === 'Instagram' ? '📸 ' : '🔵 '}${esc(p.name)}</option>`).join('')}
         </datalist>
-        <small>พิมพ์หรือเลือกชื่อเพจ เพื่อแยกดูรายงานบนแถบด้านบน</small>
+        <small>พิมพ์หรือเลือกชื่อเพจ เพื่อแยกดูใน Inbox และแยกตัวกรองตามเพจ</small>
       </div>
     </div>`;
   }
@@ -1503,16 +1505,37 @@
               <td>${num(r.clicks || 0)}</td>
               <td>${esc(r.date || '—')}</td></tr>`).join('')}
           </tbody></table>` : `
-          <table style="min-width:760px"><thead><tr>
-            <th class="nosort">#</th><th class="nosort">ชื่อ</th><th class="nosort">ช่องทาง</th>
+          <table style="min-width:860px"><thead><tr>
+            <th class="nosort">#</th><th class="nosort">ชื่อลูกค้า</th>
+            <th class="nosort">แพลตฟอร์ม</th><th class="nosort">เพจ / บัญชี</th><th class="nosort">ช่องทาง</th>
             <th class="nosort">โฆษณา / แคมเปญ</th><th class="nosort">วันที่</th><th class="nosort">สถานะบน Board</th><th class="nosort">เซลส์</th>
           </tr></thead><tbody>
-            ${rows.map((r, i) => `<tr><td class="nowrap" style="color:var(--muted)">${i + 1}</td>
-              <td><b>${esc(r.name || '—')}</b></td><td>${esc(r.channel || '—')}</td>
-              <td style="font-size:13px">${esc(r.adId || '—')}</td>
-              <td>${esc(r.date || '—')}</td>
-              <td><span class="q-badge q-average">${esc(r.status || 'พอได้คุย')}</span></td>
-              <td>${esc(r.rep || '—')}</td></tr>`).join('')}
+            ${rows.map((r, i) => {
+              const isIg = Boolean(
+                (r.platform && /ig|instagram/i.test(r.platform)) ||
+                (r.channel && /ig|instagram/i.test(r.channel)) ||
+                (u.platform && /ig|instagram/i.test(u.platform)) ||
+                (r.pageName && /ig|instagram|dr\.nay/i.test(r.pageName))
+              );
+              let plat = isIg ? 'Instagram' : (r.platform || u.platform || (r.channel && /line/i.test(r.channel) ? 'LINE' : r.channel && /whatsapp|wa/i.test(r.channel) ? 'WhatsApp' : 'Facebook'));
+              const platBadge = plat === 'Instagram' ? '<span class="chip" style="background:#fce7f3;color:#be185d;border:1px solid #fbcfe8;font-weight:700">📸 Instagram</span>'
+                : plat === 'Facebook' ? '<span class="chip" style="background:#dbeafe;color:#1d4ed8;border:1px solid #bfdbfe;font-weight:700">🔵 Facebook</span>'
+                : plat === 'LINE' ? '<span class="chip" style="background:#dcfce7;color:#15803d;border:1px solid #bbf7d0;font-weight:700">🟢 LINE</span>'
+                : plat === 'WhatsApp' ? '<span class="chip" style="background:#d1fae5;color:#047857;border:1px solid #a7f3d0;font-weight:700">💚 WhatsApp</span>'
+                : `<span class="chip">${esc(plat)}</span>`;
+              const pageDisp = r.pageName || u.pageName || (plat === 'Instagram' ? 'Instagram Direct' : (plat === 'Facebook' ? 'Pavicon Hair Clinic' : `${plat} Channel`));
+              return `<tr>
+                <td class="nowrap" style="color:var(--muted)">${i + 1}</td>
+                <td><b>${esc(r.name || '—')}</b></td>
+                <td>${platBadge}</td>
+                <td style="font-size:12.5px;color:var(--ink-2)">${esc(pageDisp)}</td>
+                <td><span style="font-size:12px;color:var(--muted)">${esc(r.channel || (plat === 'Instagram' ? 'Instagram' : 'Messenger'))}</span></td>
+                <td style="font-size:13px">${esc(r.adId || '—')}</td>
+                <td>${esc(r.date || '—')}</td>
+                <td><span class="q-badge q-average">${esc(r.status || 'พอได้คุย')}</span></td>
+                <td>${esc(r.rep || '—')}</td>
+              </tr>`;
+            }).join('')}
           </tbody></table>`}</div>
         <div style="margin:16px 0 6px">
           <label style="display:inline-flex;align-items:center;gap:8px;cursor:pointer">
@@ -3183,8 +3206,31 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
     const s = S.inbox; if (!s.data) return [];
     const q = s.search.trim().toLowerCase();
     const folder = s.folder || 'all';
+    const activeChan = (s.channel || '').toLowerCase();
+    const activePage = (s.page || '').toLowerCase();
     return s.data.rows.filter((r) => {
-      if (s.channel && r.channel !== s.channel) return false;
+      const rPlat = String(r.platform || (r.channel === 'Instagram' ? 'Instagram' : r.channel === 'LINE' ? 'LINE' : r.channel === 'WhatsApp' ? 'WhatsApp' : 'Facebook')).toLowerCase();
+      const rChan = String(r.channel || '').toLowerCase();
+      if (activeChan) {
+        if (activeChan === 'facebook' || activeChan === 'messenger') {
+          if (rPlat !== 'facebook' && rChan !== 'messenger') return false;
+        } else if (activeChan === 'instagram' || activeChan === 'ig') {
+          if (rPlat !== 'instagram' && rChan !== 'instagram') return false;
+        } else if (activeChan === 'line') {
+          if (rPlat !== 'line' && rChan !== 'line') return false;
+        } else if (activeChan === 'whatsapp') {
+          if (rPlat !== 'whatsapp' && rChan !== 'whatsapp') return false;
+        } else if (rChan !== activeChan && rPlat !== activeChan) {
+          return false;
+        }
+      }
+      if (activePage) {
+        const rPid = String(r.pageId || '').toLowerCase();
+        const rPname = String(r.pageName || '').toLowerCase();
+        if (rPid !== activePage && !rPname.includes(activePage) && !activePage.includes(rPname)) {
+          return false;
+        }
+      }
       if (s.status && r.status !== s.status) return false;
       if (folder === 'unreplied') {
         const isUnreplied = r.status === 'no_reply' || !r.last || r.last.from !== 'staff';
@@ -3192,7 +3238,7 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
       } else if (folder === 'starred') {
         if (!r.starred && r.status !== 'converted' && r.status !== 'booked') return false;
       }
-      if (q && ![r.name, r.id, r.ad, r.pageName].some((x) => String(x || '').toLowerCase().includes(q))) return false;
+      if (q && ![r.name, r.id, r.ad, r.pageName, r.platform, r.channel, r.phone].some((x) => String(x || '').toLowerCase().includes(q))) return false;
       return true;
     });
   }
@@ -3210,7 +3256,7 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
             <div class="cura-conv-search-wrap">
               <div class="cura-search-inner">
                 ${icon('search')}
-                <input id="isearch" data-bind="isearch" placeholder="Search conversations..." value="${esc(s.search)}" autocomplete="off">
+                <input id="isearch" data-bind="isearch" placeholder="ค้นหาแชท, ชื่อ, เบอร์, เพจ..." value="${esc(s.search)}" autocomplete="off">
               </div>
             </div>
             <div class="cura-conv-feed" id="mess-list"></div>
@@ -3234,11 +3280,39 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
 
   function renderInboxTools() {
     const el = $id('mess-tools'); const s = S.inbox; if (!el || !s.data) return;
-    const totalCount = s.data.rows.length;
-    const unrepliedCount = s.data.rows.filter((r) => r.status === 'no_reply' || !r.last || r.last.from !== 'staff').length;
-    const starredCount = s.data.rows.filter((r) => r.starred || r.status === 'converted' || r.status === 'booked').length;
+    const allRows = s.data.rows;
+    const totalCount = allRows.length;
+    const unrepliedCount = allRows.filter((r) => r.status === 'no_reply' || !r.last || r.last.from !== 'staff').length;
+    const starredCount = allRows.filter((r) => r.starred || r.status === 'converted' || r.status === 'booked').length;
     const activeFolder = s.folder || 'all';
-    const channels = [...new Set(s.data.rows.map((r) => r.channel))].sort();
+
+    // นับจำนวนแชทแยกตามแต่ละแพลตฟอร์ม
+    const platCounts = { Facebook: 0, Instagram: 0, LINE: 0, WhatsApp: 0 };
+    for (const r of allRows) {
+      const p = r.platform || (r.channel === 'Instagram' ? 'Instagram' : r.channel === 'LINE' ? 'LINE' : r.channel === 'WhatsApp' ? 'WhatsApp' : 'Facebook');
+      if (platCounts[p] !== undefined) platCounts[p]++;
+      else platCounts[p] = (platCounts[p] || 0) + 1;
+    }
+    const platList = ['Facebook', 'Instagram', 'LINE', 'WhatsApp'].filter((p) => platCounts[p] > 0 || p === 'Facebook' || p === 'Instagram');
+
+    // รวบรวมเพจทั้งหมดที่มีในบทสนทนา พร้อมนับจำนวนแชท
+    const pageMap = new Map();
+    for (const r of allRows) {
+      const pid = r.pageId || r.pageName || 'unknown';
+      if (!pageMap.has(pid)) {
+        pageMap.set(pid, {
+          id: r.pageId || pid,
+          name: r.pageName || r.pageId || 'เพจหลัก',
+          platform: r.platform || 'Facebook',
+          count: 0,
+        });
+      }
+      pageMap.get(pid).count++;
+    }
+    const pages = [...pageMap.values()].sort((a, b) => b.count - a.count);
+    const activeChan = s.channel || '';
+    const activePage = s.page || '';
+
     el.innerHTML = `
       <div class="cura-rail-block" style="padding:4px 6px 12px;border-bottom:1px solid #f1f5f9;margin-bottom:6px">
         <div style="display:flex;align-items:center;gap:8px">
@@ -3249,6 +3323,70 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
           </div>
         </div>
       </div>
+
+      <!-- FOLDERS -->
+      <div class="cura-rail-block">
+        <div class="cura-block-label">FOLDERS</div>
+        <button type="button" class="cura-rail-item ${activeFolder === 'all' ? 'active' : ''}" data-act="inbox-folder" data-folder="all">
+          <span>💬 ทั้งหมด</span>
+          <span class="cura-item-badge">${num(totalCount)}</span>
+        </button>
+        <button type="button" class="cura-rail-item ${activeFolder === 'unreplied' ? 'active' : ''}" data-act="inbox-folder" data-folder="unreplied">
+          <span>⌛ ยังไม่ตอบ</span>
+          ${unrepliedCount > 0 ? `<span class="cura-item-badge unreplied">${unrepliedCount}</span>` : ''}
+        </button>
+        <button type="button" class="cura-rail-item ${activeFolder === 'starred' ? 'active' : ''}" data-act="inbox-folder" data-folder="starred">
+          <span>⭐ ติดดาว</span>
+          ${starredCount > 0 ? `<span class="cura-item-badge starred">${starredCount}</span>` : ''}
+        </button>
+      </div>
+
+      <!-- PLATFORMS (แยกตามแพลตฟอร์ม) -->
+      <div class="cura-rail-block">
+        <div class="cura-block-label" style="display:flex;justify-content:space-between;align-items:center">
+          <span>PLATFORMS</span>
+          ${activeChan ? `<span style="font-size:9.5px;color:var(--brand);cursor:pointer;font-weight:700" data-act="inbox-channel" data-channel="">ล้างตัวกรอง</span>` : ''}
+        </div>
+        <button type="button" class="cura-chan-btn ${!activeChan ? 'active' : ''}" data-act="inbox-channel" data-channel="">
+          <span>🌐 ทุกแพลตฟอร์ม</span>
+          <span class="cura-item-badge">${num(totalCount)}</span>
+        </button>
+        ${platList.map((p) => {
+          const logo = getBrandLogo(p, 14);
+          const cnt = platCounts[p] || 0;
+          const label = p === 'Facebook' ? 'Facebook' : p === 'Instagram' ? 'Instagram' : p === 'LINE' ? 'LINE OA' : 'WhatsApp';
+          return `<button type="button" class="cura-chan-btn ${activeChan.toLowerCase() === p.toLowerCase() ? 'active' : ''}" data-act="inbox-channel" data-channel="${esc(p)}">
+            <span style="display:inline-flex;align-items:center;gap:6px">${logo} <span>${esc(label)}</span></span>
+            <span class="cura-item-badge">${cnt}</span>
+          </button>`;
+        }).join('')}
+      </div>
+
+      <!-- PAGES (แยกตามเพจ) -->
+      ${pages.length > 0 ? `
+      <div class="cura-rail-block">
+        <div class="cura-block-label" style="display:flex;justify-content:space-between;align-items:center">
+          <span>PAGES / เพจ</span>
+          ${activePage ? `<span style="font-size:9.5px;color:var(--brand);cursor:pointer;font-weight:700" data-act="inbox-page" data-page="">ทั้งหมด</span>` : ''}
+        </div>
+        <button type="button" class="cura-chan-btn ${!activePage ? 'active' : ''}" data-act="inbox-page" data-page="">
+          <span>📄 ทุกเพจ</span>
+          <span class="cura-item-badge">${num(totalCount)}</span>
+        </button>
+        ${pages.map((p) => {
+          const isSelected = activePage && (activePage === p.id || activePage.toLowerCase() === (p.name || '').toLowerCase());
+          const iconPlat = p.platform === 'Instagram' ? '📸' : p.platform === 'LINE' ? '🟢' : p.platform === 'WhatsApp' ? '💚' : '🔵';
+          return `<button type="button" class="cura-chan-btn ${isSelected ? 'active' : ''}" data-act="inbox-page" data-page="${esc(p.id)}" title="${esc(p.name)}">
+            <span style="display:inline-flex;align-items:center;gap:5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:145px">
+              <span>${iconPlat}</span>
+              <span style="overflow:hidden;text-overflow:ellipsis">${esc(p.name)}</span>
+            </span>
+            <span class="cura-item-badge">${p.count}</span>
+          </button>`;
+        }).join('')}
+      </div>` : ''}
+
+      <!-- STATUS PIPELINE -->
       <div class="cura-rail-block" style="margin-top:auto">
         <div class="cura-block-label">STATUS PIPELINE</div>
         <div class="sel" style="width:100%"><select data-bind="istatus-sel" style="width:100%;font-size:12px;padding:6px 10px;border-radius:10px">
@@ -3263,14 +3401,14 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
     const list = $id('mess-list'); if (!list) return;
     const rows = filteredRows(); const MAX = 400;
     if (!rows.length) {
-      list.innerHTML = '<div class="empty" style="padding:24px 10px;text-align:center">No conversations found</div>';
+      list.innerHTML = '<div class="empty" style="padding:24px 10px;text-align:center">ไม่พบบทสนทนาที่ตรงกับตัวกรอง</div>';
       return;
     }
     list.innerHTML = rows.slice(0, MAX).map((r) => {
       const isSelected = r.id === S.chat.id;
-      const snippet = r.last ? esc(r.last.text) : 'No messages yet';
+      const snippet = r.last ? esc(r.last.text) : 'ไม่มีข้อความ';
       const timeStr = r.last ? ago(r.last.at) : esc(r.date);
-      const ch = r.platform || r.channel || 'Facebook';
+      const ch = r.platform || (r.channel === 'Instagram' ? 'Instagram' : r.channel === 'LINE' ? 'LINE' : r.channel === 'WhatsApp' ? 'WhatsApp' : 'Facebook');
       const miniLogo = getBrandLogo(ch, 12);
       let slaState = 'ontime';
       let slaLabel = 'SLA OK';
@@ -3280,6 +3418,21 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
         else if (waitMin >= 10) { slaState = 'warning'; slaLabel = 'ใกล้หลุด SLA'; }
         else { slaState = 'ontime'; slaLabel = `${waitMin}m SLA`; }
       }
+
+      // ป้ายแพลตฟอร์ม (Platform Badge)
+      const platBadge = ch === 'Instagram'
+        ? `<span class="cura-tag-pill" style="background:#fce7f3;color:#be185d;border:1px solid #fbcfe8;font-weight:700">📸 Instagram</span>`
+        : ch === 'LINE'
+        ? `<span class="cura-tag-pill" style="background:#dcfce7;color:#15803d;border:1px solid #bbf7d0;font-weight:700">🟢 LINE</span>`
+        : ch === 'WhatsApp'
+        ? `<span class="cura-tag-pill" style="background:#d1fae5;color:#047857;border:1px solid #a7f3d0;font-weight:700">💚 WhatsApp</span>`
+        : `<span class="cura-tag-pill" style="background:#dbeafe;color:#1d4ed8;border:1px solid #bfdbfe;font-weight:700">🔵 Facebook</span>`;
+
+      // ป้ายชื่อเพจ (Page Badge)
+      const pageBadge = r.pageName
+        ? `<span class="cura-tag-pill" style="background:#f1f5f9;color:#334155;border:1px solid #e2e8f0;font-weight:600;max-width:140px;overflow:hidden;text-overflow:ellipsis" title="${esc(r.pageName)}">📄 ${esc(r.pageName)}</span>`
+        : '';
+
       return `
         <div class="cura-conv-card ${isSelected ? 'active' : ''}" data-act="select-chat" data-id="${esc(r.id)}">
           <div class="cura-avatar-shell">
@@ -3296,8 +3449,9 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
             <div class="cura-card-footer">
               <span class="cura-ai-pill">✨ Copilot</span>
               <span class="cura-sla-badge ${slaState}">${slaLabel}</span>
+              ${platBadge}
+              ${pageBadge}
               ${r.rep ? `<span class="cura-tag-pill" style="background:#e0f2fe;color:#0369a1;font-weight:600">👤 ${esc(r.rep)}</span>` : ''}
-              ${r.pageName ? `<span class="cura-tag-pill">${esc(r.pageName)}</span>` : ''}
             </div>
           </div>
         </div>
@@ -3383,6 +3537,7 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
             </div>
             <div class="cura-thread-sub">
               <span>${chanHtml(l.channel)}</span>
+              ${l.pageName ? `<span>· 📄 <b>${esc(l.pageName)}</b></span>` : ''}
               <span>· เซลล์ผู้ดูแล: <b style="color:var(--brand-deep)">${esc(l.rep || '✨ BEQ Copilot (ยังไม่มอบหมาย)')}</b></span>
             </div>
           </div>
@@ -3480,11 +3635,12 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
         <div class="cura-section-card">
           <div class="cura-section-card-title">👤 Contact Details</div>
           <div class="cura-section-card-body" style="padding:12px 14px;display:flex;flex-direction:column;gap:6px">
+            <div class="cura-detail-row" style="display:flex;justify-content:space-between;font-size:12px"><span>Platform:</span> <b>${esc(l.platform || (l.channel === 'Instagram' ? 'Instagram' : 'Facebook'))}</b></div>
+            <div class="cura-detail-row" style="display:flex;justify-content:space-between;font-size:12px"><span>Page / Account:</span> <b>${esc(l.pageName || '—')}</b></div>
             <div class="cura-detail-row" style="display:flex;justify-content:space-between;font-size:12px"><span>Channel:</span> <b>${esc(l.channel)}</b></div>
             <div class="cura-detail-row" style="display:flex;justify-content:space-between;font-size:12px"><span>Started Date:</span> <b>${esc(l.date)}</b></div>
             <div class="cura-detail-row" style="display:flex;justify-content:space-between;font-size:12px"><span>Phone:</span> <b>${esc(l.phone || '—')}</b></div>
             <div class="cura-detail-row" style="display:flex;justify-content:space-between;font-size:12px"><span>Ad Source:</span> <b>${esc(l.ad || 'Direct / Organic')}</b></div>
-            ${l.pageName ? `<div class="cura-detail-row" style="display:flex;justify-content:space-between;font-size:12px"><span>Page:</span> <b>${esc(l.pageName)}</b></div>` : ''}
           </div>
         </div>
       `;
@@ -4550,6 +4706,7 @@ function boardShell() {
       else if (act === 'istatus') { S.inbox.status = el.dataset.status; renderInboxTools(); renderInboxList(); }
       else if (act === 'inbox-folder') { S.inbox.folder = el.dataset.folder; renderInboxTools(); renderInboxList(); }
       else if (act === 'inbox-channel') { S.inbox.channel = el.dataset.channel; renderInboxTools(); renderInboxList(); }
+      else if (act === 'inbox-page') { S.inbox.page = el.dataset.page; renderInboxTools(); renderInboxList(); }
       else if (act === 'set-ai-mode') { S.aiMode = el.dataset.mode; render(); }
       else if (act === 'takeover-chat') {
         S.chat.takenOver = !S.chat.takenOver;
@@ -5079,6 +5236,16 @@ function boardShell() {
     if (ev.target.dataset && (ev.target.dataset.act === 'ad-img-file' || ev.target.dataset.act === 'dash-ad-img')) {
       const file = ev.target.files && ev.target.files[0];
       if (file) uploadAdImage(ev.target.dataset.adId, ev.target.dataset.adName, file);
+      return;
+    }
+    if (ev.target.id === 'upload-platform-input') {
+      S.upload.platform = ev.target.value;
+      if (S.upload.rows && S.upload.rows.length) renderUploadBody();
+      return;
+    }
+    if (ev.target.id === 'upload-page-input') {
+      S.upload.pageName = ev.target.value.trim();
+      if (S.upload.rows && S.upload.rows.length) renderUploadBody();
       return;
     }
     const b = ev.target.dataset && ev.target.dataset.bind; if (!b) return;

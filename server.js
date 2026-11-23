@@ -1047,7 +1047,7 @@ async function api(req, res, url, session) {
       const phone = clean(r.phone || r.phone_number || r.telephone, 40) || '';
       const email = clean(r.email || r.email_address, 80) || '';
 
-      // ตรวจสอบแพลตฟอร์ม Instagram จาก channel, platform หรือชื่อเพจ
+      // ตรวจสอบแพลตฟอร์มอย่างแม่นยำ (Instagram, Facebook, LINE, WhatsApp)
       const rawRowPlat = clean(r.platform, 30);
       const rawRowPage = clean(r.pageName || r.page, 80);
       const isIg = Boolean(
@@ -1058,8 +1058,24 @@ async function api(req, res, url, session) {
         (uploadPageName && /ig|instagram|dr\.nay_hairtransplant|beq_wellness/i.test(uploadPageName))
       );
 
-      let platform = isIg ? 'Instagram' : (uploadPlatform || rawRowPlat || channel);
-      let pageName = uploadPageName || rawRowPage || (platform === 'Facebook' ? 'Pavicon Hair Clinic คลินิกปลูกผมมาตรฐานสากล' : `${platform} Channel`);
+      let platform = 'Facebook';
+      if (isIg) {
+        platform = 'Instagram';
+      } else {
+        const checkStr = `${uploadPlatform} ${rawRowPlat} ${channel}`.toLowerCase();
+        if (checkStr.includes('line')) platform = 'LINE';
+        else if (checkStr.includes('whatsapp') || checkStr.includes('wa')) platform = 'WhatsApp';
+        else if (checkStr.includes('ig') || checkStr.includes('instagram')) platform = 'Instagram';
+        else platform = 'Facebook';
+      }
+
+      // ปรับ channel ให้ตรงกับแพลตฟอร์ม
+      if (platform === 'Instagram') channel = 'Instagram';
+      else if (platform === 'Facebook') channel = 'Messenger';
+      else if (platform === 'LINE') channel = 'LINE';
+      else if (platform === 'WhatsApp') channel = 'WhatsApp';
+
+      let pageName = uploadPageName || rawRowPage || (platform === 'Instagram' ? 'Instagram Direct' : (platform === 'Facebook' ? 'Pavicon Hair Clinic คลินิกปลูกผมมาตรฐานสากล' : `${platform} Channel`));
 
       // ค้นหา pageId และชื่อเพจจริงจาก pages.json ที่เชื่อมต่อกับ Meta (แยก Instagram และ Facebook ชัดเจน)
       let resolvedPageId = clean(r.pageId, 50);
@@ -1068,12 +1084,12 @@ async function api(req, res, url, session) {
         let matchedPage = knownPages.find((p) => {
           if (!p.name) return false;
           const kNorm = p.name.toLowerCase().replace(/[\s_.-]/g, '');
-          const platMatch = isIg ? (p.platform === 'Instagram') : (p.platform !== 'Instagram');
+          const platMatch = (platform === 'Instagram') ? (p.platform === 'Instagram') : (p.platform !== 'Instagram');
           return platMatch && (kNorm === pNorm || kNorm.includes(pNorm) || pNorm.includes(kNorm));
         });
 
         // หากระบุว่าเป็น Instagram แต่ใส่ชื่อ Facebook Page มา (เช่น Dr. Nay Hair Transplant) ให้แมพไปหา Instagram Page คู่ของมัน
-        if (isIg && !matchedPage) {
+        if (platform === 'Instagram' && !matchedPage) {
           const fbPage = knownPages.find((p) => p.platform === 'Facebook' && (p.name || '').toLowerCase().replace(/[\s_.-]/g, '').includes(pNorm));
           if (fbPage) {
             matchedPage = knownPages.find((p) => p.platform === 'Instagram' && p.fbPageId === fbPage.id);
@@ -1112,6 +1128,8 @@ async function api(req, res, url, session) {
         if (phone) existingMatch.phone = phone;
         if (email) existingMatch.email = email;
         existingMatch.pageName = pageName;
+        existingMatch.platform = platform;
+        existingMatch.channel = channel;
         added.push(existingMatch);
       } else {
         const id = `U-${Date.now().toString(36)}-${String(i).padStart(4, '0')}`;
