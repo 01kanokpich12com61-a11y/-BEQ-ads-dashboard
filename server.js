@@ -873,6 +873,51 @@ async function api(req, res, url, session) {
     return send(res, 200, { ok: true, unread: notifs.filter(n => !n.read).length });
   }
 
+  if (route === 'POST /api/notifications/delete') {
+    const b = await readJson(req);
+    let notifs = store.read('web_notifications.json', []);
+    if (b.all) {
+      notifs = [];
+    } else if (b.id) {
+      notifs = notifs.filter(n => n.id !== b.id);
+    }
+    store.write('web_notifications.json', notifs);
+    audit.log(session.user.username, 'web_notification_deleted', b.all ? 'ลบการแจ้งเตือนทั้งหมด' : `ลบแจ้งเตือน ${b.id}`, clientIp(req));
+    return send(res, 200, { ok: true, total: notifs.length, unread: notifs.filter(n => !n.read).length });
+  }
+
+  if (route === 'GET /api/notifications/schedule') {
+    const sched = store.read('notification_schedule.json', {
+      enabled: false,
+      intervalMinutes: 60, // เช่น 15, 30, 60, 120, 360, 1440
+      lastRun: null,
+      target: 'all', // 'all', 'reply', 'overdue'
+    });
+    return send(res, 200, sched);
+  }
+
+  if (route === 'POST /api/notifications/schedule') {
+    const b = await readJson(req);
+    const cur = store.read('notification_schedule.json', {
+      enabled: false,
+      intervalMinutes: 60,
+      lastRun: null,
+      target: 'all',
+    });
+    const intervalMinutes = Math.max(1, parseInt(b.intervalMinutes || cur.intervalMinutes || 60, 10));
+    const updated = {
+      enabled: Boolean(b.enabled),
+      intervalMinutes,
+      target: b.target || cur.target || 'all',
+      lastRun: cur.lastRun || null,
+      updatedAt: new Date().toISOString(),
+      updatedBy: session.user.username,
+    };
+    store.write('notification_schedule.json', updated);
+    audit.log(session.user.username, 'notification_schedule_updated', `enabled=${updated.enabled}, interval=${updated.intervalMinutes}m, target=${updated.target}`, clientIp(req));
+    return send(res, 200, { ok: true, schedule: updated });
+  }
+
   if (route === 'GET /api/settings/line-notify') {
     return send(res, 200, line.getLineConfig());
   }
@@ -2377,6 +2422,52 @@ if (require.main === module) {
       if (created) console.log(`  สร้างผู้ใช้ "${config.adminUser}" แล้ว${config.usingDefaultPassword ? ' (รหัสผ่านเริ่มต้น: admin1234 — ระบบจะให้เปลี่ยนหลังล็อกอิน)' : ''}`);
       console.log(`  โหมดข้อมูล: ${providers.currentMode() === 'meta' ? 'Meta' : 'Demo'}\n`);
       
+      // Background Cron: ตรวจสอบและส่งการแจ้งเตือน LINE & Web ตามรอบเวลาที่ผู้ใช้ตั้งค่าไว้ (ตรวจทุก 1 นาที)
+      setInterval(async () => {
+        try {
+          const sched = store.read('notification_schedule.json', { enabled: false, intervalMinutes: 60, lastRun: null, target: 'all' });
+          if (!sched.enabled) return;
+          const nowMs = Date.now();
+          const lastRunMs = sched.lastRun ? Date.parse(sched.lastRun) : 0;
+          const intervalMs = (sched.intervalMinutes || 60) * 60 * 1000;
+          if (nowMs - lastRunMs >= intervalMs) {
+            const data = await providers.load(resolveRange({ range: '90d' })).catch(() => null);
+            if (!data) return;
+            const fuData = ops.buildFollowups(data, providers.currentMode() === 'demo', {});
+            const rows = fuData.rows || [];
+            if (rows.length) {
+              const overdueCount = rows.filter(r => r.overdue).length;
+              const replyCount = rows.filter(r => r.kind === 'reply').length;
+              let notifs = store.read('web_notifications.json', []);
+              const autoNotif = {
+                id: 'notif_auto_' + Date.now(),
+                title: `⏰ รอบเตือนตามลูกค้าอัตโนมัติ (ทุก ${sched.intervalMinutes} นาที)`,
+                message: `มีลูกค้าที่ต้องติดตาม ${rows.length} เคส (ลูกค้ารอตอบ ${replyCount} เคส, เกินกำหนด ${overdueCount} เคส)`,
+                type: 'scheduled_alert',
+                at: new Date().toISOString(),
+                read: false,
+                sender: 'ระบบอัตโนมัติ',
+              };
+              notifs.unshift(autoNotif);
+              if (notifs.length > 100) notifs = notifs.slice(0, 100);
+              store.write('web_notifications.json', notifs);
+
+              // ส่ง LINE ด้วยหากเปิด LINE Notify
+              try {
+                const lineConf = line.getLineConfig();
+                if (lineConf.enabled) {
+                  line.sendLineNotification(`\n⏰ [เตือนตามลูกค้าอัตโนมัติ ทุก ${sched.intervalMinutes} นาที]\n📊 ลูกค้าที่ต้องตาม: ${rows.length} เคส\n⚡ รอคำตอบ: ${replyCount} เคส\n⚠️ เกินกำหนด: ${overdueCount} เคส\n🔗 ดูรายชื่อ: https://beq-ads-dashboard.onrender.com/#/followup`).catch(() => {});
+                }
+              } catch {}
+            }
+            sched.lastRun = new Date(nowMs).toISOString();
+            store.write('notification_schedule.json', sched);
+          }
+        } catch (err) {
+          console.error('[Scheduled interval error]', err.message);
+        }
+      }, 60 * 1000);
+
       // Background Cron: ตรวจสอบและส่งการแจ้งเตือน LINE สำหรับลูกค้านัดตามเกินกำหนด (ทุกๆ 1 ชั่วโมง)
       setInterval(async () => {
         try {

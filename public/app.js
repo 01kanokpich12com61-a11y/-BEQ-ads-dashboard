@@ -16,6 +16,8 @@
     review: { range: '30d', from: '', to: '', data: null, err: null, state: '', rep: '' },
     followup: { data: null, err: null, tab: '', rep: '' },
     notifications: { data: null, unread: 0, list: [] },
+    notificationSchedule: null,
+    scheduleModalOpen: false,
     audit: { data: null, err: null, action: '', q: '', from: '', to: '', limit: 100 },
     chat: { id: null, loading: false, data: null, err: null, sending: false, msg: null },
     users: { data: null, err: null, result: null },
@@ -738,16 +740,28 @@
             ${icon('bell')}
             ${list.length ? `<span class="dot count-dot" style="${S.notifications?.unread ? 'background:#ef4444' : ''}">${list.length > 9 ? '9+' : list.length}</span>` : ''}
           </button>
-          ${S.menu === 'bell' ? `<div class="popover" style="min-width:320px;max-width:380px;right:-10px">
+          ${S.menu === 'bell' ? `<div class="popover" style="min-width:330px;max-width:390px;right:-10px">
             <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid #f1f5f9">
               <span style="font-weight:700;font-size:13px;color:#0f172a">🔔 ศูนย์แจ้งเตือนในระบบ (${list.length})</span>
-              ${S.notifications?.list?.length ? `<button type="button" data-act="mark-all-notifs" style="width:auto;padding:2px 8px;font-size:11px;color:#059669;background:#ecfdf5;border-radius:6px;font-weight:600">อ่านทั้งหมด</button>` : ''}
+              <div style="display:flex;gap:6px;align-items:center">
+                ${S.notifications?.list?.length ? `
+                  <button type="button" data-act="mark-all-notifs" style="width:auto;padding:2px 8px;font-size:11px;color:#059669;background:#ecfdf5;border-radius:6px;font-weight:600">อ่านทั้งหมด</button>
+                  <button type="button" data-act="delete-all-notifs" title="ลบการแจ้งเตือนทั้งหมด" style="width:auto;padding:2px 8px;font-size:11px;color:#ef4444;background:#fef2f2;border-radius:6px;font-weight:600">ลบทั้งหมด</button>
+                ` : ''}
+              </div>
             </div>
             <div style="max-height:360px;overflow-y:auto;padding:4px 0">
               ${list.length ? list.map((t) => typeof t === 'string' ? `<div class="item">${esc(t)}</div>` : `
-                <div class="item notif-item ${t.read ? 'read' : 'unread'}" data-act="${t.leadId ? 'open-chat' : 'noop'}" data-id="${esc(t.leadId || '')}" style="display:block;padding:10px 14px;cursor:${t.leadId ? 'pointer' : 'default'};border-bottom:1px solid #f8fafc;${!t.read ? 'background:#f0fdf4' : ''}">
-                  <div style="font-size:12.5px;color:#0f172a;line-height:1.45;font-weight:${t.read ? '500' : '700'}">${esc(t.text)}</div>
-                  ${t.at ? `<div style="font-size:11px;color:#94a3b8;margin-top:4px">${ago(t.at)}ที่แล้ว ${t.leadId ? '· <span style="color:#059669;font-weight:600">คลิกเพื่อเปิดแชท</span>' : ''}</div>` : ''}
+                <div class="item notif-item ${t.read ? 'read' : 'unread'}" style="display:flex;justify-content:space-between;align-items:flex-start;padding:10px 14px;border-bottom:1px solid #f8fafc;${!t.read ? 'background:#f0fdf4' : ''};gap:8px">
+                  <div style="flex:1;cursor:${t.leadId ? 'pointer' : 'default'}" data-act="${t.leadId ? 'open-chat' : 'noop'}" data-id="${esc(t.leadId || '')}">
+                    <div style="font-size:12.5px;color:#0f172a;line-height:1.45;font-weight:${t.read ? '500' : '700'}">${esc(t.text)}</div>
+                    ${t.at ? `<div style="font-size:11px;color:#94a3b8;margin-top:4px">${ago(t.at)}ที่แล้ว ${t.leadId ? '· <span style="color:#059669;font-weight:600">คลิกเปิดแชท</span>' : ''}</div>` : ''}
+                  </div>
+                  ${t.id ? `
+                    <button type="button" class="notif-del-btn" data-act="delete-one-notif" data-id="${esc(t.id)}" title="ลบการแจ้งเตือนนี้" style="width:auto;padding:3px 6px;color:#94a3b8;background:transparent;border:0;cursor:pointer;border-radius:4px;font-size:13px;line-height:1" onmouseover="this.style.color='#ef4444'" onmouseout="this.style.color='#94a3b8'">
+                      ✕
+                    </button>
+                  ` : ''}
                 </div>
               `).join('') : '<div class="item" style="padding:16px;text-align:center;color:#94a3b8">ไม่มีการแจ้งเตือนใหม่</div>'}
             </div>
@@ -878,6 +892,56 @@
     `;
   }
 
+  function scheduleModalHtml() {
+    if (!S.scheduleModalOpen) return '';
+    const sched = S.notificationSchedule || { enabled: false, intervalMinutes: 60, target: 'all' };
+    const mins = sched.intervalMinutes || 60;
+    return `
+      <div class="modal-backdrop" data-act="fu-close-schedule" style="position:fixed;inset:0;background:rgba(15,23,42,0.45);backdrop-filter:blur(3px);z-index:9998;display:flex;align-items:center;justify-content:center;padding:16px">
+        <div class="modal-card" onclick="event.stopPropagation()" style="background:#fff;border-radius:18px;max-width:460px;width:100%;box-shadow:0 20px 40px -8px rgba(0,0,0,0.2);overflow:hidden;border:1px solid #e2e8f0;animation:slideUp 0.2s ease-out">
+          <div style="padding:18px 22px;border-bottom:1px solid #f1f5f9;display:flex;justify-content:space-between;align-items:center;background:#f8fafc">
+            <div style="display:flex;align-items:center;gap:10px">
+              <span style="font-size:22px">⏰</span>
+              <div>
+                <h3 style="margin:0;font-size:16px;color:#0f172a;font-weight:700">ตั้งรอบเวลาส่งแจ้งเตือนตามลูกค้า</h3>
+                <span style="font-size:12px;color:#64748b">ส่งแจ้งเตือนเข้าเว็บ & LINE อัตโนมัติตามช่วงเวลา</span>
+              </div>
+            </div>
+            <button type="button" data-act="fu-close-schedule" style="background:none;border:0;color:#94a3b8;font-size:18px;cursor:pointer;padding:4px;line-height:1">✕</button>
+          </div>
+          <form data-form="fu-save-schedule" style="padding:22px">
+            <div style="margin-bottom:18px">
+              <label style="display:flex;align-items:center;gap:10px;cursor:pointer;user-select:none">
+                <input type="checkbox" name="enabled" ${sched.enabled ? 'checked' : ''} style="width:18px;height:18px;accent-color:#059669">
+                <span style="font-weight:700;font-size:14px;color:#0f172a">เปิดใช้งานระบบแจ้งเตือนอัตโนมัติตามรอบเวลา</span>
+              </label>
+            </div>
+            <div style="margin-bottom:16px">
+              <label style="display:block;font-size:13px;font-weight:600;color:#334155;margin-bottom:8px">เลือกรอบระยะเวลาในการส่ง (กี่นาที หรือ กี่ชั่วโมง):</label>
+              <select name="intervalMinutes" style="width:100%;padding:10px 14px;border-radius:10px;border:1px solid #cbd5e1;font-size:14px;background:#f8fafc">
+                <option value="15" ${mins === 15 ? 'selected' : ''}>⚡ ทุกๆ 15 นาที (ติดตามด่วนพิเศษ)</option>
+                <option value="30" ${mins === 30 ? 'selected' : ''}>⏱️ ทุกๆ 30 นาที</option>
+                <option value="60" ${mins === 60 ? 'selected' : ''}>🕐 ทุกๆ 1 ชั่วโมง (แนะนำ)</option>
+                <option value="120" ${mins === 120 ? 'selected' : ''}>🕑 ทุกๆ 2 ชั่วโมง</option>
+                <option value="240" ${mins === 240 ? 'selected' : ''}>🕓 ทุกๆ 4 ชั่วโมง</option>
+                <option value="360" ${mins === 360 ? 'selected' : ''}>🕕 ทุกๆ 6 ชั่วโมง</option>
+                <option value="720" ${mins === 720 ? 'selected' : ''}>🕛 ทุกๆ 12 ชั่วโมง</option>
+                <option value="1440" ${mins === 1440 ? 'selected' : ''}>📅 วันละ 1 ครั้ง (ทุก 24 ชั่วโมง)</option>
+              </select>
+            </div>
+            <div style="padding:12px;background:#f0fdf4;border-radius:10px;border:1px solid #bbf7d0;font-size:12.5px;color:#166534;line-height:1.5;margin-bottom:20px">
+              💡 <b>การทำงาน:</b> ระบบจะคำนวณเคสที่รอลูกค้าตอบและเคสที่ถึงเวลาตามต่อ จากนั้นส่งสรุปแจ้งเตือนเข้า <b>กระดิ่งบนหน้าเว็บ</b> และ <b>กลุ่ม LINE</b> ตามรอบเวลาที่คุณเลือกไว้ทันที
+            </div>
+            <div style="display:flex;justify-content:flex-end;gap:10px">
+              <button type="button" class="btn btn-secondary" data-act="fu-close-schedule">ยกเลิก</button>
+              <button type="submit" class="btn btn-primary" style="background:#059669;color:#fff">บันทึกการตั้งค่า</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    `;
+  }
+
   function render() {
     if (!S.booted) { $app.innerHTML = '<div class="loading">Loading…</div>'; return; }
     if (!S.me) return renderLogin();
@@ -895,6 +959,7 @@
       </div>
       <div id="drawer-root"></div>
       ${commandPaletteHtml()}
+      ${scheduleModalHtml()}
       ${floatingGhostHtml()}
     </div>`;
     afterRender();
@@ -3842,10 +3907,14 @@ function boardShell() {
     renderFollowBody();
   }
   function followShell() {
+    const sched = S.notificationSchedule || { enabled: false, intervalMinutes: 60 };
     return `<div class="page-head"><div><h1>ตามลูกค้า</h1><div class="meta-line"><span>ลูกค้าที่รอคำตอบ ถึงเวลาตามต่อ และนัดตามที่ตั้งไว้ (ลีดย้อนหลัง 90 วัน ไม่นับที่ปิดการขายแล้ว)</span></div></div>
-      <div style="display:flex;gap:8px;align-items:center">
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
         <button class="btn btn-primary" data-act="fu-notify-all" style="background:#059669;color:#fff;border-radius:10px;font-weight:600;display:inline-flex;align-items:center;gap:6px">
-          🔔 ส่งแจ้งเตือนตามลูกค้าทั้งหมด
+          🔔 ส่งแจ้งเตือนตอนนี้
+        </button>
+        <button class="btn btn-secondary" data-act="fu-open-schedule" style="background:${sched.enabled ? '#ecfdf5' : '#f8fafc'};color:${sched.enabled ? '#065f46' : '#334155'};border:1px solid ${sched.enabled ? '#a7f3d0' : '#cbd5e1'};border-radius:10px;font-weight:600;display:inline-flex;align-items:center;gap:6px">
+          ⏰ ${sched.enabled ? `ตั้งรอบอัตโนมัติ: ทุก ${sched.intervalMinutes >= 60 ? (sched.intervalMinutes / 60) + ' ชม.' : sched.intervalMinutes + ' นาที'} (เปิดอยู่)` : '⏱️ ตั้งรอบเวลาแจ้งเตือน (นาที/ชม.)'}
         </button>
         <button class="btn" data-act="fu-refresh">${icon('refresh')}Refresh</button>
       </div>
@@ -4490,6 +4559,31 @@ function boardShell() {
         await loadWebNotifications();
         render();
       }
+      else if (act === 'delete-all-notifs') {
+        if (!confirm('ต้องการลบการแจ้งเตือนทั้งหมดใช่หรือไม่?')) return;
+        await api('/api/notifications/delete', { method: 'POST', body: { all: true } });
+        showToast('🗑️ ลบการแจ้งเตือนทั้งหมดเรียบร้อยแล้ว', 'success');
+        await loadWebNotifications();
+        render();
+      }
+      else if (act === 'delete-one-notif') {
+        const id = el.dataset.id;
+        if (!id) return;
+        await api('/api/notifications/delete', { method: 'POST', body: { id } });
+        await loadWebNotifications();
+        render();
+      }
+      else if (act === 'fu-open-schedule') {
+        try {
+          S.notificationSchedule = await api('/api/notifications/schedule');
+        } catch (_) {}
+        S.scheduleModalOpen = true;
+        render();
+      }
+      else if (act === 'fu-close-schedule') {
+        S.scheduleModalOpen = false;
+        render();
+      }
       else if (act === 'fu-notify-one') {
         const id = el.dataset.id;
         const name = el.dataset.name;
@@ -5016,6 +5110,18 @@ function boardShell() {
       else if (type === 'login') {
         await api('/api/login', { method: 'POST', body: { username: fd.username, password: fd.password } });
         S.loginErr = ''; S.me = await api('/api/me'); S.route = routeFromHash(); enterRoute();
+      } else if (type === 'fu-save-schedule') {
+        const enabled = Boolean(form.querySelector('[name="enabled"]')?.checked);
+        const intervalMinutes = parseInt(fd.intervalMinutes || 60, 10);
+        const res = await api('/api/notifications/schedule', {
+          method: 'POST',
+          body: { enabled, intervalMinutes }
+        });
+        S.notificationSchedule = res.schedule;
+        S.scheduleModalOpen = false;
+        showToast(enabled ? `⏰ เปิดระบบแจ้งเตือนอัตโนมัติทุก ${intervalMinutes >= 60 ? (intervalMinutes / 60) + ' ชม.' : intervalMinutes + ' นาที'} เรียบร้อยแล้ว` : '⏸️ ปิดระบบแจ้งเตือนอัตโนมัติแล้ว', 'success');
+        render();
+        return;
       } else if (type === 'meta') {
         const after = (ev.submitter && ev.submitter.dataset.after) || 'save';
         S.settings = await api('/api/settings/meta', { method: 'PUT', body: fd });
@@ -5281,6 +5387,7 @@ function boardShell() {
     try {
       S.me = await api('/api/me');
       await loadWebNotifications();
+      try { S.notificationSchedule = await api('/api/notifications/schedule'); } catch (_) {}
       // Polling web notifications ทุก 30 วินาที
       setInterval(async () => {
         if (S.me) {

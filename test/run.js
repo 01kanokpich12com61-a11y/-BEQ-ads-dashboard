@@ -127,7 +127,15 @@ async function main() {
   const notifList = (await call('GET', '/api/notifications')).json;
   assert.ok(notifList.webNotifications.length >= 1);
   assert.equal((await call('POST', '/api/notifications/mark-read', { all: true })).json.ok, true);
-  ok('แจ้งเตือนเข้าเว็บ ส่ง/บันทึก/อ่าน');
+
+  // ตั้งรอบเวลา & ลบการแจ้งเตือน
+  const schedRes = await call('POST', '/api/notifications/schedule', { enabled: true, intervalMinutes: 30 });
+  assert.equal(schedRes.json.schedule.intervalMinutes, 30);
+  assert.equal(schedRes.json.schedule.enabled, true);
+  assert.equal((await call('GET', '/api/notifications/schedule')).json.intervalMinutes, 30);
+  assert.equal((await call('POST', '/api/notifications/delete', { id: notifRes.json.notification.id })).json.ok, true);
+  assert.equal((await call('POST', '/api/notifications/delete', { all: true })).json.ok, true);
+  ok('แจ้งเตือนเข้าเว็บ ส่ง/บันทึก/อ่าน/ตั้งรอบนาที/ลบแจ้งเตือน');
 
   // รีวิว
   const rv0 = (await call('GET', '/api/review?range=30d')).json;
