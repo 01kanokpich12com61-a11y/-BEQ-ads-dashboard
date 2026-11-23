@@ -1218,22 +1218,63 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
   }
 
   /* ═══════════════════════════════════════════
-     AD CREATIVE MEDIA PREVIEW (IMAGE & VIDEO LIGHTBOX)
+     AD CREATIVE MEDIA & 360° CAMPAIGN INSPECTOR
   ═══════════════════════════════════════════ */
+  const OBJECTIVE_TH = {
+    OUTCOME_ENGAGEMENT: '💬 ทักแชท / มีส่วนร่วม (Engagement)',
+    OUTCOME_LEADS: '🧲 รวบรวมรายชื่อลีด (Leads)',
+    OUTCOME_SALES: '🛒 ยอดขาย / คอนเวอร์ชัน (Sales)',
+    OUTCOME_TRAFFIC: '🔗 จำนวนผู้เข้าชม (Traffic)',
+    OUTCOME_AWARENESS: '📢 การรับรู้แบรนด์ (Awareness)',
+    MESSAGES: '💬 ข้อความทักแชท (Messages)',
+    LEAD_GENERATION: '🧲 รวบรวมลีด (Lead Gen)',
+    CONVERSIONS: '🛒 คอนเวอร์ชัน (Conversions)',
+    VIDEO_VIEWS: '🎬 การรับชมวิดีโอ (Video Views)',
+    POST_ENGAGEMENT: '👍 การมีส่วนร่วมโพสต์',
+  };
+  const OPT_GOAL_TH = {
+    CONVERSATIONS: '💬 การสนทนาทางข้อความ',
+    THRUPLAY: '🎬 รับชมวิดีโอ ThruPlay (15s)',
+    LEAD_GENERATION: '🧲 รายชื่อลูกค้า (Leads)',
+    QUALITY_LEAD: '✨ ลีดคุณภาพสูง (Quality Leads)',
+    OFFSITE_CONVERSIONS: '🛒 คอนเวอร์ชันบนเว็บ/แชท',
+    LINK_CLICKS: '🔗 การคลิกลิงก์',
+    REACH: '📢 การเข้าถึง (Reach)',
+    IMPRESSIONS: '👁 การแสดงผล',
+    POST_ENGAGEMENT: '👍 การมีส่วนร่วมโพสต์',
+  };
+  const CTA_TH = {
+    SEND_MESSAGE: '💬 ส่งข้อความ (Send Message)',
+    LEARN_MORE: '🔗 เรียนรู้เพิ่มเติม (Learn More)',
+    BOOK_NOW: '📅 จองเลย (Book Now)',
+    BOOK_TRAVEL: '📅 จองคิว (Book Now)',
+    SIGN_UP: '📝 ลงทะเบียน (Sign Up)',
+    CONTACT_US: '📞 ติดต่อเรา (Contact Us)',
+    APPLY_NOW: '📋 สมัครเลย (Apply Now)',
+    SHOP_NOW: '🛍 ซื้อเลย (Shop Now)',
+    WHATSAPP_MESSAGE: '💚 ทัก WhatsApp',
+  };
+
+  function statusBadgeHtml(st) {
+    const s = String(st || 'ACTIVE').toUpperCase();
+    const isAct = s === 'ACTIVE';
+    const isPaused = s.includes('PAUSED');
+    const bg = isAct ? '#dcfce7' : isPaused ? '#fef3c7' : '#f1f5f9';
+    const col = isAct ? '#15803d' : isPaused ? '#b45309' : '#475569';
+    const bdr = isAct ? '#86efac' : isPaused ? '#fde68a' : '#cbd5e1';
+    const dot = isAct ? '🟢' : isPaused ? '⏸' : '⚪';
+    const lbl = isAct ? 'ACTIVE (กำลังรัน)' : isPaused ? 'PAUSED (หยุดพัก)' : s;
+    return `<span style="display:inline-flex;align-items:center;gap:4px;font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:999px;background:${bg};color:${col};border:1px solid ${bdr};white-space:nowrap">${dot} ${esc(lbl)}</span>`;
+  }
+
   function adMediaThumbHtml(r) {
     const cType = String(r.creative || 'IMAGE').toUpperCase();
     const isVid = Boolean(r.videoUrl) || cType === 'VIDEO' || cType === 'STORY';
     const isRealVideoUrl = Boolean(r.videoUrl && !String(r.videoUrl).startsWith('demo-reel:'));
-    const mediaPayload = esc(JSON.stringify({
-      id: r.id, name: r.name, campaign: r.campaign || '', adset: r.adset || '',
-      creative: cType, thumb: r.thumb || null, videoUrl: r.videoUrl || null,
-      reach: r.reach || 0, impressions: r.impressions || 0, spend: r.spend || 0,
-      ctr: r.ctr || 0, costMessage: r.costMessage || 0, purchases: r.purchases || 0,
-      qualityScore: r.qualityScore, qualityLabel: r.qualityLabel,
-    }));
+    const mediaPayload = esc(JSON.stringify(r));
 
     return `<div class="ad-media-cell">
-      <div class="ad-media-box" data-act="open-ad-media" data-ad-media="${mediaPayload}" title="คลิกเพื่อดูรูปขนาดใหญ่ / เล่นวิดีโอโฆษณา">
+      <div class="ad-media-box" data-act="open-ad-media" data-ad-media="${mediaPayload}" title="คลิกเพื่อดูข้อมูลแคมเปญครบ 360° + รูป/วิดีโอโฆษณา">
         ${isRealVideoUrl && !r.thumb
           ? `<video src="${esc(r.videoUrl)}" muted loop playsinline preload="metadata"></video>`
           : (r.thumb
@@ -1249,7 +1290,7 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
       <div style="display:flex;flex-direction:column;gap:3px">
         <span class="creative-lbl" style="font-weight:700;font-size:12px;color:#064e3b">${isVid ? '🎬 Video / Reel' : cType === 'CAROUSEL' ? '📑 Carousel' : '🖼️ Image'}</span>
         <button type="button" class="btn" data-act="open-ad-media" data-ad-media="${mediaPayload}" style="padding:3px 10px;font-size:11px;border-radius:999px;background:#ecfdf5;border:1px solid #a7f3d0;color:#059669;font-weight:700;display:inline-flex;align-items:center;gap:4px">
-          ${isVid ? '▶ เล่นวิดีโอ' : '🔍 ดูรูปโฆษณา'}
+          ${isVid ? '▶ เล่นวิดีโอ & ดูข้อมูล' : '🔍 ดูรูป & ข้อมูลครบ'}
         </button>
       </div>
     </div>`;
@@ -1267,46 +1308,118 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
     const cType = String(r.creative || 'IMAGE').toUpperCase();
     const isVid = Boolean(r.videoUrl) || cType === 'VIDEO' || cType === 'STORY';
     const isRealVideoUrl = Boolean(r.videoUrl && !String(r.videoUrl).startsWith('demo-reel:'));
+    const objLabel = OBJECTIVE_TH[r.objective] || r.objective || '💬 ข้อความทักแชท';
+    const optLabel = OPT_GOAL_TH[r.optimizationGoal] || r.optimizationGoal || '💬 การสนทนา';
+    const ctaLabel = CTA_TH[r.cta] || r.cta || '💬 SEND_MESSAGE';
+    const budgetText = r.dailyBudget ? `${baht(r.dailyBudget)} / วัน` : (r.lifetimeBudget ? `${baht(r.lifetimeBudget)} (ตลอดอายุ)` : 'ใช้ตามงบแคมเปญ (CBO)');
 
     const wrap = document.createElement('div');
     wrap.id = 'ad-media-modal-root';
     wrap.className = 'ad-media-modal-overlay';
     wrap.innerHTML = `
-      <div class="ad-media-modal">
-        <div class="ad-media-modal-head">
+      <div class="ad-media-modal" style="max-width:1020px;max-height:92vh;overflow-y:auto">
+        <div class="ad-media-modal-head" style="position:sticky;top:0;z-index:10;background:#f8fcf9">
           <div style="min-width:0">
             <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+              ${statusBadgeHtml(r.status)}
               <span class="chip good" style="font-size:11px">${isVid ? '🎬 VIDEO AD' : '🖼️ ' + esc(cType) + ' AD'}</span>
               <b style="font-size:16px;color:#064e3b">${esc(r.name)}</b>
             </div>
-            <div style="font-size:12px;color:var(--muted);margin-top:2px">📊 แคมเปญ: <b>${esc(r.campaign || '—')}</b>${r.adset ? ' · ชุดโฆษณา: ' + esc(r.adset) : ''} · ID: <code>${esc(r.id)}</code></div>
+            <div style="font-size:12px;color:var(--muted);margin-top:3px">
+              📊 แคมเปญ: <b>${esc(r.campaign || '—')}</b>${r.adset ? ' · 🎯 ชุดโฆษณา: <b>' + esc(r.adset) + '</b>' : ''} · 📄 เพจ: <b>${esc(r.page || '—')}</b> · ID: <code>${esc(r.id)}</code>
+            </div>
           </div>
           <button type="button" class="icon-btn" data-act="close-ad-media" aria-label="ปิด">✕</button>
         </div>
-        <div class="ad-media-stage" id="ad-media-stage-box">
+
+        <div class="ad-media-stage" id="ad-media-stage-box" style="min-height:240px;max-height:380px">
           ${isRealVideoUrl
-            ? `<video src="${esc(r.videoUrl)}" ${r.thumb ? `poster="${esc(r.thumb)}"` : ''} controls autoplay playsinline style="width:100%;max-height:460px"></video>`
+            ? `<video src="${esc(r.videoUrl)}" ${r.thumb ? `poster="${esc(r.thumb)}"` : ''} controls autoplay playsinline style="width:100%;max-height:360px"></video>`
             : (isVid
-                ? `<div style="position:relative;width:100%;display:flex;flex-direction:column;align-items:center;padding:14px">
-                    <canvas id="demo-reel-canvas" width="560" height="340" style="max-width:100%;border-radius:14px;box-shadow:0 8px 28px rgba(0,0,0,0.4)"></canvas>
-                    <div style="display:flex;align-items:center;gap:12px;margin-top:10px;color:#a7f3d0;font-size:12px">
+                ? `<div style="position:relative;width:100%;display:flex;flex-direction:column;align-items:center;padding:12px">
+                    <canvas id="demo-reel-canvas" width="560" height="310" style="max-width:100%;border-radius:14px;box-shadow:0 8px 28px rgba(0,0,0,0.4)"></canvas>
+                    <div style="display:flex;align-items:center;gap:12px;margin-top:8px;color:#a7f3d0;font-size:12px">
                       <button type="button" id="demo-reel-toggle" class="btn primary" style="padding:4px 14px;font-size:12px">⏸ Pause Reel</button>
                       <span id="demo-reel-timer">00:00 / 00:15 · HD Clinic Reel Preview</span>
                     </div>
                   </div>`
                 : (r.thumb
-                    ? `<img src="${esc(r.thumb)}" alt="${esc(r.name)}" referrerpolicy="no-referrer">`
+                    ? `<img src="${esc(r.thumb)}" alt="${esc(r.name)}" referrerpolicy="no-referrer" style="max-height:350px">`
                     : `<div style="color:#a7f3d0;padding:40px;text-align:center">ยังไม่มีรูปหรือวิดีโอสำหรับโฆษณานี้</div>`))}
         </div>
-        <div class="ad-media-modal-body">
-          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(105px,1fr));gap:10px;background:#f0f7f3;padding:12px 14px;border-radius:14px;border:1px solid #d3e7da;margin-bottom:14px">
-            <div><div style="font-size:11px;color:var(--muted)">Spend (งบใช้ไป)</div><b style="font-size:14.5px;color:#064e3b">฿${Number(r.spend || 0).toLocaleString()}</b></div>
-            <div><div style="font-size:11px;color:var(--muted)">Reach</div><b style="font-size:14.5px">${Number(r.reach || 0).toLocaleString()}</b></div>
-            <div><div style="font-size:11px;color:var(--muted)">Impressions</div><b style="font-size:14.5px">${Number(r.impressions || 0).toLocaleString()}</b></div>
-            <div><div style="font-size:11px;color:var(--muted)">CTR</div><b style="font-size:14.5px">${Number(r.ctr || 0).toFixed(2)}%</b></div>
-            <div><div style="font-size:11px;color:var(--muted)">Purchases</div><b style="font-size:14.5px;color:#059669">${Number(r.purchases || 0).toLocaleString()}</b></div>
+
+        <div class="ad-media-modal-body" style="padding:16px 20px;display:flex;flex-direction:column;gap:14px">
+          <!-- หมวด 1: ข้อความโฆษณา (Ad Copy, Headline, CTA) & การตั้งค่าแคมเปญ -->
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px">
+            <div style="background:#f8fcf9;border:1px solid #cde7d8;border-radius:12px;padding:12px 14px">
+              <div style="font-size:11.5px;font-weight:800;color:#065f46;text-transform:uppercase;margin-bottom:6px">📝 ข้อความโฆษณา & ปุ่มกระตุ้น (Ad Copy & CTA)</div>
+              <div style="font-size:13.5px;font-weight:700;color:#064e3b;margin-bottom:4px">${esc(r.headline || r.name || '—')}</div>
+              <div style="font-size:12.5px;color:#334155;line-height:1.55;margin-bottom:8px;white-space:pre-line">${esc(r.body || 'ไม่มีข้อความแคปชั่นระบุในโฆษณานี้')}</div>
+              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                <span class="chip good" style="font-size:11px">ปุ่ม CTA: ${esc(ctaLabel)}</span>
+                ${r.destinationType ? `<span class="chip flat" style="font-size:11px">ปลายทาง: ${esc(r.destinationType)}</span>` : ''}
+                ${r.permalinkUrl ? `<a href="${esc(r.permalinkUrl)}" target="_blank" rel="noopener" style="font-size:11.5px;color:#059669;font-weight:700">🔗 เปิดโพสต์จริงบน Meta</a>` : ''}
+              </div>
+            </div>
+
+            <div style="background:#f8fcf9;border:1px solid #cde7d8;border-radius:12px;padding:12px 14px;font-size:12px;display:flex;flex-direction:column;gap:5px">
+              <div style="font-size:11.5px;font-weight:800;color:#065f46;text-transform:uppercase;margin-bottom:2px">🎯 โครงสร้างแคมเปญ กลุ่มเป้าหมาย & งบประมาณ</div>
+              <div><b>วัตถุประสงค์ (Objective):</b> ${esc(objLabel)}</div>
+              <div><b>เป้าหมายนำส่ง (Optimization):</b> ${esc(optLabel)} · <b>การประมูล:</b> ${esc(r.bidStrategy || 'LOWEST_COST')}</div>
+              <div><b>งบประมาณ (Budget):</b> <span style="color:#059669;font-weight:700">${esc(budgetText)}</span></div>
+              <div><b>กลุ่มเป้าหมาย (Targeting):</b> ${esc(r.targetingSummary || r.adset || '—')}</div>
+              <div><b>ตำแหน่งจัดวาง (Placements):</b> ${esc(r.placement || 'Facebook & Instagram')}</div>
+              <div><b>เอเจนซี่ / บัญชีโฆษณา:</b> ${esc(r.agency || 'In-house')}${r.updatedTime ? ` · <b>อัปเดต:</b> ${esc(String(r.updatedTime).slice(0, 16).replace('T', ' '))}` : ''}</div>
+            </div>
           </div>
-          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+
+          <!-- หมวด 2: การนำส่ง การมองเห็น และการคลิก (Delivery, Clicks & Engagement) -->
+          <div>
+            <div style="font-size:11.5px;font-weight:800;color:#065f46;text-transform:uppercase;margin-bottom:6px">📊 สถิติการนำส่ง การคลิก และการมีส่วนร่วมทั้งหมด (Delivery, Clicks & Engagement)</div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(125px,1fr));gap:8px;background:#f0f7f3;padding:12px;border-radius:12px;border:1px solid #d3e7da">
+              <div><div style="font-size:10.5px;color:var(--muted)">Spend (งบที่ใช้จริง)</div><b style="font-size:14px;color:#064e3b">${baht(r.spend)}</b></div>
+              <div><div style="font-size:10.5px;color:var(--muted)">Reach (คนเห็น)</div><b style="font-size:14px">${num(r.reach)}</b></div>
+              <div><div style="font-size:10.5px;color:var(--muted)">Impressions (ครั้งที่แสดง)</div><b style="font-size:14px">${num(r.impressions)}</b></div>
+              <div><div style="font-size:10.5px;color:var(--muted)">Frequency (ความถี่ซ้ำ)</div><b style="font-size:14px">${r.frequency ? num(r.frequency, 2) + '×' : '—'}</b></div>
+              <div><div style="font-size:10.5px;color:var(--muted)">CPM (ต่อ 1,000 ครั้ง)</div><b style="font-size:14px">${baht(r.cpm)}</b></div>
+              <div><div style="font-size:10.5px;color:var(--muted)">CPP (ต่อ 1,000 คน)</div><b style="font-size:14px">${baht(r.cpp)}</b></div>
+              <div><div style="font-size:10.5px;color:var(--muted)">Clicks (คลิกทั้งหมด)</div><b style="font-size:14px">${num(r.clicks)}</b></div>
+              <div><div style="font-size:10.5px;color:var(--muted)">Link Clicks (คลิกลิงก์)</div><b style="font-size:14px">${num(r.linkClicks)}</b></div>
+              <div><div style="font-size:10.5px;color:var(--muted)">CTR (All / Link)</div><b style="font-size:14px">${pct(r.ctr)} / ${pct(r.linkCtr)}</b></div>
+              <div><div style="font-size:10.5px;color:var(--muted)">CPC (All / Link)</div><b style="font-size:14px">${baht(r.cpc)} / ${baht(r.costPerLinkClick)}</b></div>
+              <div><div style="font-size:10.5px;color:var(--muted)">Post Engagement</div><b style="font-size:14px;color:#0284c7">${num(r.postEngagement)}</b></div>
+              <div><div style="font-size:10.5px;color:var(--muted)">👍 ถูกใจ · 💬 เมนต์ · ↗ แชร์</div><b style="font-size:12.5px">${num(r.reactions)} · ${num(r.comments)} · ${num(r.shares)}</b></div>
+            </div>
+          </div>
+
+          <!-- หมวด 3: สถิติวิดีโอ & ผลลัพธ์การขาย (Video Funnel, Messages, CRM Quality & ROAS) -->
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px">
+            <div style="background:#f0f7f3;padding:12px;border-radius:12px;border:1px solid #d3e7da">
+              <div style="font-size:11px;font-weight:800;color:#065f46;text-transform:uppercase;margin-bottom:8px">🎬 สถิติการรับชมวิดีโอ (Video Watch Funnel)</div>
+              <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
+                <div><div style="font-size:10.5px;color:var(--muted)">Video Plays (3s)</div><b style="font-size:13.5px">${num(r.videoPlays)}</b></div>
+                <div><div style="font-size:10.5px;color:var(--muted)">ThruPlays (15s)</div><b style="font-size:13.5px;color:#059669">${num(r.videoThruPlays)}</b></div>
+                <div><div style="font-size:10.5px;color:var(--muted)">Cost / ThruPlay</div><b style="font-size:13.5px">${baht(r.costPerThruPlay)}</b></div>
+                <div><div style="font-size:10.5px;color:var(--muted)">ดู 25% / 50%</div><b style="font-size:12.5px">${num(r.videoP25)} / ${num(r.videoP50)}</b></div>
+                <div><div style="font-size:10.5px;color:var(--muted)">ดู 75%</div><b style="font-size:12.5px">${num(r.videoP75)}</b></div>
+                <div><div style="font-size:10.5px;color:var(--muted)">ดูจบ 100%</div><b style="font-size:13px;color:#047857">${num(r.videoP100)}</b></div>
+              </div>
+            </div>
+
+            <div style="background:#ecfdf5;padding:12px;border-radius:12px;border:1px solid #a7f3d0">
+              <div style="font-size:11px;font-weight:800;color:#065f46;text-transform:uppercase;margin-bottom:8px">🏆 ผลลัพธ์ทักแชท คุณภาพลีด ยอดขาย & ROAS</div>
+              <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
+                <div><div style="font-size:10.5px;color:var(--muted)">Messages (ทักแชท)</div><b style="font-size:14px;color:#064e3b">${num(r.messages)}</b></div>
+                <div><div style="font-size:10.5px;color:var(--muted)">Cost / Message</div><b style="font-size:14px">${baht(r.costMessage)}</b></div>
+                <div><div style="font-size:10.5px;color:var(--muted)">CRM Leads / แชทดี</div><b style="font-size:13.5px">${num(r.leads)} / <span style="color:#059669">${num(r.qualityChats)}</span></b></div>
+                <div><div style="font-size:10.5px;color:var(--muted)">CQC (ต้นทุน/แชทดี)</div><b style="font-size:13.5px">${r.cqc === null ? '—' : baht(r.cqc)}</b></div>
+                <div><div style="font-size:10.5px;color:var(--muted)">Purchases (ซื้อแล้ว)</div><b style="font-size:14px;color:#059669">${num(r.purchases)} (${pct(r.conversionRate)})</b></div>
+                <div><div style="font-size:10.5px;color:var(--muted)">Revenue & ROAS</div><b style="font-size:13.5px;color:#047857">${baht(r.revenue)} ${r.roas ? `(${r.roas}×)` : ''}</b></div>
+              </div>
+            </div>
+          </div>
+
+          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;padding-top:4px;border-top:1px solid #e2e8f0">
             <div style="display:flex;gap:8px;flex-wrap:wrap">
               <label class="btn primary" style="cursor:pointer;display:inline-flex;align-items:center;gap:6px;font-size:13px">
                 📤 อัปโหลดไฟล์รูปภาพ / วิดีโอ (MP4)
@@ -1443,6 +1556,7 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
       const goodChats = a.qualityChats ?? 0;
       const goodPct = leads ? (goodChats / leads) * 100 : 0;
       return {
+        ...a,
         id: a.id, name: a.name, campaign: a.campaign || '', adset: a.adset || '', page: a.page || '',
         creative: a.creative || 'IMAGE', thumb: a.thumb || null, videoUrl: a.videoUrl || null,
         reach: a.reach || 0, impressions: a.impressions || 0, ctr: a.ctr || 0,
@@ -1454,7 +1568,7 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
         firstResponseMin: null,
       };
     });
-    return { ads };
+    return { ads, campaigns: dashData.campaigns || [], adsets: dashData.adsets || [] };
   }
 
   function renderQualityBody() {
@@ -1480,6 +1594,8 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
 
     const totalLeads = ads.reduce((s, a) => s + a.leads, 0);
     const goodLeads = ads.reduce((s, a) => s + a.goodChats, 0);
+    const totalSpend = ads.reduce((s, a) => s + (a.spend || 0), 0);
+    const totalRev = ads.reduce((s, a) => s + (a.revenue || 0), 0);
     const avgScore = ads.length ? Math.round(ads.reduce((s, a) => s + (a.qualityScore || 0), 0) / ads.length) : null;
     const campaigns = [...new Set((q.data.ads || []).map((a) => a.campaign).filter(Boolean))];
 
@@ -1501,33 +1617,92 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
       </section>
 
       <div class="grid-4" style="margin-bottom:18px">
-        <div class="stat"><div class="k-label">Leads ทั้งหมด</div><div class="k-value">${num(totalLeads)}</div></div>
-        <div class="stat"><div class="k-label">แชทคุณภาพดี</div><div class="k-value" style="color:var(--brand)">${num(goodLeads)}</div></div>
+        <div class="stat"><div class="k-label">Leads ทั้งหมด / แชทคุณภาพดี</div><div class="k-value">${num(totalLeads)} <span style="font-size:16px;color:var(--brand)">(${num(goodLeads)} ดี)</span></div></div>
+        <div class="stat"><div class="k-label">งบรวม (Spend) / ยอดขาย (Revenue)</div><div class="k-value" style="font-size:20px">${baht(totalSpend)} <span style="font-size:14px;color:var(--brand)">→ ${baht(totalRev)}</span></div></div>
         <div class="stat"><div class="k-label">Avg Quality Score</div><div class="k-value">${avgScore !== null ? avgScore + '%' : '—'}</div></div>
-        <div class="stat"><div class="k-label">โฆษณาในช่วง</div><div class="k-value">${num(ads.length)}</div></div>
+        <div class="stat"><div class="k-label">โฆษณาในช่วง</div><div class="k-value">${num(ads.length)} รายการ</div></div>
       </div>
 
       <section class="card table-card">
-        <div class="table-head"><div><h2>คุณภาพรายโฆษณา & สื่อแคมเปญ (Image / Video)</h2><p>${num(ads.length)} ads · คลิกที่รูปหรือปุ่มเล่นวิดีโอเพื่อดูสื่อโฆษณา</p></div></div>
-        <div class="tscroll"><table style="min-width:920px">
+        <div class="table-head"><div><h2>คุณภาพรายโฆษณา & ข้อมูลแคมเปญครบทุกมิติ (Full Campaign & Ad Intelligence)</h2><p>${num(ads.length)} ads · แสดงข้อมูลแคมเปญ กลุ่มเป้าหมาย ข้อความโฆษณา งบประมาณ การนำส่ง การมีส่วนร่วม วิดีโอ และคุณภาพแชททั้งหมด</p></div></div>
+        <div class="tscroll"><table style="min-width:1780px">
           <thead><tr>
-            <th class="nosort" style="width:190px">รูป / วิดีโอ (Creative)</th>
-            ${thSort('name', 'ชื่อโฆษณา')}
-            <th class="nosort">Campaign</th>
-            ${thSort('leads', 'Leads')}
-            ${thSort('goodPct', 'Good %')}
-            ${thSort('spend', 'Spend')}
-            <th class="nosort">คุณภาพ</th>
+            <th class="nosort" style="width:185px">รูป / วิดีโอ (Creative)</th>
+            ${thSort('name', 'โฆษณา / แคมเปญ / สถานะ & กลุ่มเป้าหมาย')}
+            <th class="nosort" style="width:240px">ข้อความโฆษณา (Headline / Copy / CTA)</th>
+            ${thSort('spend', 'Spend & งบ/วัน')}
+            ${thSort('reach', 'Reach / Impr. / Freq.')}
+            ${thSort('clicks', 'Clicks / CTR / CPC')}
+            ${thSort('postEngagement', 'Engagement & Video')}
+            ${thSort('messages', 'Messages & Cost/Msg')}
+            ${thSort('leads', 'CRM Leads / แชทดี')}
+            ${thSort('goodPct', 'Good % / CQC')}
+            ${thSort('purchases', 'Purchases / Revenue / ROAS')}
+            ${thSort('qualityScore', 'คุณภาพแชท')}
           </tr></thead>
-          <tbody>${ads.length ? ads.map((a) => `<tr>
+          <tbody>${ads.length ? ads.map((a) => {
+            const mediaPayload = esc(JSON.stringify(a));
+            const objShort = OBJECTIVE_TH[a.objective] || a.objective || 'Engagement';
+            return `<tr>
             <td>${adMediaThumbHtml(a)}</td>
-            <td><div class="ad-name" title="${esc(a.name)}">${esc(a.name)}</div><div class="ad-sub">${esc(a.id)}</div></td>
-            <td style="color:var(--muted)">${esc(a.campaign || '—')}</td>
-            <td>${num(a.leads)}</td>
-            <td>${a.leads ? pct(a.goodPct) : '—'}</td>
-            <td>${baht(a.spend)}</td>
+            <td>
+              <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:3px">
+                ${statusBadgeHtml(a.status)}
+                <span class="ad-name" title="${esc(a.name)}" style="font-weight:700">${esc(a.name)}</span>
+              </div>
+              <div class="ad-sub" style="color:#065f46;font-weight:600">📊 ${esc(a.campaign || '—')} · <span style="color:#0284c7">${esc(objShort)}</span></div>
+              <div class="ad-sub">🎯 ชุดโฆษณา: <b>${esc(a.adset || '—')}</b> (${esc(a.optimizationGoal || 'CONVERSATIONS')}) · ID: <code>${esc(a.id)}</code></div>
+              ${a.targetingSummary ? `<div class="ad-sub" style="font-size:11px;color:#475569">👥 ${esc(a.targetingSummary)}</div>` : ''}
+              <div class="ad-sub" style="font-size:11px;color:#64748b">📱 ${esc(a.placement || 'Facebook & Instagram')} · 📄 ${esc(a.page || '—')}</div>
+            </td>
+            <td>
+              <div style="font-weight:700;font-size:12px;color:#064e3b;margin-bottom:2px;line-height:1.35">${esc(a.headline || a.name)}</div>
+              <div style="font-size:11.5px;color:#475569;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden" title="${esc(a.body || '')}">${esc(a.body || '—')}</div>
+              <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:4px">
+                <span class="chip good" style="font-size:10px;padding:1px 7px">CTA: ${esc(a.cta || 'SEND_MESSAGE')}</span>
+                <button type="button" class="btn" data-act="open-ad-media" data-ad-media="${mediaPayload}" style="padding:1px 7px;font-size:10px;border-radius:999px">📋 ดูครบ 360°</button>
+              </div>
+            </td>
+            <td>
+              <div style="font-weight:800;color:#064e3b">${baht(a.spend)}</div>
+              <div class="ad-sub" style="font-size:11px">งบ/วัน: ${a.dailyBudget ? baht(a.dailyBudget) : 'ตามแคมเปญ'}</div>
+              <div class="ad-sub" style="font-size:11px">CPM: ${baht(a.cpm)}</div>
+            </td>
+            <td>
+              <div><b>${num(a.reach)}</b> คน</div>
+              <div class="ad-sub">${num(a.impressions)} ครั้ง</div>
+              <div class="ad-sub" style="color:#059669;font-weight:600">Freq: ${a.frequency ? num(a.frequency, 2) + '×' : '—'}</div>
+            </td>
+            <td>
+              <div><b>${num(a.clicks)}</b> คลิก <span class="ad-sub">(ลิงก์ ${num(a.linkClicks)})</span></div>
+              <div class="ad-sub">CTR: <b>${pct(a.ctr)}</b> (ลิงก์ ${pct(a.linkCtr)})</div>
+              <div class="ad-sub">CPC: ${baht(a.cpc)}</div>
+            </td>
+            <td>
+              <div><b>${num(a.postEngagement)}</b> ส่วนร่วม</div>
+              <div class="ad-sub" style="font-size:10.5px">👍 ${num(a.reactions)} · 💬 ${num(a.comments)} · ↗ ${num(a.shares)}</div>
+              <div class="ad-sub" style="font-size:10.5px;color:#0284c7">🎬 วิว ${num(a.videoPlays)} · ThruPlay ${num(a.videoThruPlays)}</div>
+            </td>
+            <td>
+              <div><b>${num(a.messages)}</b> ทักแชท</div>
+              <div class="ad-sub">ต้นทุน: <b>${baht(a.costMessage)}</b>/แชท</div>
+            </td>
+            <td>
+              <div><b>${num(a.leads)}</b> ลีด</div>
+              <div class="ad-sub" style="color:#059669;font-weight:700">แชทดี: ${num(a.goodChats)}</div>
+            </td>
+            <td>
+              <div><b>${a.leads ? pct(a.goodPct) : '—'}</b></div>
+              <div class="ad-sub">CQC: <b>${a.cqc ? baht(a.cqc) : '—'}</b></div>
+            </td>
+            <td>
+              <div><b>${num(a.purchases)}</b> ซื้อ <span class="ad-sub">(${pct(a.conversionRate)})</span></div>
+              <div class="ad-sub" style="color:#047857;font-weight:700">${baht(a.revenue)}</div>
+              <div class="ad-sub">${a.roas ? `<span class="chip good" style="font-size:10px;padding:1px 6px">ROAS ${a.roas}×</span>` : '—'}</div>
+            </td>
             <td><span class="q-badge q-${esc(a.qualityLabel || 'none')}">${a.qualityScore !== null ? num(a.qualityScore) + '%' : 'No chats'}</span></td>
-          </tr>`).join('') : `<tr><td colspan="7"><div class="empty">ไม่มีข้อมูลโฆษณาในช่วงที่เลือก</div></td></tr>`}
+          </tr>`;
+          }).join('') : `<tr><td colspan="12"><div class="empty">ไม่มีข้อมูลโฆษณาในช่วงที่เลือก</div></td></tr>`}
           </tbody>
         </table></div>
       </section>`;
@@ -1701,14 +1876,59 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
   }
 
   /* --- table --- */
-  const COLS = [
-    ['name', 'Campaign / Ads'], ['creative', 'รูป / วิดีโอ (Creative)'], ['reach', 'Reach'], ['impressions', 'Impressions'], ['cpm', 'CPM'], ['ctr', 'CTR'],
-    ['costMessage', 'Cost / Msg'], ['cqc', 'CQC'], ['purchases', 'Purchases'], ['spend', 'Spend'], ['cpc', 'CPC'], ['qualityScore', 'Chat Quality'],
+  const COLS_ADS = [
+    ['name', 'แคมเปญ / ชุดโฆษณา / โฆษณา & สถานะ'],
+    ['creative', 'รูป / วิดีโอ (Creative)'],
+    ['headline', 'ข้อความโฆษณา & CTA (Ad Copy)'],
+    ['spend', 'Spend & งบ/วัน'],
+    ['reach', 'Reach / Impr. / Freq.'],
+    ['cpm', 'CPM / CPP'],
+    ['clicks', 'Clicks & Link Clicks'],
+    ['ctr', 'CTR & CPC'],
+    ['postEngagement', 'Engagement (ส่วนร่วม)'],
+    ['videoPlays', 'Video Views / ThruPlay'],
+    ['messages', 'Messages & Cost/Msg'],
+    ['cqc', 'CRM Leads / แชทดี / CQC'],
+    ['purchases', 'Purchases / Revenue / ROAS'],
+    ['qualityScore', 'Chat Quality (14D)'],
+  ];
+  const COLS_CAMPAIGNS = [
+    ['name', 'แคมเปญ (Campaign) & สถานะ / วัตถุประสงค์'],
+    ['creative', 'สื่อตัวอย่าง (Media)'],
+    ['dailyBudget', 'งบประมาณ & การประมูล'],
+    ['adsCount', 'จำนวนชุดโฆษณา / โฆษณา'],
+    ['spend', 'Spend (งบใช้จริง)'],
+    ['reach', 'Reach / Impr. / Freq.'],
+    ['cpm', 'CPM / CPP'],
+    ['clicks', 'Clicks / Link Clicks'],
+    ['ctr', 'CTR & CPC'],
+    ['postEngagement', 'Engagement (👍·💬·↗)'],
+    ['videoPlays', 'Video Views / ThruPlay'],
+    ['messages', 'Messages & Cost/Msg'],
+    ['cqc', 'CRM Leads / แชทดี / CQC'],
+    ['purchases', 'Purchases / Revenue / ROAS'],
+    ['qualityScore', 'Chat Quality'],
+  ];
+  const COLS_ADSETS = [
+    ['name', 'ชุดโฆษณา (Ad Set) / แคมเปญ & สถานะ'],
+    ['targetingSummary', 'กลุ่มเป้าหมาย (Targeting) & ตำแหน่งจัดวาง'],
+    ['dailyBudget', 'เป้าหมายนำส่ง & งบ/วัน'],
+    ['adsCount', 'จำนวนโฆษณา'],
+    ['spend', 'Spend (งบใช้จริง)'],
+    ['reach', 'Reach / Impr. / Freq.'],
+    ['cpm', 'CPM'],
+    ['clicks', 'Clicks / CTR / CPC'],
+    ['postEngagement', 'Engagement & Video'],
+    ['messages', 'Messages & Cost/Msg'],
+    ['cqc', 'CRM Leads / แชทดี / CQC'],
+    ['purchases', 'Purchases / Revenue / ROAS'],
+    ['qualityScore', 'Chat Quality'],
   ];
   function sparkSvg(vals, label) {
+    const list = Array.isArray(vals) && vals.length ? vals : [0, 0, 0, 0, 0, 0, 0];
     const color = { excellent: '#10b981', good: '#059669', average: '#f59e0b', poor: '#ef4444', none: '#94a3b8' }[label] || '#10b981';
-    const max = Math.max(...vals, 1); const w = 54; const h = 22;
-    const pts = vals.map((v, i) => `${(i * (w - 2) / Math.max(vals.length - 1, 1) + 1).toFixed(1)},${(h - 2 - (v / max) * (h - 4)).toFixed(1)}`).join(' ');
+    const max = Math.max(...list, 1); const w = 54; const h = 22;
+    const pts = list.map((v, i) => `${(i * (w - 2) / Math.max(list.length - 1, 1) + 1).toFixed(1)},${(h - 2 - (v / max) * (h - 4)).toFixed(1)}`).join(' ');
     return `<svg class="spark" viewBox="0 0 ${w} ${h}" aria-hidden="true"><polyline points="${pts}" fill="none" stroke="${color}" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/></svg>`;
   }
   const QLABEL = { excellent: 'Excellent', good: 'Good', average: 'Average', poor: 'Poor' };
@@ -1717,8 +1937,17 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
     const card = document.getElementById('table-card') || document.getElementById('table-card-chat');
     if (!card || !S.dash.data) return;
     const d = S.dash;
+    const level = d.tableLevel || 'ads';
     const q = d.search.trim().toLowerCase();
-    let rows = d.data.ads.filter((r) => !q || [r.name, r.campaign, r.adset, r.id].some((s) => String(s).toLowerCase().includes(q)));
+
+    const allAds = d.data.ads || [];
+    const allCampaigns = d.data.campaigns || [];
+    const allAdsets = d.data.adsets || [];
+
+    const sourceList = level === 'campaigns' ? allCampaigns : level === 'adsets' ? allAdsets : allAds;
+    const cols = level === 'campaigns' ? COLS_CAMPAIGNS : level === 'adsets' ? COLS_ADSETS : COLS_ADS;
+
+    let rows = sourceList.filter((r) => !q || [r.name, r.campaign, r.adset, r.id, r.headline, r.body, r.targetingSummary, r.objective].some((s) => String(s || '').toLowerCase().includes(q)));
     const dir = d.dir === 'asc' ? 1 : -1;
     rows = [...rows].sort((a, b) => {
       const x = a[d.sort]; const y = b[d.sort];
@@ -1730,15 +1959,143 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
     d.pageNo = Math.min(d.pageNo, pages);
     const slice = rows.slice((d.pageNo - 1) * PAGE_SIZE, d.pageNo * PAGE_SIZE);
     const keepFocus = document.activeElement && document.activeElement.id === 'tsearch';
-    card.innerHTML = `<div class="table-head"><div><h2>Campaign performance & Ad Media (Image / Video)</h2><p>Ad-level results joined with sales chat quality · ${d.data.ads.length} ads · คลิกที่รูปหรือปุ่มเล่นวิดีโอเพื่อดูสื่อโฆษณา</p></div>
-      <label class="search">${icon('search')}<input id="tsearch" data-bind="search" placeholder="Search campaign or ad" value="${esc(d.search)}" autocomplete="off"></label></div>
-      <div class="tscroll"><table><thead><tr>${COLS.map(([k, l]) => `<th data-act="sort" data-key="${k}" class="${k === 'creative' ? 'nosort' : ''}">${l}${d.sort === k ? (d.dir === 'asc' ? ' ▲' : ' ▼') : ''}</th>`).join('')}</tr></thead>
-      <tbody>${slice.length ? slice.map((r) => {
-        const hoverData = esc(JSON.stringify({
-          id: r.id, name: r.name, campaign: r.campaign, adset: r.adset, creative: r.creative, thumb: r.thumb, videoUrl: r.videoUrl,
-          reach: r.reach, impressions: r.impressions, spend: r.spend, cpm: r.cpm, ctr: r.ctr, purchases: r.purchases,
-          costMessage: r.costMessage, qualityScore: r.qualityScore, qualityLabel: r.qualityLabel
-        }));
+
+    const levelTabsHtml = `
+      <div class="pills" style="margin-top:8px">
+        <button type="button" class="pill ${level === 'ads' ? 'active' : ''}" data-act="table-level" data-level="ads">
+          📢 รายโฆษณาทั้งหมด (All Ads · ข้อมูลครบทุกมิติ) <span class="tab-badge">${allAds.length}</span>
+        </button>
+        <button type="button" class="pill ${level === 'campaigns' ? 'active' : ''}" data-act="table-level" data-level="campaigns">
+          📁 สรุปรายแคมเปญ (Campaign Summary) <span class="tab-badge">${allCampaigns.length}</span>
+        </button>
+        <button type="button" class="pill ${level === 'adsets' ? 'active' : ''}" data-act="table-level" data-level="adsets">
+          🎯 สรุปรายชุดโฆษณา & กลุ่มเป้าหมาย (Ad Sets) <span class="tab-badge">${allAdsets.length}</span>
+        </button>
+      </div>
+    `;
+
+    let tbodyHtml = '';
+    if (!slice.length) {
+      tbodyHtml = `<tr><td colspan="${cols.length}"><div class="empty">ไม่พบข้อมูลที่ตรงกับเงื่อนไข</div></td></tr>`;
+    } else if (level === 'campaigns') {
+      tbodyHtml = slice.map((r) => {
+        const objLabel = OBJECTIVE_TH[r.objective] || r.objective || '💬 Engagement';
+        const budgetText = r.dailyBudget ? `${baht(r.dailyBudget)} / วัน` : (r.lifetimeBudget ? `${baht(r.lifetimeBudget)} (รวม)` : 'ตามชุดโฆษณา (ABO)');
+        return `<tr>
+          <td>
+            <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:3px">
+              ${statusBadgeHtml(r.status)}
+              <b class="ad-name" style="font-size:13.5px;color:#064e3b">${esc(r.name)}</b>
+            </div>
+            <div class="ad-sub" style="color:#0284c7;font-weight:600">${esc(objLabel)} · ID: <code>${esc(r.id)}</code></div>
+            ${r.pagesList && r.pagesList.length ? `<div class="ad-sub">📄 เพจ: ${esc(r.pagesList.join(', '))}</div>` : ''}
+          </td>
+          <td>${adMediaThumbHtml(r)}</td>
+          <td>
+            <div style="font-weight:700;color:#065f46">${esc(budgetText)}</div>
+            <div class="ad-sub">ประมูล: ${esc(r.bidStrategy || 'LOWEST_COST')}</div>
+            <div class="ad-sub">ประเภท: ${esc(r.buyingType || 'AUCTION')}</div>
+          </td>
+          <td>
+            <div><b>${num(r.adsetsCount)}</b> ชุดโฆษณา</div>
+            <div class="ad-sub"><b>${num(r.adsCount)}</b> โฆษณา (รัน ${num(r.activeAdsCount)})</div>
+          </td>
+          <td class="spend" style="font-weight:800;color:#064e3b">${baht(r.spend)}</td>
+          <td>
+            <div><b>${num(r.reach)}</b> คน</div>
+            <div class="ad-sub">${num(r.impressions)} ครั้ง</div>
+            <div class="ad-sub" style="color:#059669;font-weight:600">Freq: ${r.frequency ? num(r.frequency, 2) + '×' : '—'}</div>
+          </td>
+          <td>
+            <div>CPM: <b>${baht(r.cpm)}</b></div>
+            <div class="ad-sub">CPP: ${baht(r.cpp)}</div>
+          </td>
+          <td>
+            <div><b>${num(r.clicks)}</b> คลิก</div>
+            <div class="ad-sub">คลิกลิงก์: <b>${num(r.linkClicks)}</b></div>
+          </td>
+          <td>
+            <div>CTR: <b>${pct(r.ctr)}</b> <span class="ad-sub">(ลิงก์ ${pct(r.linkCtr)})</span></div>
+            <div class="ad-sub">CPC: <b>${baht(r.cpc)}</b></div>
+          </td>
+          <td>
+            <div><b>${num(r.postEngagement)}</b> ส่วนร่วม</div>
+            <div class="ad-sub" style="font-size:10.5px">👍 ${num(r.reactions)} · 💬 ${num(r.comments)} · ↗ ${num(r.shares)}</div>
+          </td>
+          <td>
+            <div>🎬 วิว: <b>${num(r.videoPlays)}</b></div>
+            <div class="ad-sub" style="color:#059669">ThruPlay: <b>${num(r.videoThruPlays)}</b></div>
+            <div class="ad-sub">ดูจบ 100%: ${num(r.videoP100)}</div>
+          </td>
+          <td>
+            <div><b>${num(r.messages)}</b> ทักแชท</div>
+            <div class="ad-sub">ต้นทุน: <b>${baht(r.costMessage)}</b></div>
+          </td>
+          <td>
+            <div>ลีด: <b>${num(r.leads)}</b> · ดี: <b style="color:#059669">${num(r.qualityChats)}</b></div>
+            <div class="ad-sub">CQC: <b>${r.cqc === null ? '—' : baht(r.cqc)}</b></div>
+          </td>
+          <td>
+            <div><b>${num(r.purchases)}</b> ซื้อ <span class="ad-sub">(${pct(r.conversionRate)})</span></div>
+            <div class="ad-sub" style="color:#047857;font-weight:700">${baht(r.revenue)}</div>
+            <div class="ad-sub">${r.roas ? `<span class="chip good" style="font-size:10px;padding:1px 6px">ROAS ${r.roas}×</span>` : '—'}</div>
+          </td>
+          <td><span class="q-badge q-${r.qualityLabel}">${r.qualityScore === null ? 'No chats' : `${QLABEL[r.qualityLabel]} · ${r.qualityScore}%`}</span></td>
+        </tr>`;
+      }).join('');
+    } else if (level === 'adsets') {
+      tbodyHtml = slice.map((r) => {
+        const optLabel = OPT_GOAL_TH[r.optimizationGoal] || r.optimizationGoal || 'CONVERSATIONS';
+        return `<tr>
+          <td>
+            <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:3px">
+              ${statusBadgeHtml(r.status)}
+              <b class="ad-name" style="color:#064e3b">${esc(r.name)}</b>
+            </div>
+            <div class="ad-sub">📊 แคมเปญ: <b>${esc(r.campaign || '—')}</b></div>
+          </td>
+          <td>
+            <div style="font-size:12px;font-weight:600;color:#1e293b">${esc(r.targetingSummary || r.name)}</div>
+            <div class="ad-sub">📱 ตำแหน่ง: ${esc(r.placement || 'Facebook & Instagram')}</div>
+          </td>
+          <td>
+            <div style="font-weight:700;color:#0284c7">${esc(optLabel)}</div>
+            <div class="ad-sub">งบ/วัน: <b>${r.dailyBudget ? baht(r.dailyBudget) : 'ตามแคมเปญ'}</b></div>
+            <div class="ad-sub">ปลายทาง: ${esc(r.destinationType || 'MESSENGER')}</div>
+          </td>
+          <td><b>${num(r.adsCount)}</b> โฆษณา <span class="ad-sub">(รัน ${num(r.activeAdsCount)})</span></td>
+          <td class="spend" style="font-weight:800;color:#064e3b">${baht(r.spend)}</td>
+          <td>
+            <div><b>${num(r.reach)}</b> คน</div>
+            <div class="ad-sub">${num(r.impressions)} ครั้ง · Freq: <b>${r.frequency ? num(r.frequency, 2) + '×' : '—'}</b></div>
+          </td>
+          <td>${baht(r.cpm)}</td>
+          <td>
+            <div><b>${num(r.clicks)}</b> คลิก (ลิงก์ ${num(r.linkClicks)})</div>
+            <div class="ad-sub">CTR: <b>${pct(r.ctr)}</b> · CPC: ${baht(r.cpc)}</div>
+          </td>
+          <td>
+            <div>ส่วนร่วม: <b>${num(r.postEngagement)}</b></div>
+            <div class="ad-sub">🎬 วิว: ${num(r.videoPlays)} · ThruPlay: ${num(r.videoThruPlays)}</div>
+          </td>
+          <td>
+            <div><b>${num(r.messages)}</b> ทักแชท</div>
+            <div class="ad-sub">${baht(r.costMessage)} / แชท</div>
+          </td>
+          <td>
+            <div>ลีด: <b>${num(r.leads)}</b> · ดี: <b style="color:#059669">${num(r.qualityChats)}</b></div>
+            <div class="ad-sub">CQC: <b>${r.cqc === null ? '—' : baht(r.cqc)}</b></div>
+          </td>
+          <td>
+            <div><b>${num(r.purchases)}</b> ซื้อ (${pct(r.conversionRate)})</div>
+            <div class="ad-sub" style="color:#047857;font-weight:700">${baht(r.revenue)} ${r.roas ? `· ROAS ${r.roas}×` : ''}</div>
+          </td>
+          <td><span class="q-badge q-${r.qualityLabel}">${r.qualityScore === null ? 'No chats' : `${QLABEL[r.qualityLabel]} · ${r.qualityScore}%`}</span></td>
+        </tr>`;
+      }).join('');
+    } else {
+      tbodyHtml = slice.map((r) => {
+        const hoverData = esc(JSON.stringify(r));
         const pageBadge = r.page ? (() => {
           const p = String(r.page).toLowerCase();
           let cls = 'beq';
@@ -1746,21 +2103,90 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
           else if (p.includes('nay') || p.includes('เนย์')) cls = 'drnay';
           return `<span class="page-tag-badge ${cls}">📄 ${esc(r.page)}</span>`;
         })() : '';
+        const objShort = OBJECTIVE_TH[r.objective] || r.objective || '💬 Engagement';
         return `<tr>
         <td class="ad-hover-trigger" data-ad-hover="${hoverData}">
-          <div class="ad-name" title="${esc(r.name)}">${esc(r.name)}</div>
-          <div class="ad-sub" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:3px">
-            <span>${esc(r.campaign)}${r.adset ? ' – ' + esc(r.adset) : ''} · ${esc(r.id)}</span>
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:3px">
+            ${statusBadgeHtml(r.status)}
+            <div class="ad-name" title="${esc(r.name)}">${esc(r.name)}</div>
+          </div>
+          <div class="ad-sub" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:2px">
+            <span style="color:#065f46;font-weight:700">📊 ${esc(r.campaign)}</span>
+            <span style="color:#0284c7;font-weight:600">· ${esc(objShort)}</span>
             ${pageBadge}
           </div>
+          <div class="ad-sub" style="margin-top:2px">🎯 ชุดโฆษณา: <b>${esc(r.adset || '—')}</b> (${esc(r.optimizationGoal || 'CONVERSATIONS')}) · ID: <code>${esc(r.id)}</code></div>
+          ${r.targetingSummary ? `<div class="ad-sub" style="font-size:11px;color:#475569">👥 ${esc(r.targetingSummary)}</div>` : ''}
+          <div class="ad-sub" style="font-size:11px;color:#64748b">📱 ${esc(r.placement || 'Facebook & Instagram')}</div>
         </td>
         <td class="ad-hover-trigger" data-ad-hover="${hoverData}">${adMediaThumbHtml(r)}</td>
-        <td>${num(r.reach)}</td><td>${num(r.impressions)}</td><td>${baht(r.cpm)}</td><td>${pct(r.ctr)}</td><td>${baht(r.costMessage)}</td>
-        <td>${r.cqc === null ? '—' : baht(r.cqc)}</td><td>${num(r.purchases)}</td><td class="spend">${baht(r.spend)}</td><td>${baht(r.cpc)}</td>
+        <td>
+          <div style="font-weight:700;font-size:12px;color:#064e3b;margin-bottom:2px;line-height:1.35">${esc(r.headline || r.name)}</div>
+          <div style="font-size:11.5px;color:#475569;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;max-width:250px" title="${esc(r.body || '')}">${esc(r.body || '—')}</div>
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:5px">
+            <span class="chip good" style="font-size:10px;padding:1px 7px">CTA: ${esc(r.cta || 'SEND_MESSAGE')}</span>
+            <button type="button" class="btn" data-act="open-ad-media" data-ad-media="${hoverData}" style="padding:1px 8px;font-size:10px;border-radius:999px;font-weight:700">📋 ดูข้อมูลครบ 360°</button>
+          </div>
+        </td>
+        <td class="spend">
+          <div style="font-weight:800;color:#064e3b">${baht(r.spend)}</div>
+          <div class="ad-sub" style="font-size:11px">งบ/วัน: ${r.dailyBudget ? baht(r.dailyBudget) : 'ตามแคมเปญ'}</div>
+        </td>
+        <td>
+          <div><b>${num(r.reach)}</b> คน</div>
+          <div class="ad-sub">${num(r.impressions)} ครั้ง</div>
+          <div class="ad-sub" style="color:#059669;font-weight:600">Freq: ${r.frequency ? num(r.frequency, 2) + '×' : '—'}</div>
+        </td>
+        <td>
+          <div>CPM: <b>${baht(r.cpm)}</b></div>
+          <div class="ad-sub">CPP: ${baht(r.cpp)}</div>
+        </td>
+        <td>
+          <div><b>${num(r.clicks)}</b> คลิก</div>
+          <div class="ad-sub">คลิกลิงก์: <b>${num(r.linkClicks)}</b></div>
+          <div class="ad-sub">Unique: ${num(r.uniqueClicks)}</div>
+        </td>
+        <td>
+          <div>CTR: <b>${pct(r.ctr)}</b> <span class="ad-sub">(ลิงก์ ${pct(r.linkCtr)})</span></div>
+          <div class="ad-sub">CPC: <b>${baht(r.cpc)}</b></div>
+          <div class="ad-sub">Cost/Link: ${baht(r.costPerLinkClick)}</div>
+        </td>
+        <td>
+          <div><b>${num(r.postEngagement)}</b> ส่วนร่วม</div>
+          <div class="ad-sub" style="font-size:10.5px">👍 ${num(r.reactions)} · 💬 ${num(r.comments)} · ↗ ${num(r.shares)} · 🔖 ${num(r.saves)}</div>
+        </td>
+        <td>
+          <div>🎬 วิว 3s: <b>${num(r.videoPlays)}</b></div>
+          <div class="ad-sub" style="color:#059669">ThruPlay 15s: <b>${num(r.videoThruPlays)}</b></div>
+          <div class="ad-sub">ดูจบ 100%: ${num(r.videoP100)}</div>
+        </td>
+        <td>
+          <div><b>${num(r.messages)}</b> ทักแชท</div>
+          <div class="ad-sub">Cost/Msg: <b>${baht(r.costMessage)}</b></div>
+        </td>
+        <td>
+          <div>ลีด: <b>${num(r.leads)}</b> · ดี: <b style="color:#059669">${num(r.qualityChats)}</b></div>
+          <div class="ad-sub">CQC: <b>${r.cqc === null ? '—' : baht(r.cqc)}</b></div>
+        </td>
+        <td>
+          <div><b>${num(r.purchases)}</b> ซื้อ <span class="ad-sub">(${pct(r.conversionRate)})</span></div>
+          <div class="ad-sub">Cost/ซื้อ: ${baht(r.costPurchase)}</div>
+          <div class="ad-sub" style="color:#047857;font-weight:700">${baht(r.revenue)} ${r.roas ? `· <span class="chip good" style="font-size:10px;padding:1px 6px">ROAS ${r.roas}×</span>` : ''}</div>
+        </td>
         <td><div class="q-cell">${sparkSvg(r.spark, r.qualityLabel)}<span class="q-badge q-${r.qualityLabel}">${r.qualityScore === null ? 'No chats' : `${QLABEL[r.qualityLabel]} · ${r.qualityScore}%`}</span></div></td></tr>`;
-      }).join('')
-        : `<tr><td colspan="${COLS.length}"><div class="empty">ไม่พบข้อมูลที่ตรงกับเงื่อนไข</div></td></tr>`}</tbody></table></div>
-      <div class="pager"><span>Page ${d.pageNo} of ${pages} · ${rows.length} ads</span><div class="btns">
+      }).join('');
+    }
+
+    card.innerHTML = `<div class="table-head" style="flex-wrap:wrap;gap:12px">
+      <div>
+        <h2>Campaign, Ad Set & Ad Performance (ข้อมูลแคมเปญ โฆษณา รูป/วิดีโอ และสถิติครบทุกมิติ)</h2>
+        <p>ดึงข้อมูลครบทั้งหมด: สถานะ · วัตถุประสงค์ · กลุ่มเป้าหมาย · ข้อความโฆษณา & CTA · งบประมาณ · Reach/Impr/Freq · Clicks/CTR/CPC · Engagement · Video Views/ThruPlay · Messages · CRM Leads/CQC · Purchases/Revenue/ROAS</p>
+        ${levelTabsHtml}
+      </div>
+      <label class="search">${icon('search')}<input id="tsearch" data-bind="search" placeholder="ค้นหาแคมเปญ, ชุดโฆษณา, ชื่อโฆษณา, แคปชั่น, กลุ่มเป้าหมาย..." value="${esc(d.search)}" autocomplete="off"></label></div>
+      <div class="tscroll"><table style="min-width:1950px"><thead><tr>${cols.map(([k, l]) => `<th data-act="sort" data-key="${k}" class="${k === 'creative' ? 'nosort' : ''}">${l}${d.sort === k ? (d.dir === 'asc' ? ' ▲' : ' ▼') : ''}</th>`).join('')}</tr></thead>
+      <tbody>${tbodyHtml}</tbody></table></div>
+      <div class="pager"><span>Page ${d.pageNo} of ${pages} · ${rows.length} รายการ</span><div class="btns">
         <button data-act="page" data-dir="-1" ${d.pageNo <= 1 ? 'disabled' : ''}>Previous</button><button data-act="page" data-dir="1" ${d.pageNo >= pages ? 'disabled' : ''}>Next</button></div></div>`;
     if (keepFocus) { const i = document.getElementById('tsearch'); i.focus(); i.setSelectionRange(i.value.length, i.value.length); }
   }
@@ -3442,6 +3868,7 @@ function boardShell() {
       else if (act === 'range') { d.range = el.dataset.range; if (d.range === 'custom' && !d.from) { const t = new Date(); d.to = ymd(t); t.setDate(t.getDate() - 29); d.from = ymd(t); } render(); loadDash(); }
       else if (act === 'tab') { d.tab = el.dataset.tab; render(); }
       else if (act === 'reset-filters') { resetFilters(); render(); loadDash(); }
+      else if (act === 'table-level') { d.tableLevel = el.dataset.level; d.pageNo = 1; renderTable(); }
       else if (act === 'sort') { const k = el.dataset.key; if (k === 'creative') return; d.dir = d.sort === k && d.dir === 'desc' ? 'asc' : 'desc'; d.sort = k; renderTable(); }
       else if (act === 'page') { d.pageNo += Number(el.dataset.dir); renderTable(); }
       else if (act === 'select-chat') { if (S.chat.id !== el.dataset.id) openChat(el.dataset.id); }
@@ -4064,15 +4491,22 @@ function boardShell() {
           ${mediaHtml}
           <span class="ad-popover-badge">${(r.videoUrl || cType === 'VIDEO') ? '🎬 VIDEO' : cType}</span>
         </div>
-        <div class="ad-popover-title" style="font-weight:700;font-size:14px;color:var(--ink, #0f172a);line-height:1.4">${esc(r.name)}</div>
-        <div class="ad-popover-campaign" style="font-size:12px;color:var(--muted, #64748b)">📊 ${esc(r.campaign)}${r.adset ? ' — ' + esc(r.adset) : ''}</div>
-        <div class="ad-popover-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;background:#f8fafc;padding:10px;border-radius:8px">
-          <div><div style="font-size:10.5px;color:#64748b">Reach</div><div style="font-weight:700;font-size:12.5px">${Number(r.reach||0).toLocaleString()}</div></div>
-          <div><div style="font-size:10.5px;color:#64748b">Impressions</div><div style="font-weight:700;font-size:12.5px">${Number(r.impressions||0).toLocaleString()}</div></div>
-          <div><div style="font-size:10.5px;color:#64748b">Spend</div><div style="font-weight:700;font-size:12.5px;color:#0f172a">฿${Number(r.spend||0).toLocaleString(undefined, {minimumFractionDigits:0, maximumFractionDigits:0})}</div></div>
-          <div><div style="font-size:10.5px;color:#64748b">CTR</div><div style="font-weight:700;font-size:12.5px">${Number(r.ctr||0).toFixed(2)}%</div></div>
-          <div><div style="font-size:10.5px;color:#64748b">Cost/Msg</div><div style="font-weight:700;font-size:12.5px">฿${Number(r.costMessage||0).toFixed(0)}</div></div>
-          <div><div style="font-size:10.5px;color:#64748b">Purchases</div><div style="font-weight:700;font-size:12.5px;color:#16a34a">${r.purchases||0}</div></div>
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+          ${statusBadgeHtml(r.status)}
+          <div class="ad-popover-title" style="font-weight:700;font-size:13.5px;color:var(--ink, #0f172a);line-height:1.35">${esc(r.name)}</div>
+        </div>
+        <div class="ad-popover-campaign" style="font-size:11.5px;color:var(--muted, #64748b)">📊 ${esc(r.campaign)}${r.adset ? ' · 🎯 ' + esc(r.adset) : ''}</div>
+        ${r.body ? `<div style="font-size:11.5px;color:#334155;background:#f0fdf4;padding:6px 8px;border-radius:6px;border:1px solid #bbf7d0;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">${esc(r.body)}</div>` : ''}
+        <div class="ad-popover-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;background:#f8fafc;padding:9px;border-radius:8px">
+          <div><div style="font-size:10px;color:#64748b">Spend / งบวัน</div><div style="font-weight:700;font-size:12px;color:#064e3b">฿${Number(r.spend||0).toLocaleString(undefined,{maximumFractionDigits:0})}</div></div>
+          <div><div style="font-size:10px;color:#64748b">Reach / Freq</div><div style="font-weight:700;font-size:12px">${Number(r.reach||0).toLocaleString()} (${r.frequency || 1}×)</div></div>
+          <div><div style="font-size:10px;color:#64748b">Impressions</div><div style="font-weight:700;font-size:12px">${Number(r.impressions||0).toLocaleString()}</div></div>
+          <div><div style="font-size:10px;color:#64748b">Clicks / CTR</div><div style="font-weight:700;font-size:12px">${Number(r.clicks||0).toLocaleString()} (${Number(r.ctr||0).toFixed(2)}%)</div></div>
+          <div><div style="font-size:10px;color:#64748b">Engagement</div><div style="font-weight:700;font-size:12px;color:#0284c7">${Number(r.postEngagement||0).toLocaleString()}</div></div>
+          <div><div style="font-size:10px;color:#64748b">Video / ThruPlay</div><div style="font-weight:700;font-size:12px">${Number(r.videoPlays||0).toLocaleString()} / ${Number(r.videoThruPlays||0).toLocaleString()}</div></div>
+          <div><div style="font-size:10px;color:#64748b">Messages / Cost</div><div style="font-weight:700;font-size:12px">${Number(r.messages||0).toLocaleString()} (฿${Number(r.costMessage||0).toFixed(0)})</div></div>
+          <div><div style="font-size:10px;color:#64748b">Purchases</div><div style="font-weight:700;font-size:12px;color:#16a34a">${r.purchases||0}</div></div>
+          <div><div style="font-size:10px;color:#64748b">Revenue / ROAS</div><div style="font-weight:700;font-size:12px;color:#047857">฿${Number(r.revenue||0).toLocaleString()} ${r.roas ? `(${r.roas}×)` : ''}</div></div>
         </div>
         <div style="display:flex;justify-content:space-between;align-items:center;padding-top:4px;border-top:1px solid #f1f5f9;font-size:11.5px">
           <span>🎯 Chat Quality: <b style="color:${qColor}">${r.qualityLabel ? String(r.qualityLabel).toUpperCase() : '—'} ${r.qualityScore !== null && r.qualityScore !== undefined ? r.qualityScore + '%' : ''}</b></span>

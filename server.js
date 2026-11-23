@@ -1068,8 +1068,12 @@ async function api(req, res, url, session) {
     for (const r of rows) {
       const campName = clean(r.campaign || r.campaign_name || r.campaignName || r.adset || r.adName || r.ad_name, 100) || 'General Campaign';
       const campId = clean(r.campaignId || r.campaign_id, 50) || `C-${campName.slice(0, 20).replace(/\s+/g, '_')}`;
+      const status = clean(r.status || r.effective_status || r.delivery || r['สถานะ'], 30) || 'ACTIVE';
+      const objective = clean(r.objective || r.campaign_objective || r['วัตถุประสงค์'], 60) || 'OUTCOME_ENGAGEMENT';
+      const dailyBudget = parseFloat(String(r.dailyBudget || r.daily_budget || r['งบต่อวัน'] || 0).replace(/[^0-9.]/g, '')) || null;
+      const lifetimeBudget = parseFloat(String(r.lifetimeBudget || r.lifetime_budget || r['งบตลอดอายุ'] || 0).replace(/[^0-9.]/g, '')) || null;
       if (!campMap.has(campId)) {
-        campMap.set(campId, { id: campId, name: campName });
+        campMap.set(campId, { id: campId, name: campName, status, objective, dailyBudget, lifetimeBudget });
       }
 
       const adName = clean(r.adName || r.ad_name || r.name || r.ad, 100) || campName;
@@ -1078,6 +1082,12 @@ async function api(req, res, url, session) {
       const rawThumb = clean(r.thumb || r.thumbnail_url || r.image_url || r.image || r['รูปภาพ'] || r['ลิงก์รูป'], 1000) || null;
       const rawVideo = clean(r.videoUrl || r.video_url || r.video || r['วิดีโอ'] || r['ลิงก์วิดีโอ'], 1000) || null;
       const creative = clean(r.creative || r.creative_type, 20) || (rawVideo ? 'VIDEO' : 'IMAGE');
+      const headline = clean(r.headline || r.title || r['พาดหัว'], 200) || adName;
+      const body = clean(r.body || r.ad_copy || r.caption || r.message || r['ข้อความโฆษณา'], 1000) || '';
+      const cta = clean(r.cta || r.call_to_action || r.call_to_action_type || r['ปุ่มกระตุ้น'], 50) || 'SEND_MESSAGE';
+      const targetingSummary = clean(r.targeting || r.targetingSummary || r['กลุ่มเป้าหมาย'], 200) || adset;
+      const placement = clean(r.placement || r.placements || r['ตำแหน่งการจัดวาง'], 150) || 'Facebook & Instagram';
+      const optimizationGoal = clean(r.optimizationGoal || r.optimization_goal || r['เป้าหมายการนำส่ง'], 60) || 'CONVERSATIONS';
 
       const pageName = clean(r.pageName || r.page, 80) || uploadPageName;
       const platform = clean(r.platform, 30) || uploadPlatform;
@@ -1088,15 +1098,25 @@ async function api(req, res, url, session) {
         adMap.set(adId, {
           id: adId,
           name: adName,
+          status,
           campaignId: campId,
+          objective,
           adset,
+          optimizationGoal,
+          dailyBudget,
+          lifetimeBudget,
+          targetingSummary,
+          placement,
           pageId,
           pageName,
           platform,
-          agencyId: 'In-house',
+          agencyId: clean(r.agency || r.agencyId, 60) || 'In-house',
           creative,
           thumb: rawThumb,
           videoUrl: rawVideo,
+          headline,
+          body,
+          cta,
         });
       } else {
         const existingAd = adMap.get(adId);
@@ -1105,15 +1125,26 @@ async function api(req, res, url, session) {
         if (platform && !existingAd.platform) existingAd.platform = platform;
         if (rawThumb && !existingAd.thumb) existingAd.thumb = rawThumb;
         if (rawVideo && !existingAd.videoUrl) { existingAd.videoUrl = rawVideo; existingAd.creative = 'VIDEO'; }
+        if (body && !existingAd.body) existingAd.body = body;
+        if (headline && !existingAd.headline) existingAd.headline = headline;
       }
 
       const spend = Math.max(0, parseFloat(String(r.spend || r.amount_spent || 0).replace(/[^0-9.]/g, '')) || 0);
       const impressions = Math.max(0, parseInt(String(r.impressions || 0).replace(/[^0-9]/g, ''), 10) || 0);
       const reach = Math.max(0, parseInt(String(r.reach || 0).replace(/[^0-9]/g, ''), 10) || Math.round(impressions * 0.7));
       const clicks = Math.max(0, parseInt(String(r.clicks || r.clicks_all || r.link_clicks || 0).replace(/[^0-9]/g, ''), 10) || 0);
+      const linkClicks = Math.max(0, parseInt(String(r.linkClicks || r.link_clicks || r.inline_link_clicks || 0).replace(/[^0-9]/g, ''), 10) || Math.round(clicks * 0.75));
       const messages = Math.max(0, parseInt(String(r.messages || r.messaging_conversations || r.results || 0).replace(/[^0-9]/g, ''), 10) || 0);
       const purchases = Math.max(0, parseInt(String(r.purchases || 0).replace(/[^0-9]/g, ''), 10) || 0);
-      
+      const purchaseValue = Math.max(0, parseFloat(String(r.purchaseValue || r.purchase_value || r.revenue || 0).replace(/[^0-9.]/g, '')) || 0);
+      const postEngagement = Math.max(0, parseInt(String(r.postEngagement || r.post_engagement || r.engagement || 0).replace(/[^0-9]/g, ''), 10) || 0);
+      const reactions = Math.max(0, parseInt(String(r.reactions || r.post_reactions || 0).replace(/[^0-9]/g, ''), 10) || 0);
+      const comments = Math.max(0, parseInt(String(r.comments || r.post_comments || 0).replace(/[^0-9]/g, ''), 10) || 0);
+      const shares = Math.max(0, parseInt(String(r.shares || r.post_shares || 0).replace(/[^0-9]/g, ''), 10) || 0);
+      const videoPlays = Math.max(0, parseInt(String(r.videoPlays || r.video_views || r.video_plays || 0).replace(/[^0-9]/g, ''), 10) || 0);
+      const videoThruPlays = Math.max(0, parseInt(String(r.videoThruPlays || r.thruplays || r.thruplay || 0).replace(/[^0-9]/g, ''), 10) || 0);
+      const videoP100 = Math.max(0, parseInt(String(r.videoP100 || r.video_p100 || 0).replace(/[^0-9]/g, ''), 10) || 0);
+
       const rawDateStart = r.date || r.reporting_starts || r.reportingStarts || r.day;
       const rawDateEnd = r.dateEnd || r.reporting_ends || r.reportingEnds || rawDateStart;
       const startDate = normalizeDate(rawDateStart);
@@ -1131,8 +1162,17 @@ async function api(req, res, url, session) {
       const dayImpressions = Math.round(impressions / daysCount);
       const dayReach = Math.round(reach / daysCount);
       const dayClicks = Math.round(clicks / daysCount);
+      const dayLinkClicks = Math.round(linkClicks / daysCount);
       const dayMessages = Math.round(messages / daysCount);
       const dayPurchases = Math.round(purchases / daysCount);
+      const dayPurchaseValue = Math.round((purchaseValue / daysCount) * 100) / 100;
+      const dayPostEngagement = Math.round(postEngagement / daysCount);
+      const dayReactions = Math.round(reactions / daysCount);
+      const dayComments = Math.round(comments / daysCount);
+      const dayShares = Math.round(shares / daysCount);
+      const dayVideoPlays = Math.round(videoPlays / daysCount);
+      const dayVideoThruPlays = Math.round(videoThruPlays / daysCount);
+      const dayVideoP100 = Math.round(videoP100 / daysCount);
 
       for (const d of dateList) {
         existingData.daily.push({
@@ -1142,8 +1182,17 @@ async function api(req, res, url, session) {
           impressions: dayImpressions,
           reach: dayReach,
           clicks: dayClicks,
+          linkClicks: dayLinkClicks,
           messages: dayMessages,
           purchases: dayPurchases,
+          purchaseValue: dayPurchaseValue,
+          postEngagement: dayPostEngagement,
+          reactions: dayReactions,
+          comments: dayComments,
+          shares: dayShares,
+          videoPlays: dayVideoPlays,
+          videoThruPlays: dayVideoThruPlays,
+          videoP100: dayVideoP100,
         });
       }
       addedRows++;
