@@ -3249,17 +3249,11 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
     if (!s.data) return;
     box.innerHTML = `
       <div class="cura-panels-row">
-        <!-- Panel 1: Folders Rail & Conversation List Combined (420px) -->
+        <!-- Panel 1: Conversation List (Clean Full Width) -->
         <div class="cura-panel-left">
-          <div class="cura-rail-col" id="mess-tools"></div>
-          <div class="cura-convs-col">
-            <div class="cura-conv-search-wrap">
-              <div class="cura-search-inner">
-                ${icon('search')}
-                <input id="isearch" data-bind="isearch" placeholder="ค้นหาแชท, ชื่อ, เบอร์, เพจ..." value="${esc(s.search)}" autocomplete="off">
-              </div>
-            </div>
-            <div class="cura-conv-feed" id="mess-list"></div>
+          <div class="cura-convs-col" style="display:flex;flex-direction:column;width:100%;height:100%;overflow:hidden">
+            <div id="mess-tools"></div>
+            <div class="cura-conv-feed" id="mess-list" style="flex:1;overflow-y:auto"></div>
           </div>
         </div>
         <!-- Panel 2: Center Active Chat Area (Flex-1) -->
@@ -3293,106 +3287,38 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
       if (platCounts[p] !== undefined) platCounts[p]++;
       else platCounts[p] = (platCounts[p] || 0) + 1;
     }
-    const platList = ['Facebook', 'Instagram', 'LINE', 'WhatsApp'].filter((p) => platCounts[p] > 0 || p === 'Facebook' || p === 'Instagram');
-
-    // รวบรวมเพจทั้งหมดที่มีในบทสนทนา พร้อมนับจำนวนแชท
-    const pageMap = new Map();
-    for (const r of allRows) {
-      const pid = r.pageId || r.pageName || 'unknown';
-      if (!pageMap.has(pid)) {
-        pageMap.set(pid, {
-          id: r.pageId || pid,
-          name: r.pageName || r.pageId || 'เพจหลัก',
-          platform: r.platform || 'Facebook',
-          count: 0,
-        });
-      }
-      pageMap.get(pid).count++;
-    }
-    const pages = [...pageMap.values()].sort((a, b) => b.count - a.count);
     const activeChan = s.channel || '';
-    const activePage = s.page || '';
 
     el.innerHTML = `
-      <div class="cura-rail-block" style="padding:4px 6px 12px;border-bottom:1px solid #f1f5f9;margin-bottom:6px">
-        <div style="display:flex;align-items:center;gap:8px">
-          <div class="beq-iridescent-orb" style="width:26px;height:26px;flex-shrink:0" title="BEQ Copilot Engine"></div>
-          <div>
-            <div style="font-size:11.5px;font-weight:800;letter-spacing:0.06em;color:var(--brand-deep);text-transform:uppercase">BEQ COPILOT</div>
-            <div style="font-size:10px;color:var(--muted);font-weight:600">Hair & Clinic AI</div>
-          </div>
+      <div class="cura-conv-search-wrap" style="padding:12px 14px 10px;border-bottom:1px solid #f1f5f9;background:#ffffff">
+        <div class="cura-search-inner">
+          ${icon('search')}
+          <input id="isearch" data-bind="isearch" placeholder="ค้นหาแชท, ชื่อลูกค้า, เบอร์..." value="${esc(s.search)}" autocomplete="off">
         </div>
-      </div>
-
-      <!-- FOLDERS -->
-      <div class="cura-rail-block">
-        <div class="cura-block-label">FOLDERS</div>
-        <button type="button" class="cura-rail-item ${activeFolder === 'all' ? 'active' : ''}" data-act="inbox-folder" data-folder="all">
-          <span>💬 ทั้งหมด</span>
-          <span class="cura-item-badge">${num(totalCount)}</span>
-        </button>
-        <button type="button" class="cura-rail-item ${activeFolder === 'unreplied' ? 'active' : ''}" data-act="inbox-folder" data-folder="unreplied">
-          <span>⌛ ยังไม่ตอบ</span>
-          ${unrepliedCount > 0 ? `<span class="cura-item-badge unreplied">${unrepliedCount}</span>` : ''}
-        </button>
-        <button type="button" class="cura-rail-item ${activeFolder === 'starred' ? 'active' : ''}" data-act="inbox-folder" data-folder="starred">
-          <span>⭐ ติดดาว</span>
-          ${starredCount > 0 ? `<span class="cura-item-badge starred">${starredCount}</span>` : ''}
-        </button>
-      </div>
-
-      <!-- PLATFORMS (แยกตามแพลตฟอร์ม) -->
-      <div class="cura-rail-block">
-        <div class="cura-block-label" style="display:flex;justify-content:space-between;align-items:center">
-          <span>PLATFORMS</span>
-          ${activeChan ? `<span style="font-size:9.5px;color:var(--brand);cursor:pointer;font-weight:700" data-act="inbox-channel" data-channel="">ล้างตัวกรอง</span>` : ''}
+        <div class="cura-inbox-pills-row" style="display:flex;align-items:center;gap:6px;margin-top:10px;overflow-x:auto;padding-bottom:2px">
+          <button type="button" class="cura-pill-tab ${activeFolder === 'all' && !activeChan ? 'active' : ''}" data-act="inbox-folder" data-folder="all">
+            💬 ทั้งหมด <span class="badge">${num(totalCount)}</span>
+          </button>
+          <button type="button" class="cura-pill-tab ${activeFolder === 'unreplied' ? 'active' : ''}" data-act="inbox-folder" data-folder="unreplied">
+            ⌛ ยังไม่ตอบ ${unrepliedCount > 0 ? `<span class="badge unreplied">${unrepliedCount}</span>` : ''}
+          </button>
+          <button type="button" class="cura-pill-tab ${activeFolder === 'starred' ? 'active' : ''}" data-act="inbox-folder" data-folder="starred">
+            ⭐ ติดดาว ${starredCount > 0 ? `<span class="badge">${starredCount}</span>` : ''}
+          </button>
+          <span style="width:1px;height:16px;background:#e2e8f0;margin:0 2px;flex-shrink:0"></span>
+          <button type="button" class="cura-pill-tab ${activeChan.toLowerCase() === 'facebook' ? 'active' : ''}" data-act="inbox-channel" data-channel="Facebook" title="Facebook Messenger">
+            🔵 FB ${platCounts.Facebook > 0 ? `<span class="badge">${platCounts.Facebook}</span>` : ''}
+          </button>
+          <button type="button" class="cura-pill-tab ${activeChan.toLowerCase() === 'instagram' ? 'active' : ''}" data-act="inbox-channel" data-channel="Instagram" title="Instagram Direct">
+            📸 IG ${platCounts.Instagram > 0 ? `<span class="badge">${platCounts.Instagram}</span>` : ''}
+          </button>
+          <button type="button" class="cura-pill-tab ${activeChan.toLowerCase() === 'line' ? 'active' : ''}" data-act="inbox-channel" data-channel="LINE" title="LINE Official Account">
+            🟢 LINE ${platCounts.LINE > 0 ? `<span class="badge">${platCounts.LINE}</span>` : ''}
+          </button>
+          <button type="button" class="cura-pill-tab ${activeChan.toLowerCase() === 'whatsapp' ? 'active' : ''}" data-act="inbox-channel" data-channel="WhatsApp" title="WhatsApp Business">
+            💚 WA ${platCounts.WhatsApp > 0 ? `<span class="badge">${platCounts.WhatsApp}</span>` : ''}
+          </button>
         </div>
-        <button type="button" class="cura-chan-btn ${!activeChan ? 'active' : ''}" data-act="inbox-channel" data-channel="">
-          <span>🌐 ทุกแพลตฟอร์ม</span>
-          <span class="cura-item-badge">${num(totalCount)}</span>
-        </button>
-        ${platList.map((p) => {
-          const logo = getBrandLogo(p, 14);
-          const cnt = platCounts[p] || 0;
-          const label = p === 'Facebook' ? 'Facebook' : p === 'Instagram' ? 'Instagram' : p === 'LINE' ? 'LINE OA' : 'WhatsApp';
-          return `<button type="button" class="cura-chan-btn ${activeChan.toLowerCase() === p.toLowerCase() ? 'active' : ''}" data-act="inbox-channel" data-channel="${esc(p)}">
-            <span style="display:inline-flex;align-items:center;gap:6px">${logo} <span>${esc(label)}</span></span>
-            <span class="cura-item-badge">${cnt}</span>
-          </button>`;
-        }).join('')}
-      </div>
-
-      <!-- PAGES (แยกตามเพจ) -->
-      ${pages.length > 0 ? `
-      <div class="cura-rail-block">
-        <div class="cura-block-label" style="display:flex;justify-content:space-between;align-items:center">
-          <span>PAGES / เพจ</span>
-          ${activePage ? `<span style="font-size:9.5px;color:var(--brand);cursor:pointer;font-weight:700" data-act="inbox-page" data-page="">ทั้งหมด</span>` : ''}
-        </div>
-        <button type="button" class="cura-chan-btn ${!activePage ? 'active' : ''}" data-act="inbox-page" data-page="">
-          <span>📄 ทุกเพจ</span>
-          <span class="cura-item-badge">${num(totalCount)}</span>
-        </button>
-        ${pages.map((p) => {
-          const isSelected = activePage && (activePage === p.id || activePage.toLowerCase() === (p.name || '').toLowerCase());
-          const iconPlat = p.platform === 'Instagram' ? '📸' : p.platform === 'LINE' ? '🟢' : p.platform === 'WhatsApp' ? '💚' : '🔵';
-          return `<button type="button" class="cura-chan-btn ${isSelected ? 'active' : ''}" data-act="inbox-page" data-page="${esc(p.id)}" title="${esc(p.name)}">
-            <span style="display:inline-flex;align-items:center;gap:5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:145px">
-              <span>${iconPlat}</span>
-              <span style="overflow:hidden;text-overflow:ellipsis">${esc(p.name)}</span>
-            </span>
-            <span class="cura-item-badge">${p.count}</span>
-          </button>`;
-        }).join('')}
-      </div>` : ''}
-
-      <!-- STATUS PIPELINE -->
-      <div class="cura-rail-block" style="margin-top:auto">
-        <div class="cura-block-label">STATUS PIPELINE</div>
-        <div class="sel" style="width:100%"><select data-bind="istatus-sel" style="width:100%;font-size:12px;padding:6px 10px;border-radius:10px">
-          <option value="">ทุกสถานะ</option>
-          ${STATUS_ORDER.map((k) => `<option value="${k}" ${s.status === k ? 'selected' : ''}>${STATUS_TH[k]}</option>`).join('')}
-        </select></div>
       </div>
     `;
   }
@@ -4704,9 +4630,12 @@ function boardShell() {
       else if (act === 'page') { d.pageNo += Number(el.dataset.dir); renderTable(); }
       else if (act === 'select-chat') { if (S.chat.id !== el.dataset.id) openChat(el.dataset.id); }
       else if (act === 'istatus') { S.inbox.status = el.dataset.status; renderInboxTools(); renderInboxList(); }
-      else if (act === 'inbox-folder') { S.inbox.folder = el.dataset.folder; renderInboxTools(); renderInboxList(); }
-      else if (act === 'inbox-channel') { S.inbox.channel = el.dataset.channel; renderInboxTools(); renderInboxList(); }
-      else if (act === 'inbox-page') { S.inbox.page = el.dataset.page; renderInboxTools(); renderInboxList(); }
+      else if (act === 'inbox-folder') { S.inbox.folder = el.dataset.folder; if (el.dataset.folder === 'all') S.inbox.channel = ''; renderInboxTools(); renderInboxList(); }
+      else if (act === 'inbox-channel') {
+        if (S.inbox.channel && S.inbox.channel.toLowerCase() === (el.dataset.channel || '').toLowerCase()) S.inbox.channel = '';
+        else S.inbox.channel = el.dataset.channel;
+        renderInboxTools(); renderInboxList();
+      }
       else if (act === 'set-ai-mode') { S.aiMode = el.dataset.mode; render(); }
       else if (act === 'takeover-chat') {
         S.chat.takenOver = !S.chat.takenOver;
