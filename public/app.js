@@ -994,7 +994,7 @@
             </div>
             <div style="display:flex;justify-content:flex-end;gap:10px">
               <button type="button" class="btn btn-secondary" data-act="import-modal-close">ยกเลิก</button>
-              <button type="submit" class="btn btn-primary" style="background:#059669;color:#fff;padding:9px 22px">📥 เริ่มดึงข้อมูล</button>
+              <button type="button" class="btn btn-primary" data-act="import-modal-submit" style="background:#059669;color:#fff;padding:9px 22px">📥 เริ่มดึงข้อมูล</button>
             </div>
           </form>
         </div>
@@ -4618,6 +4618,12 @@ function boardShell() {
       else if (act === 'import-modal-close') {
         S.importModal = null;
         render();
+      }
+      else if (act === 'import-modal-submit') {
+        const form = document.querySelector('[data-form="do-import-conv"]');
+        if (form) {
+          form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+        }
       }
       else if (act === 'fu-notify-one') {
         const id = el.dataset.id;

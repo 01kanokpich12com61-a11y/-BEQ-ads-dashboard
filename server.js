@@ -2130,7 +2130,15 @@ async function api(req, res, url, session) {
 
       // 3. ดึงแคมเปญ โฆษณา รูปภาพ วิดีโอ และสถิติ (30 วันล่าสุด)
       const range = resolveRange({ range: '30d' });
-      const dashData = await meta.load({ from: range.prevFrom, to: range.to });
+      let dashData;
+      try {
+        dashData = await meta.load({ from: range.prevFrom, to: range.to });
+      } catch (loadErr) {
+        if (loadErr.message.includes('too many calls') || loadErr.message.includes('rate-limiting')) {
+          return send(res, 429, { error: 'Meta Ad Account กำลังติด Rate Limit ชั่วคราว (เรียก API ถี่เกินไป) — การเชื่อมต่อเพจและ Token บันทึกเรียบร้อยแล้ว กรุณารอประมาณ 5–15 นาทีแล้วกดซิงค์ข้อมูลอีกครั้ง' });
+        }
+        throw loadErr;
+      }
 
       audit.log(session.user.username, 'meta_sync_all', `ซิงค์ Meta ครบวงจร: ${info.name} (${(dashData.ads || []).length} ads, ${pages.length} pages)`, clientIp(req));
       return send(res, 200, {
