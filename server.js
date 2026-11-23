@@ -274,9 +274,10 @@ syncLegacyData();
 
 function recordPage(pageId, pageName, platform = 'Facebook') {
   if (!pageName && !pageId) return;
-  const pages = store.read('pages.json', []);
   const name = clean(pageName, 80) || clean(pageId, 80);
   const id = clean(pageId, 50) || `PAGE-${name.replace(/[^a-zA-Z0-9ก-๙]/g, '_')}`;
+  if (!name || /channel/i.test(name) || /channel/i.test(id)) return;
+  const pages = store.read('pages.json', []);
   const idx = pages.findIndex((p) => p.id === id);
   if (idx >= 0) {
     if (platform && (!pages[idx].platform || pages[idx].platform === 'Facebook')) {

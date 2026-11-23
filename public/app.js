@@ -133,13 +133,22 @@
     }
 
     // 3. ข้อมูล Inbox & แชทคนไข้
-    const inboxRows = S.inbox?.data?.rows || [];
     if (txt.includes('แชท') || txt.includes('ทัก') || txt.includes('ข้อความ') || txt.includes('inbox') || txt.includes('คนไข้') || txt.includes('ลูกค้า')) {
-      const total = inboxRows.length || 1450;
+      let inboxRows = (S.inbox && S.inbox.data && S.inbox.data.rows) ? S.inbox.data.rows : [];
+      if (!inboxRows.length) {
+        try {
+          const res = await api('/api/inbox?range=all');
+          if (res && res.rows) {
+            inboxRows = res.rows;
+            if (!S.inbox.data) S.inbox.data = res;
+          }
+        } catch {}
+      }
+      const total = inboxRows.length || (S.dash?.data?.kpis?.messages?.value) || 0;
       const unreplied = inboxRows.filter(r => r.status === 'no_reply' || !r.last || r.last.from !== 'staff').length;
       return `💬 **สรุปข้อมูล Unified Inbox ของคลินิก:**\n\n` +
         `• **แชททั้งหมดในระบบ:** **${num(total)} บทสนทนา**\n` +
-        `• **แชทที่ยังรอการตอบกลับ (Unreplied):** <b style="color:#ef4444">${unreplied || 14} แชท</b> ⚠️\n` +
+        `• **แชทที่ยังรอการตอบกลับ (Unreplied):** <b style="color:#ef4444">${num(unreplied)} แชท</b> ⚠️\n` +
         `• **ช่องทางที่เชื่อมต่อ:** Facebook Messenger, Instagram Direct, LINE Official Account, WhatsApp Business\n` +
         `• **ฟังก์ชันเด่น:** AI Smart Replies ตอบไวใน 1 วินาที, ประเมินกราฟต์ผมอัตโนมัติ และระบบมอบหมายเซลล์`;
     }
@@ -571,6 +580,8 @@
     if (/^\d{6,}$/.test(name)) return false;
     if (name.includes('เพจหลัก')) return false;
     if (p.id.includes('เพจหลัก')) return false;
+    if (/channel/i.test(name)) return false;
+    if (/channel/i.test(String(p.id))) return false;
     if (p.id === '111432947713900' || p.id === '1040829309417229') return false;
     return true;
   }
@@ -843,6 +854,9 @@
   function formatGhostText(txt) {
     if (!txt) return '';
     let html = esc(txt);
+    html = html.replace(/&lt;b style="color:(#[0-9a-fA-F]{3,6})"&gt;([\s\S]*?)&lt;\/b&gt;/g, '<strong style="color:$1;font-weight:700">$2</strong>');
+    html = html.replace(/&lt;b&gt;([\s\S]*?)&lt;\/b&gt;/g, '<strong>$1</strong>');
+    html = html.replace(/&lt;span style="color:(#[0-9a-fA-F]{3,6})"&gt;([\s\S]*?)&lt;\/span&gt;/g, '<span style="color:$1;font-weight:700">$2</span>');
     html = html.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
     html = html.replace(/\*(.+?)\*/g, '<i>$1</i>');
     html = html.replace(/^([0-9]+)\.\s+(.+)$/gm, '<div style="margin-left:4px;margin-bottom:4px"><span style="color:#059669;font-weight:700">$1.</span> $2</div>');
@@ -1527,7 +1541,7 @@
                 : plat === 'LINE' ? '<span class="chip" style="background:#dcfce7;color:#15803d;border:1px solid #bbf7d0;font-weight:700">🟢 LINE</span>'
                 : plat === 'WhatsApp' ? '<span class="chip" style="background:#d1fae5;color:#047857;border:1px solid #a7f3d0;font-weight:700">💚 WhatsApp</span>'
                 : `<span class="chip">${esc(plat)}</span>`;
-              const pageDisp = r.pageName || u.pageName || (plat === 'Instagram' ? 'Instagram Direct' : (plat === 'Facebook' ? 'Pavicon Hair Clinic' : `${plat} Channel`));
+              const pageDisp = r.pageName || u.pageName || (plat === 'Instagram' ? ((u.pageName && u.pageName.toLowerCase().includes('beq')) ? 'beq_wellness' : 'dr.nay_hairtransplant') : (plat === 'Facebook' ? (u.pageName || 'Pavicon Hair Clinic') : plat));
               return `<tr>
                 <td class="nowrap" style="color:var(--muted)">${i + 1}</td>
                 <td><b>${esc(r.name || '—')}</b></td>
