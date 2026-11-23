@@ -672,16 +672,16 @@ async function api(req, res, url, session) {
   if (route === 'GET /api/inbox') {
     const range = resolveRange(q);
     const data = await providers.load(range);
-    const out = buildInbox(data, range, { platform: q.platform, page: q.page });
     const isDemo = providers.currentMode() === 'demo';
-    const byId = new Map(data.leads.map((l) => [l.id, l]));
     const overlay = store.read('messages.json', {});
+    const messagesMap = {};
+    for (const l of data.leads) {
+      messagesMap[l.id] = ops.messagesFor(l, data, isDemo, overlay);
+    }
+    const out = buildInbox(data, range, { platform: q.platform, page: q.page, messagesMap });
     for (const r of out.rows) {
-      const l = byId.get(r.id);
-      if (l) {
-        const msgs = ops.messagesFor(l, data, isDemo, overlay);
-        r.last = msgs.length ? msgs[msgs.length - 1] : null; // ข้อความล่าสุด ใช้แสดงในรายการแชท
-      }
+      const msgs = messagesMap[r.id] || [];
+      r.last = msgs.length ? msgs[msgs.length - 1] : null; // ข้อความล่าสุด ใช้แสดงในรายการแชท
     }
     out.rows.sort((a, b) => {
       const x = a.last ? a.last.at : a.date; const y = b.last ? b.last.at : b.date;
@@ -1052,23 +1052,26 @@ async function api(req, res, url, session) {
       // ตรวจสอบแพลตฟอร์มอย่างแม่นยำ (Instagram, Facebook, LINE, WhatsApp)
       const rawRowPlat = clean(r.platform, 30);
       const rawRowPage = clean(r.pageName || r.page, 80);
-      const isIg = Boolean(
+      const rawRowChan = clean(r.channel || r.source, 30);
+      const isIgRow = Boolean(
         (rawRowPlat && /ig|instagram/i.test(rawRowPlat)) ||
-        (channel && /ig|instagram/i.test(channel)) ||
-        (uploadPlatform && /ig|instagram/i.test(uploadPlatform)) ||
-        (rawRowPage && /ig|instagram|dr\.nay_hairtransplant|beq_wellness/i.test(rawRowPage)) ||
-        (uploadPageName && /ig|instagram|dr\.nay_hairtransplant|beq_wellness/i.test(uploadPageName))
+        (rawRowChan && /ig|instagram/i.test(rawRowChan)) ||
+        (rawRowPage && /ig|instagram|dr\.nay_hairtransplant|beq_wellness/i.test(rawRowPage))
       );
 
-      let platform = 'Facebook';
-      if (isIg) {
+      let platform = uploadPlatform || 'Facebook';
+      if (isIgRow) {
         platform = 'Instagram';
-      } else {
-        const checkStr = `${uploadPlatform} ${rawRowPlat} ${channel}`.toLowerCase();
-        if (checkStr.includes('line')) platform = 'LINE';
-        else if (checkStr.includes('whatsapp') || checkStr.includes('wa')) platform = 'WhatsApp';
-        else if (checkStr.includes('ig') || checkStr.includes('instagram')) platform = 'Instagram';
-        else platform = 'Facebook';
+      } else if (rawRowPlat) {
+        if (/line/i.test(rawRowPlat)) platform = 'LINE';
+        else if (/wa|whatsapp/i.test(rawRowPlat)) platform = 'WhatsApp';
+        else if (/ig|instagram/i.test(rawRowPlat)) platform = 'Instagram';
+        else if (/fb|facebook|messenger/i.test(rawRowPlat)) platform = 'Facebook';
+      } else if (rawRowChan) {
+        if (/line/i.test(rawRowChan)) platform = 'LINE';
+        else if (/wa|whatsapp/i.test(rawRowChan)) platform = 'WhatsApp';
+        else if (/ig|instagram/i.test(rawRowChan)) platform = 'Instagram';
+        else if (/fb|facebook|messenger/i.test(rawRowChan)) platform = 'Facebook';
       }
 
       // ปรับ channel ให้ตรงกับแพลตฟอร์ม
@@ -1077,34 +1080,44 @@ async function api(req, res, url, session) {
       else if (platform === 'LINE') channel = 'LINE';
       else if (platform === 'WhatsApp') channel = 'WhatsApp';
 
-      let pageName = uploadPageName || rawRowPage || (platform === 'Instagram' ? 'Instagram Direct' : (platform === 'Facebook' ? 'Pavicon Hair Clinic คลินิกปลูกผมมาตรฐานสากล' : `${platform} Channel`));
-
       // ค้นหา pageId และชื่อเพจจริงจาก pages.json ที่เชื่อมต่อกับ Meta (แยก Instagram และ Facebook ชัดเจน)
       let resolvedPageId = clean(r.pageId, 50);
-      if (pageName) {
-        const pNorm = pageName.toLowerCase().replace(/[\s_.-]/g, '');
-        let matchedPage = knownPages.find((p) => {
-          if (!p.name) return false;
-          const kNorm = p.name.toLowerCase().replace(/[\s_.-]/g, '');
-          const platMatch = (platform === 'Instagram') ? (p.platform === 'Instagram') : (p.platform !== 'Instagram');
-          return platMatch && (kNorm === pNorm || kNorm.includes(pNorm) || pNorm.includes(kNorm));
-        });
+      let pageName = rawRowPage;
 
-        // หากระบุว่าเป็น Instagram แต่ใส่ชื่อ Facebook Page มา (เช่น Dr. Nay Hair Transplant) ให้แมพไปหา Instagram Page คู่ของมัน
-        if (platform === 'Instagram' && !matchedPage) {
-          const fbPage = knownPages.find((p) => p.platform === 'Facebook' && (p.name || '').toLowerCase().replace(/[\s_.-]/g, '').includes(pNorm));
-          if (fbPage) {
-            matchedPage = knownPages.find((p) => p.platform === 'Instagram' && p.fbPageId === fbPage.id);
-          }
+      if (platform === 'Instagram') {
+        const checkStr = `${uploadPageName} ${rawRowPage} ${rawRowPlat} ${rawRowChan}`.toLowerCase();
+        if (checkStr.includes('beq') || checkStr.includes('wellness') || checkStr.includes('17841401019079620')) {
+          const igBeq = knownPages.find((p) => p.platform === 'Instagram' && (p.name.includes('beq') || p.id === '17841401019079620'));
+          pageName = igBeq ? igBeq.name : 'beq_wellness';
+          resolvedPageId = igBeq ? igBeq.id : '17841401019079620';
+        } else {
+          const igNay = knownPages.find((p) => p.platform === 'Instagram' && (p.name.includes('nay') || p.id === '17841448814795762'));
+          pageName = igNay ? igNay.name : 'dr.nay_hairtransplant';
+          resolvedPageId = igNay ? igNay.id : '17841448814795762';
         }
-
-        if (matchedPage) {
-          resolvedPageId = matchedPage.id;
-          pageName = matchedPage.name;
-          platform = matchedPage.platform || platform;
+      } else if (platform === 'Facebook') {
+        const checkStr = `${uploadPageName} ${rawRowPage}`.toLowerCase();
+        if (checkStr.includes('nay') || checkStr.includes('109373461849494')) {
+          const fbNay = knownPages.find((p) => p.platform === 'Facebook' && (p.id === '109373461849494' || p.name.includes('Nay')));
+          pageName = fbNay ? fbNay.name : 'Dr. Nay Hair Transplant by BEQ ปลูกผมถาวร';
+          resolvedPageId = fbNay ? fbNay.id : '109373461849494';
+        } else if (checkStr.includes('wellness') || checkStr.includes('122342237846683')) {
+          const fbWel = knownPages.find((p) => p.platform === 'Facebook' && (p.id === '122342237846683' || p.name.includes('Wellness')));
+          pageName = fbWel ? fbWel.name : 'Beq Hair Wellness Center';
+          resolvedPageId = fbWel ? fbWel.id : '122342237846683';
+        } else {
+          const fbPav = knownPages.find((p) => p.platform === 'Facebook' && (p.id === '239105462619075' || p.name.includes('Pavicon')));
+          pageName = fbPav ? fbPav.name : (uploadPageName || rawRowPage || 'Pavicon Hair Clinic คลินิกปลูกผมมาตรฐานสากล');
+          resolvedPageId = fbPav ? fbPav.id : '239105462619075';
         }
+      } else if (platform === 'LINE') {
+        pageName = rawRowPage || uploadPageName || 'LINE Official Account';
+        resolvedPageId = 'P-LINE';
+      } else if (platform === 'WhatsApp') {
+        pageName = rawRowPage || uploadPageName || 'WhatsApp Business';
+        resolvedPageId = 'P-WhatsApp';
       }
-      const pageId = resolvedPageId || clean(r.pageId, 50) || `P_${pageName.replace(/[^a-zA-Z0-9ก-๙]/g, '_')}`;
+      const pageId = resolvedPageId || clean(r.pageId, 50) || `PAGE-${pageName.replace(/[^a-zA-Z0-9ก-๙]/g, '_')}`;
       recordPage(pageId, pageName, platform);
 
       // ตรวจสอบว่ามี lead เดิมในระบบจากเพจและแพลตฟอร์มเดียวกันหรือไม่ (แยก Facebook และ Instagram เด็ดขาด)
@@ -1152,7 +1165,7 @@ async function api(req, res, url, session) {
       }
 
       // หากมีข้อความในแถวข้อมูล ให้นำเข้าและบันทึกใน messages.json โดยแยกตาม lead.id, แพลตฟอร์ม และเพจ
-      const rawMsg = clean(r.message || r.messages || r.chat || r.conversation || r.conversations || r.last_message || r.text, 2000);
+      const rawMsg = clean(r.message || r.messages || r.chat || r.conversation || r.conversations || r.last_message || r.text || r.details || r.detail || r.description || r.inquiry || r.comment || r.comments || r.note || r.notes || r.remark || r.remarks, 2000);
       if (rawMsg && targetLead) {
         const msgList = overlay[targetLead.id] || (overlay[targetLead.id] = []);
         if (!msgList.some((m) => m.text === rawMsg)) {

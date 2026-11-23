@@ -1260,7 +1260,9 @@
         'phone': 'phone', 'phone number': 'phone', 'telephone': 'phone', 'เบอร์': 'phone', 'เบอร์โทร': 'phone',
         'email': 'email', 'email address': 'email', 'อีเมล': 'email',
         'ข้อความ': 'message', 'ข้อความล่าสุด': 'message', 'แชท': 'message', 'บทสนทนา': 'message', 'รายละเอียดข้อความ': 'message',
+        'รายละเอียด': 'message', 'รายละเอียดการติดต่อ': 'message', 'ข้อความลูกค้า': 'message', 'แชทลูกค้า': 'message',
         'message': 'message', 'messages': 'message', 'chat': 'message', 'conversation': 'message', 'conversations': 'message', 'last_message': 'message', 'text': 'message',
+        'details': 'message', 'description': 'message', 'inquiry': 'message', 'comment': 'message', 'comments': 'message',
         'secondary phone number': null, 'whatsapp number': null,
       };
     }
