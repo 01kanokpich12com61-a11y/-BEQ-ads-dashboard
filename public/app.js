@@ -1259,6 +1259,8 @@
         'เหตุผล': 'dropReason', 'หมายเหตุ': 'dropReason', 'reason': 'dropReason', 'note': 'dropReason', 'labels': 'dropReason', 'label': 'dropReason', 'tags': 'dropReason', 'tag': 'dropReason', 'ป้ายกำกับ': 'dropReason', 'แท็ก': 'dropReason',
         'phone': 'phone', 'phone number': 'phone', 'telephone': 'phone', 'เบอร์': 'phone', 'เบอร์โทร': 'phone',
         'email': 'email', 'email address': 'email', 'อีเมล': 'email',
+        'ข้อความ': 'message', 'ข้อความล่าสุด': 'message', 'แชท': 'message', 'บทสนทนา': 'message', 'รายละเอียดข้อความ': 'message',
+        'message': 'message', 'messages': 'message', 'chat': 'message', 'conversation': 'message', 'conversations': 'message', 'last_message': 'message', 'text': 'message',
         'secondary phone number': null, 'whatsapp number': null,
       };
     }
@@ -1285,7 +1287,7 @@
         if (h && !h.startsWith('_')) obj[h] = (vals[i] || '').trim();
       });
       return obj;
-    }).filter((r) => r.name || r.date || r.adId || r.campaign || r.adName || r.spend || r.impressions || r.status || r.channel || r.phone || r.email);
+    }).filter((r) => r.name || r.date || r.adId || r.campaign || r.adName || r.spend || r.impressions || r.status || r.channel || r.phone || r.email || r.message);
   }
 
   async function doUploadData() {

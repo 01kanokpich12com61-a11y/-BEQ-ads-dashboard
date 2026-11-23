@@ -996,6 +996,8 @@ async function api(req, res, url, session) {
     const uploadPlatform = clean(b.platform, 30);
     const uploadPageName = clean(b.pageName, 80);
     const knownPages = store.read('pages.json', []);
+    let overlay = store.read('messages.json', {});
+    let messagesChanged = false;
 
     function normalizeDate(d) {
       if (!d) return tdy;
@@ -1105,18 +1107,22 @@ async function api(req, res, url, session) {
       const pageId = resolvedPageId || clean(r.pageId, 50) || `P_${pageName.replace(/[^a-zA-Z0-9ก-๙]/g, '_')}`;
       recordPage(pageId, pageName, platform);
 
-      // ตรวจสอบว่ามี lead เดิมจาก Meta ในเพจเดียวกันหรือไม่ (ตามชื่อลูกค้า หรือเบอร์โทร)
+      // ตรวจสอบว่ามี lead เดิมในระบบจากเพจและแพลตฟอร์มเดียวกันหรือไม่ (แยก Facebook และ Instagram เด็ดขาด)
       const cleanName = name.trim().toLowerCase();
       const existingMatch = existing.find((ex) => {
-        const samePage = ex.pageId === pageId || String(ex.pageId) === String(pageId);
+        const exPlat = ex.platform || (ex.channel === 'Instagram' ? 'Instagram' : ex.channel === 'LINE' ? 'LINE' : ex.channel === 'WhatsApp' ? 'WhatsApp' : 'Facebook');
+        if (exPlat !== platform) return false;
+        const samePage = ex.pageId === pageId || String(ex.pageId) === String(pageId) || (ex.pageName && pageName && ex.pageName.trim().toLowerCase() === pageName.trim().toLowerCase());
         if (!samePage) return false;
-        if (cleanName && ex.name && ex.name.trim().toLowerCase() === cleanName) return true;
+        const isGenericName = !cleanName || cleanName.startsWith('ลูกค้า') || cleanName.startsWith('customer') || cleanName.startsWith('user');
+        if (!isGenericName && ex.name && ex.name.trim().toLowerCase() === cleanName) return true;
         if (phone && ex.phone && ex.phone.replace(/\D/g, '') === phone.replace(/\D/g, '')) return true;
         return false;
       });
 
+      let targetLead = existingMatch;
       if (existingMatch) {
-        // อัปเดตข้อมูลให้กับ lead จาก Meta เดิมเพื่อให้ข้อมูลแชทและตัวชี้วัดเชื่อมต่อกันสมบูรณ์
+        // อัปเดตข้อมูลให้กับ lead เดิมในเพจและแพลตฟอร์มนี้
         if (adId && adId !== 'Direct') existingMatch.adId = adId;
         if (rep) existingMatch.repId = rep;
         if (status) {
@@ -1142,9 +1148,28 @@ async function api(req, res, url, session) {
         };
         existing.push(lead);
         added.push(lead);
+        targetLead = lead;
+      }
+
+      // หากมีข้อความในแถวข้อมูล ให้นำเข้าและบันทึกใน messages.json โดยแยกตาม lead.id, แพลตฟอร์ม และเพจ
+      const rawMsg = clean(r.message || r.messages || r.chat || r.conversation || r.conversations || r.last_message || r.text, 2000);
+      if (rawMsg && targetLead) {
+        const msgList = overlay[targetLead.id] || (overlay[targetLead.id] = []);
+        if (!msgList.some((m) => m.text === rawMsg)) {
+          msgList.push({
+            from: 'customer',
+            text: rawMsg,
+            at: `${date} 10:00:00`,
+            via: 'upload',
+            platform: targetLead.platform,
+            pageName: targetLead.pageName,
+          });
+          messagesChanged = true;
+        }
       }
     }
     if (added.length || b.replace) store.write('leads.json', existing);
+    if (messagesChanged) store.write('messages.json', overlay);
     audit.log(session.user.username, 'leads_upload', `นำเข้า ${added.length} leads (เพจ: ${uploadPageName || 'ตามไฟล์'}, แพลตฟอร์ม: ${uploadPlatform || 'ตามไฟล์'})${b.replace ? ' (แทนที่ชุดเดิม)' : ''}`, clientIp(req));
     return send(res, 200, { ok: true, added: added.length, errors });
   }
@@ -1753,7 +1778,7 @@ async function api(req, res, url, session) {
         const custName = customerPart.name || ('ลูกค้า ' + psid.slice(-4));
 
         const actualPlat = detectConvPlatform(c, plat);
-        let lead = leads.find((l) => l.psid === psid && (!l.pageId || l.pageId === pageId));
+        let lead = leads.find((l) => l.psid === psid && (l.platform || 'Facebook') === actualPlat && (!l.pageId || l.pageId === pageId));
         if (!lead) {
           const res = ops.findOrCreateLead({
             psid,
@@ -1928,7 +1953,7 @@ async function api(req, res, url, session) {
           const custName = customerPart.name || ('ลูกค้า ' + psid.slice(-4));
 
           const actualPlat = detectConvPlatform(c, pPlat);
-          let lead = leads.find((l) => l.psid === psid && (!l.pageId || l.pageId === page.id));
+          let lead = leads.find((l) => l.psid === psid && (l.platform || 'Facebook') === actualPlat && (!l.pageId || l.pageId === page.id));
           if (!lead) {
             const res = ops.findOrCreateLead({
               psid,

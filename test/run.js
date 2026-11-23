@@ -318,16 +318,17 @@ async function main() {
   const idx = await fetch(base + '/'); assert.equal(idx.status, 200); assert.equal((await fetch(base + '/extra.css')).status, 200);
   const trav = await fetch(base + '/..%2Fserver.js'); assert.notEqual(trav.status, 200); ok('static + กัน path traversal');
 
-  // นำเข้าลีด Facebook และ Instagram และแยก Inbox ตามแพลตฟอร์มและเพจ
+  // นำเข้าลีด Facebook และ Instagram พร้อมข้อความแชท และตรวจสอบว่าแยกข้อความตามแพลตฟอร์มและเพจเด็ดขาด
   const upRes = (await call('POST', '/api/upload/leads', {
     rows: [
-      { name: 'คุณนภา (FB)', channel: 'Messenger', platform: 'Facebook', pageName: 'Hairlab Clinic Bangkok', adId: 'AD-FB-1', date: '2026-11-20', status: 'กำลังดำเนินการ' },
-      { name: 'คุณก้อง (IG)', channel: 'Instagram', platform: 'Instagram', pageName: 'dr.nay_hairtransplant', adId: 'AD-IG-1', date: '2026-11-20', status: 'มีคุณสมบัติ' },
+      { name: 'คุณวิชัย พัฒนา', channel: 'Messenger', platform: 'Facebook', pageName: 'Hairlab Clinic Bangkok', adId: 'AD-FB-1', date: '2026-11-20', status: 'กำลังดำเนินการ', message: 'สนใจโปร FUE บนเพจ Facebook ครับ' },
+      { name: 'คุณวิชัย พัฒนา', channel: 'Instagram', platform: 'Instagram', pageName: 'dr.nay_hairtransplant', adId: 'AD-IG-1', date: '2026-11-20', status: 'มีคุณสมบัติ', message: 'ทักมาจาก IG Story ขอดูรีวิวปลูกผมผู้หญิงค่ะ' },
+      { name: 'คุณก้อง (IG)', channel: 'Instagram', platform: 'Instagram', pageName: 'dr.nay_hairtransplant', adId: 'AD-IG-2', date: '2026-11-20', status: 'มีคุณสมบัติ' },
     ],
     replace: false,
   })).json;
   assert.equal(upRes.ok, true);
-  assert.equal(upRes.added, 2);
+  assert.equal(upRes.added, 3);
 
   // ตรวจสอบ Inbox กรองแยกตามแพลตฟอร์ม Facebook, Instagram และตามเพจ
   const fbInbox = (await call('GET', '/api/inbox?range=90d&platform=Facebook')).json;
@@ -338,10 +339,30 @@ async function main() {
   assert.ok(igInbox.rows.length > 0);
   assert.ok(igInbox.rows.every((r) => r.platform.toLowerCase() === 'instagram'));
 
+  // ตรวจสอบข้อความของ Facebook Lead และ Instagram Lead ที่ชื่อเหมือนกัน ต้องไม่ปะปนกัน
+  const fbLead = fbInbox.rows.find((r) => r.name === 'คุณวิชัย พัฒนา');
+  const igLead = igInbox.rows.find((r) => r.name === 'คุณวิชัย พัฒนา');
+  assert.ok(fbLead, 'ต้องพบ Facebook lead');
+  assert.ok(igLead, 'ต้องพบ Instagram lead');
+  assert.notEqual(fbLead.id, igLead.id, 'Facebook และ Instagram lead ต้องมี ID แยกกัน');
+
+  const fbChat = (await call('GET', '/api/inbox/chat?id=' + fbLead.id)).json;
+  const igChat = (await call('GET', '/api/inbox/chat?id=' + igLead.id)).json;
+  assert.equal(fbChat.messages.some((m) => m.text.includes('สนใจโปร FUE บนเพจ Facebook')), true);
+  assert.equal(fbChat.messages.some((m) => m.text.includes('IG Story')), false, 'ข้อความ Instagram ต้องไม่ปนใน Facebook');
+
+  assert.equal(igChat.messages.some((m) => m.text.includes('ทักมาจาก IG Story')), true);
+  assert.equal(igChat.messages.some((m) => m.text.includes('เพจ Facebook')), false, 'ข้อความ Facebook ต้องไม่ปนใน Instagram');
+
+  // ตรวจสอบ demo conversation สำหรับลีดที่ไม่มีข้อความนำเข้า ต้องเป็นบทสนทนาเฉพาะแพลตฟอร์มและเพจ
+  const igKongLead = igInbox.rows.find((r) => r.name === 'คุณก้อง (IG)');
+  const igKongChat = (await call('GET', '/api/inbox/chat?id=' + igKongLead.id)).json;
+  assert.ok(igKongChat.messages.some((m) => m.text.includes('Direct Message') || m.text.includes('IG') || m.text.includes('dr.nay_hairtransplant')), 'บทสนทนา Instagram ต้องแสดงบริบท IG Direct');
+
   const p1Inbox = (await call('GET', '/api/inbox?range=90d&page=P1')).json;
   assert.ok(p1Inbox.rows.length > 0);
   assert.ok(p1Inbox.rows.every((r) => r.pageId === 'P1' || (r.pageName && r.pageName.includes('Bangkok'))));
-  ok('แยก Inbox ตามแต่ละแพลตฟอร์ม (Facebook/Instagram) และตามเพจ');
+  ok('แยก Inbox ตามแต่ละแพลตฟอร์ม (Facebook/Instagram) และตามเพจ พร้อมแยกข้อความแชทไม่ให้ผสมกัน');
 
   await call('POST', '/api/logout');
   assert.equal((await call('GET', '/api/me')).status, 401); ok('ล็อกเอาต์');
