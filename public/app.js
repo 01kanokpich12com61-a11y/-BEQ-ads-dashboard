@@ -93,14 +93,15 @@
             `• ตอบช้า: **${rep1.late}** จาก ${rep1.turns} รอบ\n` +
             `• เวลาเฉลี่ย: **${rep1.avgMin ? num(rep1.avgMin, 1) + ' นาที' : '—'}**\n\n` +
             (rep2 ? `🥈 **อันดับ 2:** **${rep2.rep}**\n` +
-            `• คะแนน: <b style="color:#f59e0b">${rep2.points} แต้ม</b> (ตอบช้า ${rep2.late} รอบ)\n` +
+            `• คะแนน: <b style="color:#f59e0b">${rep2.points} แต้ม</b>\n` +
+            `• ตอบช้า: **${rep2.late}** จาก ${rep2.turns} รอบ\n` +
             `• เวลาเฉลี่ย: **${rep2.avgMin ? num(rep2.avgMin, 1) + ' นาที' : '—'}**\n\n` : '') +
             `📌 *เกณฑ์ SLA 15 นาที:* ช่วง 10:00–19:00 น. ตอบเกิน 15 นาที หัก 1 แต้ม / อ่านแล้วไม่ตอบ หัก 0.5 แต้มครับ (ดูรายละเอียดได้ที่เมนู **SLA & Review**)`;
         }
         if (txt.includes('ดี') || txt.includes('สูงสุด') || txt.includes('เร็วสุด')) {
           return `🏆 **ผู้ที่ทำคะแนน SLA ตอบแชทได้ดีที่สุด:**\n\n` +
             `🌟 **${best.rep}**\n` +
-            `• คะแนน: **${best.points} แต้ม**\n` +
+            `• คะแนนผลงาน: <b style="color:#10b981">${best.points} แต้ม</b>\n` +
             `• ตอบทันเวลา: **${best.onTime} / ${best.turns} รอบ**\n` +
             `• เวลาตอบเฉลี่ย: **${best.avgMin ? num(best.avgMin, 1) + ' นาที' : 'เร็วมาก'}** 🚀`;
         }
@@ -116,14 +117,14 @@
       }
       if (dData && dData.kpis) {
         const k = dData.kpis;
-        return `📊 **สรุปตัวเลข KPIs และโฆษณา (ช่วง 30 วันล่าสุด):**\n\n` +
-          `• **งบโฆษณาที่ใช้ (Spend):** ${baht(k.spend?.value || 0)}\n` +
-          `• **จำนวนคนเห็น (Reach):** ${num(k.reach?.value || 0)} คน (${num(k.impressions?.value || 0)} ครั้ง)\n` +
-          `• **จำนวนคลิก (Clicks):** ${num(k.clicks?.value || 0)} คลิก (CTR: ${pct(k.ctr?.value || 0)})\n` +
-          `• **ทักแชท (Messages):** ${num(k.messages?.value || 0)} ข้อความ\n` +
-          `• **ต้นทุนต่อแชท (Cost/Msg):** ${baht(k.costMessage?.value || 0)}\n` +
-          `• **ยอดซื้อ (Purchases):** ${num(k.purchases?.value || 0)} เคส\n` +
-          `• **รายได้ปิดการขาย (Revenue):** ${baht(k.revenue?.value || 0)} ${k.roas?.value ? `(ROAS: ${num(k.roas.value, 2)}×)` : ''}`;
+        return `📊 **สรุปตัวเลข KPIs และผลตอบแทนโฆษณา (ช่วง 30 วันล่าสุด):**\n\n` +
+          `• **งบโฆษณาที่ใช้ (Spend):** **${baht(k.spend?.value || 0)}**\n` +
+          `• **จำนวนคนเห็น (Reach):** **${num(k.reach?.value || 0)}** คน (${num(k.impressions?.value || 0)} ครั้ง)\n` +
+          `• **จำนวนคลิก (Clicks):** **${num(k.clicks?.value || 0)}** คลิก (CTR: **${pct(k.ctr?.value || 0)}**)\n` +
+          `• **ทักแชท (Messages):** **${num(k.messages?.value || 0)}** ข้อความ\n` +
+          `• **ต้นทุนต่อแชท (Cost/Msg):** **${baht(k.costMessage?.value || 0)}**\n` +
+          `• **ยอดซื้อ (Purchases):** **${num(k.purchases?.value || 0)}** เคส\n` +
+          `• **รายได้ปิดการขาย (Revenue):** <b style="color:#10b981">${baht(k.revenue?.value || 0)}</b> ${k.roas?.value ? `(ROAS: <b>${num(k.roas.value, 2)}×</b>)` : ''}`;
       }
     }
 
@@ -134,7 +135,7 @@
       const unreplied = inboxRows.filter(r => r.status === 'no_reply' || !r.last || r.last.from !== 'staff').length;
       return `💬 **สรุปข้อมูล Unified Inbox ของคลินิก:**\n\n` +
         `• **แชททั้งหมดในระบบ:** **${num(total)} บทสนทนา**\n` +
-        `• **แชทที่ยังรอการตอบกลับ (Unreplied):** **${unreplied || 14} แชท** ⚠️\n` +
+        `• **แชทที่ยังรอการตอบกลับ (Unreplied):** <b style="color:#ef4444">${unreplied || 14} แชท</b> ⚠️\n` +
         `• **ช่องทางที่เชื่อมต่อ:** Facebook Messenger, Instagram Direct, LINE Official Account, WhatsApp Business\n` +
         `• **ฟังก์ชันเด่น:** AI Smart Replies ตอบไวใน 1 วินาที, ประเมินกราฟต์ผมอัตโนมัติ และระบบมอบหมายเซลล์`;
     }
@@ -149,9 +150,18 @@
 
     // 5. ข้อมูล Board / Lead Pipeline 12 ขั้นตอน
     if (txt.includes('board') || txt.includes('บอร์ด') || txt.includes('สถานะ') || txt.includes('pipeline') || txt.includes('ขั้นตอน')) {
-      return `📋 **Leads Board 12 ขั้นตอนของคลินิก:**\n\n` +
-        `1. มาใหม่ → 2. In-take → 3. พอได้คุย → 4. กำลังดำเนินการ → 5. มีคุณสมบัติ → 6. นัดแล้ว → 7. สร้างคอนเวอร์ชั่นแล้ว → 8. Converted (ปิดการขายสำเร็จ) → 9. ไม่ตอบ → 10. แย่มาก/หลุด\n\n` +
-        `✨ สามารถลากการ์ดคนไข้สลับขั้นตอนได้ทันที และมีสีแยกตามระดับความคืบหน้าชัดเจนครับ`;
+      return `📋 **Leads Board ลำดับขั้นตอนคนไข้ของคลินิก:**\n\n` +
+        `1. **มาใหม่ (New Lead):** ทักแชทเข้ามาครั้งแรก\n` +
+        `2. **In-take:** เก็บประวัติและปัญหาเบื้องต้น\n` +
+        `3. **พอได้คุย:** สนทนาต่อเนื่องและซักประวัติเพิ่ม\n` +
+        `4. **กำลังดำเนินการ:** อยู่ระหว่างแนะนำโปรแกรมการรักษา\n` +
+        `5. **มีคุณสมบัติ (Qualified):** ประเมินกราฟต์ผมและงบประมาณตรงกลุ่ม\n` +
+        `6. **นัดแล้ว:** ปักหมุดวันเข้าพบแพทย์ที่คลินิก\n` +
+        `7. **สร้างคอนเวอร์ชั่นแล้ว:** วางมัดจำหรือตกลงเข้ารับบริการ\n` +
+        `8. **Converted:** ปิดการขายสำเร็จ รับการปลูกผมเรียบร้อย 🎉\n` +
+        `9. **ไม่ตอบ / เงียบ:** ระบบจะย้ายเข้าสู่หมวดติดตามต่อใน Follow-up\n` +
+        `10. **แย่มาก / หลุด:** ปฏิเสธหรือไม่สนใจบริการ\n\n` +
+        `✨ สามารถคลิกลากการ์ดคนไข้สลับคอลัมน์ได้ทันที และมีสีแยกตามระดับความคืบหน้าชัดเจนครับ`;
     }
 
     // 6. ข้อมูลบริการปลูกผม & หัตถการของ BEQ
@@ -166,15 +176,15 @@
     // 7. สรุปภาพรวมทุกหน้าในเว็บ (Sitemap & Guide)
     if (txt.includes('หน้า') || txt.includes('เว็บ') || txt.includes('มีอะไรบ้าง') || txt.includes('เมนู') || txt.includes('ทำอะไรได้')) {
       return `🌐 **แผนผังและฟังก์ชันทุกหน้าในระบบ BEQ Suite:**\n\n` +
-        `1. **📊 Dashboard:** ภาพรวมค่าแอด, ROAS, สถิติวิดีโอ/รูปภาพ, AI Marketing Advisor\n` +
-        `2. **💬 Unified Inbox:** รวมแชท 4 แพลตฟอร์ม, AI ประเมินกราฟต์ผม, มอบหมายเซลล์\n` +
-        `3. **📋 Leads Board:** กระดาน Kanban 12 ลำดับขั้น แยกสีชัดเจน ลากการ์ดได้\n` +
-        `4. **⏱️ SLA & Review:** ตรวจสอบความเร็วการตอบแชทตามเกณฑ์ 15 นาที, ตรวจคะแนนทีมงาน\n` +
-        `5. **📅 Follow-up:** จัดการนัดหมายและเตือนติดตามผลคนไข้ที่เงียบไป\n` +
-        `6. **✨ Quality Analysis:** วิเคราะห์คุณภาพโฆษณาและอัตรา Conversion\n` +
-        `7. **💬 Posts & Comments:** ดึงคอมเมนต์ใต้โพสต์และ SLA การตอบคอมเมนต์\n` +
-        `8. **☁️ Upload & Data:** นำเข้าข้อมูล CSV / Google Sheets\n` +
-        `9. **⚙️ Settings:** เชื่อมต่อ Meta, LINE OA, WhatsApp, จัดการเพจ และผู้ใช้งาน`;
+        `1. **Dashboard:** ภาพรวมค่าแอด, ROAS, สถิติวิดีโอ/รูปภาพ, AI Marketing Advisor\n` +
+        `2. **Unified Inbox:** รวมแชท 4 แพลตฟอร์ม, AI ประเมินกราฟต์ผม, มอบหมายเซลล์\n` +
+        `3. **Leads Board:** กระดาน Kanban ลำดับขั้น แยกสีชัดเจน ลากการ์ดได้\n` +
+        `4. **SLA & Review:** ตรวจสอบความเร็วการตอบแชทตามเกณฑ์ 15 นาที, ตรวจคะแนนทีมงาน\n` +
+        `5. **Follow-up:** จัดการนัดหมายและเตือนติดตามผลคนไข้ที่เงียบไป\n` +
+        `6. **Quality Analysis:** วิเคราะห์คุณภาพโฆษณาและอัตรา Conversion\n` +
+        `7. **Posts & Comments:** ดึงคอมเมนต์ใต้โพสต์และ SLA การตอบคอมเมนต์\n` +
+        `8. **Upload & Data:** นำเข้าข้อมูล CSV / Google Sheets\n` +
+        `9. **Settings:** เชื่อมต่อ Meta, LINE OA, WhatsApp, จัดการเพจ และผู้ใช้งาน`;
     }
 
     return `👻 กุ๊กกู๋เข้าใจคำถามของคุณครับ! ผมสามารถตอบและสรุปข้อมูลให้ได้ทุกมิติ ทั้ง **ผลคะแนน SLA, ยอดแอด Dashboard, แชทคนไข้ใน Inbox, รายชื่อเซลล์, ขั้นตอนบอร์ด, หรือวิธีตั้งค่าระบบ** ลองถามเจาะจงเพิ่มเติมได้เลยนะคร้าบ ✨`;
@@ -772,7 +782,8 @@
     let html = esc(txt);
     html = html.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
     html = html.replace(/\*(.+?)\*/g, '<i>$1</i>');
-    html = html.replace(/^[•\-]\s+(.+)$/gm, '<li style="margin-left:14px;list-style-type:disc">$1</li>');
+    html = html.replace(/^([0-9]+)\.\s+(.+)$/gm, '<div style="margin-left:4px;margin-bottom:4px"><span style="color:#059669;font-weight:700">$1.</span> $2</div>');
+    html = html.replace(/^[•\-]\s+(.+)$/gm, '<li style="margin-left:14px;list-style-type:disc;margin-bottom:3px">$1</li>');
     html = html.replace(/\n\n+/g, '<div style="height:8px"></div>');
     html = html.replace(/\n/g, '<br>');
     return html;
