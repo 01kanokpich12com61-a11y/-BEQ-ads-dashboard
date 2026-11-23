@@ -172,22 +172,42 @@
     ].join(' ').toLowerCase();
 
     let hairIssue = 'ผมร่วง / ปรึกษาฟื้นฟูเส้นผมทั่วไป';
-    if (allText.includes('เว้า') || allText.includes('ตัว m') || allText.includes('ร่น') || allText.includes('ไรผม')) {
-      hairIssue = 'หน้าผากเว้าลึกรูปตัว M / ไรผมร่นสูง';
-    } else if (allText.includes('ไข่ดาว') || allText.includes('กลางศีรษะ') || allText.includes('บางกลาง')) {
-      hairIssue = 'ผมบางบริเวณกลางศีรษะ (Crown)';
-    } else if (allText.includes('ร่วง') || allText.includes('บาง') || allText.includes('กรรมพันธุ์')) {
-      hairIssue = 'ผมร่วงพันธุกรรม / ผมบางระยะเริ่มต้น';
+    let grafts = '1,500 - 2,000 Grafts';
+    let dealEst = 69000;
+    let procType = 'FUE Hairline Restoration';
+
+    if (allText.includes('เว้า') || allText.includes('ตัว m') || allText.includes('ร่น') || allText.includes('ไรผม') || allText.includes('ขมับ')) {
+      hairIssue = 'หน้าผากเว้าลึกรูปตัว M / ไรผมร่นสองข้าง';
+      grafts = '2,000 - 2,500 Grafts';
+      dealEst = 79000;
+      procType = 'FUE M-Shape Transplant';
+    } else if (allText.includes('ไข่ดาว') || allText.includes('กลางศีรษะ') || allText.includes('บางกลาง') || allText.includes('ด้านบน')) {
+      hairIssue = 'ผมบางบริเวณกลางศีรษะ (Crown Thinning)';
+      grafts = '2,500 - 3,500 Grafts';
+      dealEst = 99000;
+      procType = 'FUE + DHI Crown Density';
+    } else if (allText.includes('ร่วง') || allText.includes('บาง') || allText.includes('กรรมพันธุ์') || allText.includes('สระผม')) {
+      hairIssue = 'ผมร่วงพันธุกรรม / รากผมฝ่อบางระยะเริ่มต้น';
+      grafts = '1,200 - 1,800 Grafts หรือ PRP Stem Cell';
+      dealEst = 49000;
+      procType = 'Regenerative PRP + Hairline';
     }
 
-    let sentiment = { label: 'สอบถามข้อมูลทั่วไป', icon: '💬', cls: 'cool', tip: 'ส่งข้อมูลโปรแกรมการรักษาและเคสรีวิวเปรียบเทียบ' };
-    if (allText.includes('จอง') || allText.includes('นัด') || allText.includes('โอน') || allText.includes('มัดจำ')) {
+    let sentiment = { label: 'สอบถามข้อมูลทั่วไป', icon: '💬', cls: 'cool', tip: 'ส่งข้อมูลโปรแกรมการรักษาและเคสรีวิวเปรียบเทียบก่อน-หลังทำ' };
+    let prob = '40%';
+    let nextStep = 'ส่งภาพเคสรีวิวก่อน-หลังที่ปัญหาใกล้เคียงกัน';
+
+    if (allText.includes('จอง') || allText.includes('นัด') || allText.includes('โอน') || allText.includes('มัดจำ') || allText.includes('สะดวก')) {
       sentiment = { label: 'พร้อมนัดหมายตรวจประเมิน', icon: '🎯', cls: 'hot', tip: 'ลูกค้ามีความพร้อมสูง แนะนำเชิญล็อคคิวนัดตรวจประเมินกับแพทย์ที่สาขา' };
+      prob = '85%';
+      nextStep = 'ขอชื่อและเบอร์ติดต่อ เพื่อยืนยันล็อกคิวปรึกษาแพทย์เฉพาะทาง';
     } else if (allText.includes('ราคา') || allText.includes('โปร') || allText.includes('กี่บาท') || allText.includes('เท่าไหร่') || allText.includes('กราฟ')) {
-      sentiment = { label: 'สนใจแพ็กเกจและราคา', icon: '⚡', cls: 'warm', tip: 'ส่งเรทราคาประเมินเบื้องต้น พร้อมเสนอสิทธิพิเศษเฉพาะรอบนี้' };
+      sentiment = { label: 'สนใจแพ็กเกจและราคา', icon: '⚡', cls: 'warm', tip: 'ส่งเรทราคาประเมินเบื้องต้น พร้อมเสนอสิทธิ์แถมตรวจสแกนรากผมและเลเซอร์ LLLT ฟรี' };
+      prob = '65%';
+      nextStep = 'เสนอโปรโมชั่นพิเศษจำนวนกราฟต์จำกัดเฉพาะเดือนนี้';
     }
 
-    return { hairIssue, sentiment };
+    return { hairIssue, sentiment, grafts, dealEst, procType, prob, nextStep };
   }
 
 
@@ -1863,13 +1883,71 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
     </section>`;
   }
 
+  function aiAdAdvisorCard(data) {
+    const k = data.kpis;
+    const ads = data.ads || [];
+    const topRoasAd = [...ads].filter(a => a.roas > 0).sort((a, b) => (b.roas || 0) - (a.roas || 0))[0];
+    const topChatsAd = [...ads].sort((a, b) => (b.messages || 0) - (a.messages || 0))[0];
+    const avgCostMsg = k.costMessage?.value || 0;
+
+    return `
+      <section class="card" style="margin-bottom:16px;background:linear-gradient(135deg, #064e3b 0%, #047857 60%, #059669 100%);color:#ffffff;border-radius:18px;padding:16px 20px;border:1px solid #34d399;box-shadow:0 8px 24px rgba(6, 78, 59, 0.18)">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:12px;border-bottom:1px solid rgba(255,255,255,0.18);padding-bottom:10px">
+          <div style="display:flex;align-items:center;gap:10px">
+            <span class="beq-iridescent-orb" style="width:26px;height:26px;box-shadow:0 0 14px #a7f3d0"></span>
+            <div>
+              <b style="font-size:16px;letter-spacing:0.02em">✨ BEQ AI Marketing Advisor · วิเคราะห์งบ & ประสิทธิภาพโฆษณา</b>
+              <div style="font-size:12px;color:#a7f3d0;margin-top:2px">AI ประมวลผลผลลัพธ์โฆษณาเทียบกับยอดขายและสถิติการตอบแชทของคลินิกแบบเรียลไทม์</div>
+            </div>
+          </div>
+          <span class="chip" style="background:rgba(255,255,255,0.18);color:#ffffff;font-size:12px;font-weight:700">⚡ AI Live Insights</span>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(280px, 1fr));gap:14px">
+          <div style="background:rgba(2, 44, 34, 0.35);padding:12px 14px;border-radius:12px;border:1px solid rgba(167, 243, 208, 0.25)">
+            <div style="font-size:12px;color:#a7f3d0;font-weight:700;display:flex;align-items:center;gap:6px">
+              <span>🏆 โฆษณาที่สร้างยอดขายสูงสุด (Top Winner)</span>
+            </div>
+            <div style="font-size:13.5px;font-weight:700;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${esc(topRoasAd?.name || topChatsAd?.name || '—')}">
+              ${esc(topRoasAd?.name || topChatsAd?.name || 'แคมเปญปลูกผม FUE')}
+            </div>
+            <div style="font-size:11.5px;color:#ecfdf5;margin-top:4px;line-height:1.4">
+              💡 แนะนำ: โฆษณาตัวนี้มีอัตราผลตอบแทนคุ้มค่าสูงสุด แนะนำให้รักษาหรือสเกลงบเพิ่มขึ้น 15-20%
+            </div>
+          </div>
+          <div style="background:rgba(2, 44, 34, 0.35);padding:12px 14px;border-radius:12px;border:1px solid rgba(167, 243, 208, 0.25)">
+            <div style="font-size:12px;color:#a7f3d0;font-weight:700;display:flex;align-items:center;gap:6px">
+              <span>💬 ต้นทุนทักแชทเฉลี่ย (Cost per Msg)</span>
+            </div>
+            <div style="font-size:15px;font-weight:800;margin-top:4px;color:#ffffff">
+              ฿${avgCostMsg ? avgCostMsg.toFixed(2) : '0.00'} / แชท
+            </div>
+            <div style="font-size:11.5px;color:#ecfdf5;margin-top:4px;line-height:1.4">
+              🎯 กลยุทธ์ AI: ให้เซลส์มุ่งเน้นถามจำนวนกราฟต์ที่กังวลเพื่อเสนอโปรโมชั่นและนัดหมายวันเข้าตรวจ
+            </div>
+          </div>
+          <div style="background:rgba(2, 44, 34, 0.35);padding:12px 14px;border-radius:12px;border:1px solid rgba(167, 243, 208, 0.25)">
+            <div style="font-size:12px;color:#a7f3d0;font-weight:700;display:flex;align-items:center;gap:6px">
+              <span>⚡ โอกาสปิดการขายโดยรวม (Pipeline Health)</span>
+            </div>
+            <div style="font-size:13.5px;font-weight:700;margin-top:4px;color:#fef08a">
+              🔥 มีลีดสนใจสูงในระบบ พร้อมนัดตรวจประเมิน
+            </div>
+            <div style="font-size:11.5px;color:#ecfdf5;margin-top:4px;line-height:1.4">
+              🚀 กดที่แท็บ <b>"Inbox"</b> เพื่อให้ AI Copilot ช่วยร่างคำตอบและปิดการขายได้อย่างรวดเร็ว
+            </div>
+          </div>
+        </div>
+      </section>
+    `;
+  }
+
   function tabAds(data) {
     const groups = [
       ['1', 'Cost & Visibility', 'What you paid to be seen', [['spend', 'Amount Spent', baht], ['reach', 'Reach', num], ['impressions', 'Impressions', num], ['cpm', 'CPM', baht]]],
       ['2', 'Acquisition', 'How people respond to ads', [['clicks', 'Clicks', num], ['ctr', 'CTR', pct], ['cpc', 'CPC', baht]]],
       ['3', 'Conversion', 'Messages and purchases', [['messages', 'Total Messages', num], ['costMessage', 'Cost / Message', baht], ['purchases', 'Total Purchases', num], ['conversionRate', 'Conversion Rate', pct], ['costPurchase', 'Cost / Purchase', baht]]],
     ];
-    return heroHtml(data) + `<div class="kpi-groups">${groups.map(([n, t, s, items]) => `<section class="card kpi-group">
+    return heroHtml(data) + aiAdAdvisorCard(data) + `<div class="kpi-groups">${groups.map(([n, t, s, items]) => `<section class="card kpi-group">
       <header><span class="step">${n}</span><div><b>${t}</b><small>${s}</small></div></header>
       <div class="kpi-grid">${items.map(([k, l, f]) => tile(data, k, l, f)).join('')}</div></section>`).join('')}</div>
       <section class="card table-card" id="table-card"></section>`;
@@ -2818,10 +2896,10 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
         <div class="cura-deal-card">
           <div class="cura-deal-head">
             <span class="cura-deal-title">💼 Deal Stage & Value</span>
-            <span class="cura-deal-prob">75% Close Prob.</span>
+            <span class="cura-deal-prob">${aiAnalysis ? aiAnalysis.prob : '75%'} Close Prob.</span>
           </div>
-          <div class="cura-deal-val">฿79,000 <span style="font-size:12px;font-weight:600;color:var(--muted)">· FUE Hair Transplant</span></div>
-          <div style="font-size:11.5px;color:var(--brand-deep);font-weight:600">🎯 Projected Procedure: 2,500 Grafts (BEQ Clinic)</div>
+          <div class="cura-deal-val">฿${aiAnalysis ? aiAnalysis.dealEst.toLocaleString() : '79,000'} <span style="font-size:12px;font-weight:600;color:var(--muted)">· ${esc(aiAnalysis ? aiAnalysis.procType : 'FUE Hair Transplant')}</span></div>
+          <div style="font-size:11.5px;color:var(--brand-deep);font-weight:600">🎯 AI Estimate: ${esc(aiAnalysis ? aiAnalysis.grafts : '2,500 Grafts')} (${esc(S.branch || 'BEQ Clinic')})</div>
         </div>
 
         <!-- Warm Tinted Notes Card -->
@@ -2831,7 +2909,7 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
             <span style="font-size:10px;color:#b45309">Auto-synced</span>
           </div>
           <div class="cura-notes-body">
-            ${esc(l.notes || 'ลูกค้ากังวลผมร่วงบริเวณขมับ M-Shape สนใจโปร 2,500 กราฟต์ เคยปรึกษาคลินิกอื่นมาแล้ว อยากได้หมอผู้เชี่ยวชาญดูแล')}
+            ${esc(l.notes || (aiAnalysis ? `ลูกค้ามีภาวะ${aiAnalysis.hairIssue} แนะนำโปรแกรม ${aiAnalysis.procType} (${aiAnalysis.grafts}) ${aiAnalysis.sentiment.tip}` : 'ลูกค้ากังวลผมร่วงบริเวณขมับ M-Shape สนใจโปร 2,500 กราฟต์ เคยปรึกษาคลินิกอื่นมาแล้ว อยากได้หมอผู้เชี่ยวชาญดูแล'))}
           </div>
         </div>
 
@@ -2860,14 +2938,16 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
         </div>
 
         <!-- AI Lead Analysis Card -->
-        <div class="cura-section-card">
-          <div class="cura-section-card-title">
-            <span>✨ AI Conversation Summary</span>
-            <button type="button" class="cura-regen-btn" data-act="regenerate-summary">🔄 Regenerate</button>
+        <div class="cura-section-card" style="border:1.5px solid #a7f3d0;background:#f0fdf4">
+          <div class="cura-section-card-title" style="color:#065f46">
+            <span>✨ BEQ Copilot Intelligence</span>
+            <button type="button" class="cura-regen-btn" data-act="regenerate-summary" style="background:#dcfce7;color:#059669">🔄 วิเคราะห์ใหม่</button>
           </div>
           <div class="cura-section-card-body" style="padding:12px 14px;font-size:12.5px;line-height:1.5;display:flex;flex-direction:column;gap:6px">
-            <div><b>🩺 Problem:</b> ${esc(aiAnalysis ? aiAnalysis.hairIssue : 'ผมร่วง / ปรึกษาฟื้นฟูเส้นผมทั่วไป')}</div>
-            <div><b>💡 Strategy:</b> ${esc(aiAnalysis && aiAnalysis.sentiment ? aiAnalysis.sentiment.tip : 'ส่งข้อมูลโปรแกรมการรักษาและเคสรีวิวเปรียบเทียบ')}</div>
+            <div><b>🩺 ปัญหาเส้นผม:</b> <span style="color:#065f46;font-weight:600">${esc(aiAnalysis ? aiAnalysis.hairIssue : 'ผมร่วง / ปรึกษาฟื้นฟูเส้นผมทั่วไป')}</span></div>
+            <div><b>🔬 กราฟต์ผมประเมิน:</b> <span class="chip good" style="font-size:11px;padding:2px 8px;font-weight:700">${esc(aiAnalysis ? aiAnalysis.grafts : '2,500 Grafts')}</span></div>
+            <div><b>💡 กลยุทธ์ปิดการขาย:</b> ${esc(aiAnalysis && aiAnalysis.sentiment ? aiAnalysis.sentiment.tip : 'ส่งข้อมูลโปรแกรมการรักษาและเคสรีวิวเปรียบเทียบ')}</div>
+            <div style="margin-top:4px;padding-top:6px;border-top:1px dashed #bbf7d0;color:#047857;font-size:11.5px"><b>🚀 ก้าวถัดไปที่แนะนำ:</b> ${esc(aiAnalysis ? aiAnalysis.nextStep : 'ส่งเคสรีวิว')}</div>
           </div>
         </div>
 
