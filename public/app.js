@@ -3134,9 +3134,8 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
     if (!s.data) return;
     box.innerHTML = `
       <div class="cura-panels-row">
-        <!-- Panel 1: Folders Rail & Conversation List Combined (420px) -->
+        <!-- Panel 1: Conversation List (320px) -->
         <div class="cura-panel-left">
-          <div class="cura-rail-col" id="mess-tools"></div>
           <div class="cura-convs-col">
             <div class="cura-conv-search-wrap">
               <div class="cura-search-inner">
@@ -3153,7 +3152,7 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
         <div class="cura-panel-right" id="mess-info"></div>
       </div>
     `;
-    renderInboxTools(); renderInboxList();
+    renderInboxList();
     if (s.focus) { const id = s.focus; s.focus = ''; openChat(id); return; }
     const ids = new Set(s.data.rows.map((r) => r.id));
     if (S.chat.id && ids.has(S.chat.id)) { renderInboxChat(); renderInboxInfo(); }
