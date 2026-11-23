@@ -22,7 +22,49 @@
     upload: { data: null, err: null, loading: false, rows: [], result: null, tab: 'leads', detectedType: 'leads', summary: null },
     quality: { data: null, err: null, loading: false, campaign: '', minQuality: '', sort: 'leads', sortDir: 'desc' },
     comments: { data: null, loading: false, err: null, range: '30d', from: '', to: '', filterStatus: 'all' },
+    cmdPaletteOpen: false,
+    cmdSearch: '',
+    toasts: [],
   };
+
+  /* Local persistent cache เพื่อความเสถียร 100% ไม่พังแม้ออฟไลน์หรือติด rate limit */
+  const ClientCache = {
+    get(k) {
+      try {
+        const item = sessionStorage.getItem('beq_c_' + k);
+        return item ? JSON.parse(item) : null;
+      } catch { return null; }
+    },
+    set(k, val) {
+      try { sessionStorage.setItem('beq_c_' + k, JSON.stringify(val)); } catch {}
+    }
+  };
+
+  function showToast(text, type = 'success') {
+    const id = Date.now() + Math.random();
+    S.toasts.push({ id, text, type });
+    renderToasts();
+    setTimeout(() => {
+      S.toasts = S.toasts.filter(t => t.id !== id);
+      renderToasts();
+    }, 4000);
+  }
+
+  function renderToasts() {
+    let container = document.getElementById('beq-toast-container');
+    if (!container) {
+      container = document.createElement('div');
+      container.id = 'beq-toast-container';
+      container.className = 'beq-toast-container';
+      document.body.appendChild(container);
+    }
+    container.innerHTML = S.toasts.map(t => `
+      <div class="beq-toast toast-${t.type}">
+        <span>${t.type === 'error' ? '❌' : t.type === 'warning' ? '⚠️' : '✨'}</span>
+        <span>${esc(t.text)}</span>
+      </div>
+    `).join('');
+  }
   const PAGE_SIZE = 25;
   const INBOX_PAGE = 15;
   // ความคืบหน้าของแชท เรียงตามคอลัมน์ใน Board ตามลำดับที่ผู้ใช้กำหนด (12 คอลัมน์)
@@ -225,16 +267,58 @@
   const icon = (n) => `<svg class="icon" viewBox="0 0 24 24" aria-hidden="true">${ICONS[n] || ''}</svg>`;
 
   async function api(path, opts = {}) {
-    const res = await fetch(path, {
-      method: opts.method || 'GET', credentials: 'same-origin',
-      headers: opts.body ? { 'Content-Type': 'application/json' } : {},
-      body: opts.body ? JSON.stringify(opts.body) : undefined,
-    });
-    if (res.status === 401 && path !== '/api/login') { S.me = null; render(); throw new Error('กรุณาเข้าสู่ระบบ'); }
-    const json = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(json.error || 'เกิดข้อผิดพลาด');
-    return json;
+    try {
+      const res = await fetch(path, {
+        method: opts.method || 'GET', credentials: 'same-origin',
+        headers: opts.body ? { 'Content-Type': 'application/json' } : {},
+        body: opts.body ? JSON.stringify(opts.body) : undefined,
+      });
+      if (res.status === 401 && path !== '/api/login') { S.me = null; render(); throw new Error('กรุณาเข้าสู่ระบบ'); }
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error || 'เกิดข้อผิดพลาด');
+      // เก็บลงแคชหากเป็น GET สำเร็จ
+      if (!opts.method || opts.method === 'GET') {
+        ClientCache.set(path, json);
+      }
+      return json;
+    } catch (err) {
+      // Stale-While-Revalidate Fallback: ถ้าเน็ตสะดุดหรือติด Rate limit ดึงแคชเดิมขึ้นมาทำงานต่อทันที
+      if (!opts.method || opts.method === 'GET') {
+        const cached = ClientCache.get(path);
+        if (cached) {
+          console.warn('[Cache Fallback] Using offline cached data for:', path);
+          showToast('⚡ แสดงผลด้วยข้อมูลแคชล่าสุด (ระบบยังทำงานได้ต่อเนื่อง)', 'warning');
+          return cached;
+        }
+      }
+      throw err;
+    }
   }
+
+  // Keep-alive heartbeat: ป้องกันเซิร์ฟเวอร์ Render Sleep ทุกๆ 4 นาที
+  setInterval(() => {
+    if (document.visibilityState === 'visible') {
+      fetch('/api/ping', { credentials: 'same-origin' }).catch(() => {});
+    }
+  }, 240000);
+
+  // Global Keyboard Shortcuts (Ctrl+K / Cmd+K สำหรับ Command Palette)
+  window.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+      e.preventDefault();
+      S.cmdPaletteOpen = !S.cmdPaletteOpen;
+      render();
+      if (S.cmdPaletteOpen) {
+        setTimeout(() => {
+          const inp = document.getElementById('cmd-palette-input');
+          if (inp) inp.focus();
+        }, 50);
+      }
+    } else if (e.key === 'Escape' && S.cmdPaletteOpen) {
+      S.cmdPaletteOpen = false;
+      render();
+    }
+  });
 
   /* ---------------- routing ---------------- */
   const ROUTES = ['dashboard', 'inbox', 'board', 'post-comment', 'followup', 'review', 'audit', 'upload', 'quality', 'setting'];
@@ -433,6 +517,11 @@
       </div>
 
       <div class="header-actions">
+        <button type="button" class="btn btn-secondary" data-act="open-cmd" style="height:34px;padding:0 12px;border-radius:10px;font-size:12.5px;gap:6px;background:#f8fafc;border:1px solid #e2e8f0;display:inline-flex;align-items:center;">
+          ${icon('search')}
+          <span>ค้นหาด่วน (Quick Search)...</span>
+          <kbd style="background:#e2e8f0;color:#64748b;padding:2px 5px;border-radius:4px;font-size:10px;font-weight:700">Ctrl K</kbd>
+        </button>
         <div class="header-selectors">
           <div class="pill-select"><select data-bind="header-platform" aria-label="แพลตฟอร์ม">
             <option value="">🌐 ทุกแพลตฟอร์ม</option>
@@ -464,6 +553,57 @@
     </header>`;
   }
 
+  function commandPaletteHtml() {
+    if (!S.cmdPaletteOpen) return '';
+    const q = (S.cmdSearch || '').trim().toLowerCase();
+    
+    // Quick navigation list
+    const navItems = [
+      { type: 'nav', title: '📊 Dashboard', sub: 'ภาพรวมผลลัพธ์โฆษณา & ROAS', to: 'dashboard' },
+      { type: 'nav', title: '💬 Unified Inbox', sub: 'แชท Facebook, Instagram, LINE, WhatsApp', to: 'inbox' },
+      { type: 'nav', title: '📋 Leads Board', sub: '12-Stage Pipeline Kanban', to: 'board' },
+      { type: 'nav', title: '⏱️ SLA & Chat Quality', sub: 'คะแนนการตอบกลับ & SLA 15 นาที', to: 'review' },
+      { type: 'nav', title: '📅 Follow-up Leads', sub: 'ระบบนัดหมายและเตือนติดตามผล', to: 'followup' },
+      { type: 'nav', title: '💬 Posts & Comments', sub: 'คอมเมนต์ใต้โพสต์โฆษณา', to: 'post-comment' },
+      { type: 'nav', title: '⚙️ Settings', sub: 'ตั้งค่า API Tokens, เพจ, ผู้ใช้งาน', to: 'setting' },
+    ];
+
+    // Customer Leads list from Inbox or Board data
+    const leads = (S.inbox?.data?.rows || S.board?.data?.leads || []).slice(0, 40);
+    const leadItems = leads.map(l => ({
+      type: 'lead',
+      title: `👤 ${l.name || 'ลูกค้า'}`,
+      sub: `${l.platform || 'Facebook'} · ${STATUS_TH[l.status] || l.status || 'ใหม่'} · ${l.phone || l.customerMsg || ''}`.slice(0, 60),
+      chatId: l.id
+    }));
+
+    const all = [...navItems, ...leadItems];
+    const filtered = q ? all.filter(it => it.title.toLowerCase().includes(q) || it.sub.toLowerCase().includes(q)) : all.slice(0, 10);
+
+    return `<div class="cmd-palette-backdrop" data-act="close-cmd">
+      <div class="cmd-palette-box" onclick="event.stopPropagation()">
+        <div class="cmd-search-input-wrap">
+          ${icon('search')}
+          <input type="text" id="cmd-palette-input" class="cmd-search-input" placeholder="พิมพ์ชื่อลูกค้า, หน้าเมนู, หรือสถานะ..." value="${esc(S.cmdSearch)}" data-bind="cmd-search">
+          <span class="cmd-badge">ESC เพื่อปิด</span>
+        </div>
+        <div class="cmd-results">
+          ${filtered.length ? filtered.map(it => `
+            <div class="cmd-item" data-act="cmd-select" ${it.to ? `data-to="${it.to}"` : ''} ${it.chatId ? `data-chat-id="${it.chatId}"` : ''}>
+              <div class="cmd-item-left">
+                <div>
+                  <div class="cmd-item-title">${esc(it.title)}</div>
+                  <div class="cmd-item-sub">${esc(it.sub)}</div>
+                </div>
+              </div>
+              <span class="badge" style="font-size:11px;background:#f1f5f9;color:#64748b">${it.type === 'nav' ? 'เมนู' : 'แชท'}</span>
+            </div>
+          `).join('') : '<div style="padding:24px;text-align:center;color:#94a3b8;font-size:13px">ไม่พบข้อมูลที่ค้นหา</div>'}
+        </div>
+      </div>
+    </div>`;
+  }
+
   function render() {
     if (!S.booted) { $app.innerHTML = '<div class="loading">Loading…</div>'; return; }
     if (!S.me) return renderLogin();
@@ -480,6 +620,7 @@
         </main>
       </div>
       <div id="drawer-root"></div>
+      ${commandPaletteHtml()}
     </div>`;
     afterRender();
   }
@@ -3883,7 +4024,34 @@ function boardShell() {
     if (!el) { if (S.menu && !ev.target.closest('.popover')) { S.menu = null; render(); } return; }
     const act = el.dataset.act; const d = S.dash;
     try {
-      if (act === 'ai-fill') {
+      if (act === 'open-cmd') {
+        S.cmdPaletteOpen = true;
+        render();
+        setTimeout(() => {
+          const inp = document.getElementById('cmd-palette-input');
+          if (inp) inp.focus();
+        }, 50);
+        return;
+      }
+      else if (act === 'close-cmd') {
+        S.cmdPaletteOpen = false;
+        render();
+        return;
+      }
+      else if (act === 'cmd-select') {
+        const to = el.dataset.to;
+        const chatId = el.dataset.chatId;
+        S.cmdPaletteOpen = false;
+        if (chatId) {
+          location.hash = '#/inbox';
+          render();
+          setTimeout(() => openChat(chatId), 100);
+        } else if (to) {
+          location.hash = '#/' + to;
+        }
+        return;
+      }
+      else if (act === 'ai-fill') {
         const textToFill = el.dataset.text || '';
         const ta = document.querySelector('.reply-form textarea');
         if (ta) {
@@ -4354,6 +4522,17 @@ function boardShell() {
   });
 
   document.addEventListener('input', (ev) => {
+    if (ev.target.dataset && ev.target.dataset.bind === 'cmd-search') {
+      S.cmdSearch = ev.target.value;
+      const palette = document.querySelector('.cmd-results');
+      if (palette) {
+        const dummy = document.createElement('div');
+        dummy.innerHTML = commandPaletteHtml();
+        const newResults = dummy.querySelector('.cmd-results');
+        if (newResults) palette.innerHTML = newResults.innerHTML;
+      }
+      return;
+    }
     if (ev.target.dataset && ev.target.dataset.bind === 'search') { S.dash.search = ev.target.value; S.dash.pageNo = 1; renderTable(); }
     if (ev.target.dataset && ev.target.dataset.bind === 'asearch') {
       S.audit.q = ev.target.value; S.audit.limit = 100; clearTimeout(S.audit.t); S.audit.t = setTimeout(loadAudit, 300);

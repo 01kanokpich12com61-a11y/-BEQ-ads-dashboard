@@ -2206,6 +2206,11 @@ const server = http.createServer(async (req, res) => {
       return send(res, 405, 'Method not allowed');
     }
 
+    // Public Health Check & Keep-Alive Ping (สำหรับ Render / Monitoring ป้องกัน spin down)
+    if (url.pathname === '/api/ping' || url.pathname === '/healthz') {
+      return send(res, 200, { ok: true, uptime: Math.round(process.uptime()), timestamp: Date.now() });
+    }
+
     if (req.method === 'POST' && url.pathname === '/api/login') {
       const b = await readJson(req);
       const r = auth.login(b.username, b.password, ip);
