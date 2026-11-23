@@ -413,34 +413,112 @@
   color: #334155;
 }
 
-/* คอลัมน์สีเด่นตามสถานะ */
-.col[data-col-status="no_reply"],
-.col[data-col-status="very_poor"] {
-  background: #fff5f5 !important;
+/* คอลัมน์สีเด่นตามสถานะ (แยกสีครบ 12 สถานะ) */
+.col[data-col-status="no_reply"] {
+  background: #fef2f2 !important;
   border-color: #fecaca !important;
 }
-.col[data-col-status="no_reply"] .col-num-badge,
-.col[data-col-status="very_poor"] .col-num-badge {
+.col[data-col-status="no_reply"] .col-num-badge {
   background: #fee2e2;
   color: #dc2626;
 }
+.col[data-col-status="no_reply"] h4 { color: #991b1b; }
 
-.col[data-col-status="talked"],
-.col[data-col-status="in_progress"],
-.col[data-col-status="inprogress"] {
+.col[data-col-status="very_poor"] {
+  background: #fff1f2 !important;
+  border-color: #fecdd3 !important;
+}
+.col[data-col-status="very_poor"] .col-num-badge {
+  background: #ffe4e6;
+  color: #e11d48;
+}
+.col[data-col-status="very_poor"] h4 { color: #9f1239; }
+
+.col[data-col-status="talked"] {
   background: #f0fdf4 !important;
   border-color: #bbf7d0 !important;
 }
-.col[data-col-status="talked"] .col-num-badge,
-.col[data-col-status="in_progress"] .col-num-badge {
-  background: #d1fae5;
+.col[data-col-status="talked"] .col-num-badge {
+  background: #dcfce7;
+  color: #16a34a;
+}
+.col[data-col-status="talked"] h4 { color: #166534; }
+
+.col[data-col-status="in_progress"],
+.col[data-col-status="inprogress"] {
+  background: #f0fdfa !important;
+  border-color: #99f6e4 !important;
+}
+.col[data-col-status="in_progress"] .col-num-badge,
+.col[data-col-status="inprogress"] .col-num-badge {
+  background: #ccfbf1;
+  color: #0d9488;
+}
+.col[data-col-status="in_progress"] h4,
+.col[data-col-status="inprogress"] h4 { color: #115e59; }
+
+.col[data-col-status="qualified"],
+.col[data-col-status="qualifile"] {
+  background: #f0fdf4 !important;
+  border-color: #86efac !important;
+}
+.col[data-col-status="qualified"] .col-num-badge,
+.col[data-col-status="qualifile"] .col-num-badge {
+  background: #dcfce7;
   color: #059669;
 }
+.col[data-col-status="qualified"] h4,
+.col[data-col-status="qualifile"] h4 { color: #065f46; }
+
+.col[data-col-status="appointment"] {
+  background: #faf5ff !important;
+  border-color: #e9d5ff !important;
+}
+.col[data-col-status="appointment"] .col-num-badge {
+  background: #f3e8ff;
+  color: #7c3aed;
+}
+.col[data-col-status="appointment"] h4 { color: #5b21b6; }
+
+.col[data-col-status="conv_created"] {
+  background: #fffbeb !important;
+  border-color: #fde68a !important;
+}
+.col[data-col-status="conv_created"] .col-num-badge {
+  background: #fef3c7;
+  color: #d97706;
+}
+.col[data-col-status="conv_created"] h4 { color: #92400e; }
+
+.col[data-col-status="new"] {
+  background: #f0f9ff !important;
+  border-color: #bae6fd !important;
+}
+.col[data-col-status="new"] .col-num-badge {
+  background: #e0f2fe;
+  color: #0284c7;
+}
+.col[data-col-status="new"] h4 { color: #075985; }
+
+.col[data-col-status="intake"] {
+  background: #ecfeff !important;
+  border-color: #a5f3fc !important;
+}
+.col[data-col-status="intake"] .col-num-badge {
+  background: #cffafe;
+  color: #0891b2;
+}
+.col[data-col-status="intake"] h4 { color: #155e75; }
 
 .col[data-col-status="converted"] {
   background: #ecfdf5 !important;
   border-color: #6ee7b7 !important;
 }
+.col[data-col-status="converted"] .col-num-badge {
+  background: #d1fae5;
+  color: #059669;
+}
+.col[data-col-status="converted"] h4 { color: #064e3b; }
 
 .col.drag-over {
   background: #d1fae5 !important;
@@ -708,6 +786,112 @@
   border-color: #10b981;
   color: #065f46;
   transform: translateY(-1px);
+}
+
+/* Quick Jump Pills แยกสีตามสถานะ */
+.board-status-pill[data-status="no_reply"],
+.board-status-pill[data-status="very_poor"] {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #b91c1c;
+}
+.board-status-pill[data-status="no_reply"]:hover,
+.board-status-pill[data-status="very_poor"]:hover {
+  background: #fee2e2;
+  border-color: #ef4444;
+  color: #991b1b;
+}
+
+.board-status-pill[data-status="talked"] {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+  color: #15803d;
+}
+.board-status-pill[data-status="talked"]:hover {
+  background: #dcfce7;
+  border-color: #22c55e;
+  color: #166534;
+}
+
+.board-status-pill[data-status="in_progress"],
+.board-status-pill[data-status="inprogress"] {
+  background: #f0fdfa;
+  border-color: #99f6e4;
+  color: #0f766e;
+}
+.board-status-pill[data-status="in_progress"]:hover,
+.board-status-pill[data-status="inprogress"]:hover {
+  background: #ccfbf1;
+  border-color: #14b8a6;
+  color: #115e59;
+}
+
+.board-status-pill[data-status="qualified"],
+.board-status-pill[data-status="qualifile"] {
+  background: #f0fdf4;
+  border-color: #86efac;
+  color: #15803d;
+}
+.board-status-pill[data-status="qualified"]:hover,
+.board-status-pill[data-status="qualifile"]:hover {
+  background: #dcfce7;
+  border-color: #16a34a;
+  color: #14532d;
+}
+
+.board-status-pill[data-status="appointment"] {
+  background: #faf5ff;
+  border-color: #e9d5ff;
+  color: #6d28d9;
+}
+.board-status-pill[data-status="appointment"]:hover {
+  background: #f3e8ff;
+  border-color: #a855f7;
+  color: #581c87;
+}
+
+.board-status-pill[data-status="conv_created"] {
+  background: #fffbeb;
+  border-color: #fde68a;
+  color: #b45309;
+}
+.board-status-pill[data-status="conv_created"]:hover {
+  background: #fef3c7;
+  border-color: #f59e0b;
+  color: #78350f;
+}
+
+.board-status-pill[data-status="new"] {
+  background: #f0f9ff;
+  border-color: #bae6fd;
+  color: #0369a1;
+}
+.board-status-pill[data-status="new"]:hover {
+  background: #e0f2fe;
+  border-color: #38bdf8;
+  color: #0c4a6e;
+}
+
+.board-status-pill[data-status="intake"] {
+  background: #ecfeff;
+  border-color: #a5f3fc;
+  color: #0e7490;
+}
+.board-status-pill[data-status="intake"]:hover {
+  background: #cffafe;
+  border-color: #06b6d4;
+  color: #164e63;
+}
+
+.board-status-pill[data-status="converted"] {
+  background: #ecfdf5;
+  border-color: #6ee7b7;
+  color: #047857;
+}
+.board-status-pill[data-status="converted"]:hover {
+  background: #d1fae5;
+  border-color: #10b981;
+  color: #064e3b;
 }
 
 .board-status-pill .pill-count {
