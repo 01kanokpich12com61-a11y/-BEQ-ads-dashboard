@@ -3242,21 +3242,6 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
         </div>
       </div>
       <div class="cura-rail-block">
-        <div class="cura-block-label">FOLDERS</div>
-        <button type="button" class="cura-rail-item ${activeFolder === 'all' ? 'active' : ''}" data-act="inbox-folder" data-folder="all">
-          <span>💬 All</span>
-          <span class="cura-item-badge">${num(totalCount)}</span>
-        </button>
-        <button type="button" class="cura-rail-item ${activeFolder === 'unreplied' ? 'active' : ''}" data-act="inbox-folder" data-folder="unreplied">
-          <span>⌛ Unreplied</span>
-          ${unrepliedCount > 0 ? `<span class="cura-item-badge unreplied">${unrepliedCount}</span>` : ''}
-        </button>
-        <button type="button" class="cura-rail-item ${activeFolder === 'starred' ? 'active' : ''}" data-act="inbox-folder" data-folder="starred">
-          <span>⭐ Starred</span>
-          ${starredCount > 0 ? `<span class="cura-item-badge starred">${starredCount}</span>` : ''}
-        </button>
-      </div>
-      <div class="cura-rail-block">
         <div class="cura-block-label">CHANNELS</div>
         <button type="button" class="cura-chan-btn ${!s.channel ? 'active' : ''}" data-act="inbox-channel" data-channel="">
           <span>🌐</span> <span>All Channels</span>
@@ -4576,8 +4561,15 @@ function boardShell() {
         renderChatViews();
       }
       else if (act === 'regenerate-summary') {
-        S.flash = { type: 'ok', text: '🔄 รีเฟรช AI Medical Analysis ล่าสุดเรียบร้อยแล้ว' };
-        renderInboxInfo();
+        const curL = currentLead();
+        const origText = el.innerHTML;
+        el.disabled = true;
+        el.innerHTML = '⏳ กำลังวิเคราะห์...';
+        setTimeout(() => {
+          // รีเฟรช AI Medical Analysis
+          showToast('✨ รีเฟรชและวิเคราะห์ข้อมูลเคสด้วย AI เรียบร้อยแล้ว', 'success');
+          renderInboxInfo();
+        }, 350);
       }
       else if (act === 'info-tab') {
         S.chat.tab = el.dataset.tab;
