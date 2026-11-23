@@ -85,12 +85,17 @@
         const best = sortedBest[0];
 
         if (txt.includes('แย่') || txt.includes('ต่ำ') || txt.includes('หัก') || txt.includes('ช้าสุด')) {
-          return `⏱️ **สรุปคะแนน SLA ตอบแชทที่ถูกหักเยอะที่สุด:**\n\n` +
-            `🥇 **อันดับ 1 (โดนหักมากสุด):** **${worst.rep}**\n` +
-            `• คะแนน: **${worst.points} แต้ม** (ตอบช้า ${worst.late} จาก ${worst.turns} รอบ)\n` +
-            `• เวลาตอบเฉลี่ย: **${worst.avgMin ? num(worst.avgMin, 1) + ' นาที' : '—'}**\n\n` +
-            (secondWorst ? `🥈 **อันดับ 2:** **${secondWorst.rep}** (${secondWorst.points} แต้ม, ตอบช้า ${secondWorst.late} รอบ)\n\n` : '') +
-            `💡 *เกณฑ์การคำนวณ:* เวลาทำการ 10:00–19:00 น. หากตอบเกิน 15 นาที หัก 1 แต้ม / อ่านแล้วไม่ตอบ หัก 0.5 แต้มครับ สามารถดูรายละเอียดรายเคสได้ที่เมนู **SLA & Review** ได้เลยครับ!`;
+          const rep1 = worst;
+          const rep2 = secondWorst;
+          return `⏱️ **อันดับผู้ที่ถูกหักคะแนน SLA มากที่สุด:**\n\n` +
+            `🥇 **อันดับ 1:** **${rep1.rep}**\n` +
+            `• คะแนน: <b style="color:#ef4444">${rep1.points} แต้ม</b>\n` +
+            `• ตอบช้า: **${rep1.late}** จาก ${rep1.turns} รอบ\n` +
+            `• เวลาเฉลี่ย: **${rep1.avgMin ? num(rep1.avgMin, 1) + ' นาที' : '—'}**\n\n` +
+            (rep2 ? `🥈 **อันดับ 2:** **${rep2.rep}**\n` +
+            `• คะแนน: <b style="color:#f59e0b">${rep2.points} แต้ม</b> (ตอบช้า ${rep2.late} รอบ)\n` +
+            `• เวลาเฉลี่ย: **${rep2.avgMin ? num(rep2.avgMin, 1) + ' นาที' : '—'}**\n\n` : '') +
+            `📌 *เกณฑ์ SLA 15 นาที:* ช่วง 10:00–19:00 น. ตอบเกิน 15 นาที หัก 1 แต้ม / อ่านแล้วไม่ตอบ หัก 0.5 แต้มครับ (ดูรายละเอียดได้ที่เมนู **SLA & Review**)`;
         }
         if (txt.includes('ดี') || txt.includes('สูงสุด') || txt.includes('เร็วสุด')) {
           return `🏆 **ผู้ที่ทำคะแนน SLA ตอบแชทได้ดีที่สุด:**\n\n` +
@@ -762,6 +767,17 @@
     </div>`;
   }
 
+  function formatGhostText(txt) {
+    if (!txt) return '';
+    let html = esc(txt);
+    html = html.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
+    html = html.replace(/\*(.+?)\*/g, '<i>$1</i>');
+    html = html.replace(/^[•\-]\s+(.+)$/gm, '<li style="margin-left:14px;list-style-type:disc">$1</li>');
+    html = html.replace(/\n\n+/g, '<div style="height:8px"></div>');
+    html = html.replace(/\n/g, '<br>');
+    return html;
+  }
+
   function floatingGhostHtml() {
     if (!S.me) return '';
     const unreadPill = !S.ghostOpen ? '<span class="ghost-badge">AI</span>' : '';
@@ -784,7 +800,7 @@
             ${S.ghostMsgs.map(m => `
               <div class="ghost-msg ${m.from}">
                 ${m.from === 'ai' ? ghostSvg(26) : ''}
-                <div class="ghost-msg-bubble">${esc(m.text)}</div>
+                <div class="ghost-msg-bubble" style="line-height:1.6">${formatGhostText(m.text)}</div>
               </div>
             `).join('')}
           </div>
