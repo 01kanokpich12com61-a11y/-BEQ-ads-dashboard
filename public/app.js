@@ -254,6 +254,8 @@
     if (name.startsWith('PAGE-')) return false;
     if (/^page\s*\d+$/i.test(name)) return false;
     if (/^\d{6,}$/.test(name)) return false;
+    if (name.includes('เพจหลัก')) return false;
+    if (p.id.includes('เพจหลัก')) return false;
     if (p.id === '111432947713900' || p.id === '1040829309417229') return false;
     return true;
   }
@@ -1589,6 +1591,10 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
     const customDays = d.from && d.to ? Math.round((Date.parse(d.to) - Date.parse(d.from)) / 864e5) + 1 : 30;
     const days = d.range === 'all' ? 'All time' : d.range === 'custom' ? Math.max(1, customDays) : ({ '7d': 7, '30d': 30, '90d': 90 }[d.range] || 30);
     const live = S.me.mode === 'meta' || S.me.mode === 'live';
+    const rawPages = (f.pages || []).filter(isValidPage);
+    const validPages = d.platform
+      ? rawPages.filter(p => !p.platform || p.platform.toLowerCase() === d.platform.toLowerCase())
+      : rawPages;
     return `<div class="page-head"><div>
         <h1>Dashboard ${live ? '<span class="badge-demo" style="background:var(--mint);color:var(--brand-deep)">Live · ข้อมูลจริง</span>' : `<span class="badge-demo">${icon('spark')}Demo data</span>`}</h1>
         <div class="meta-line" id="dash-meta"></div></div>
@@ -1600,7 +1606,7 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
         <span class="vs">${icon('cal')}ช่วงเวลา: ${days === 'All time' ? 'ข้อมูลทั้งหมด' : `vs ก่อนหน้า ${days} วัน`}</span>
         <span class="label">${icon('filter')}Filters</span>
         ${selectHtml('platform', 'All platforms', f.platforms || ['Facebook', 'LINE', 'WhatsApp', 'Instagram'], d.platform)}
-        ${selectHtml('page', 'All pages', f.pages, d.page)}
+        ${selectHtml('page', 'All pages', validPages, d.page)}
         ${selectHtml('campaign', 'All campaigns', f.campaigns, d.campaign)}
         ${selectHtml('agency', 'All agencies', f.agencies, d.agency)}
         ${selectHtml('rep', 'All sales reps', f.reps, d.rep)}
@@ -3822,7 +3828,14 @@ function boardShell() {
       render();
       return;
     }
-    if (['platform', 'page', 'campaign', 'agency', 'rep', 'status'].includes(b)) { d[b] = ev.target.value; render(); loadDash(); }
+    if (b === 'platform') {
+      d.platform = ev.target.value;
+      d.page = '';
+      render();
+      loadDash();
+      return;
+    }
+    if (['page', 'campaign', 'agency', 'rep', 'status'].includes(b)) { d[b] = ev.target.value; render(); loadDash(); }
     if (b === 'from' || b === 'to') { d[b] = ev.target.value; if (d.from && d.to && d.from <= d.to) loadDash(); }
     /* quality filters */
     if (b === 'q-campaign') { S.quality.campaign = ev.target.value; renderQualityBody(); return; }

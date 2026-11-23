@@ -935,7 +935,7 @@ async function api(req, res, url, session) {
       );
 
       let platform = isIg ? 'Instagram' : (uploadPlatform || rawRowPlat || channel);
-      let pageName = uploadPageName || rawRowPage || `${platform} เพจหลัก`;
+      let pageName = uploadPageName || rawRowPage || (platform === 'Facebook' ? 'Pavicon Hair Clinic คลินิกปลูกผมมาตรฐานสากล' : `${platform} Channel`);
 
       // ค้นหา pageId และชื่อเพจจริงจาก pages.json ที่เชื่อมต่อกับ Meta (แยก Instagram และ Facebook ชัดเจน)
       let resolvedPageId = clean(r.pageId, 50);
@@ -1034,7 +1034,7 @@ async function api(req, res, url, session) {
     const tdy = today();
 
     const uploadPlatform = clean(b.platform, 30) || 'Facebook';
-    const uploadPageName = clean(b.pageName, 80) || 'Facebook เพจหลัก';
+    const uploadPageName = clean(b.pageName, 80) || 'Pavicon Hair Clinic คลินิกปลูกผมมาตรฐานสากล';
     const uploadPageId = clean(b.pageId, 40) || `P_${uploadPageName.replace(/[^a-zA-Z0-9ก-๙]/g, '_')}`;
     recordPage(uploadPageId, uploadPageName, uploadPlatform);
 
@@ -1101,7 +1101,7 @@ async function api(req, res, url, session) {
       } else {
         const existingAd = adMap.get(adId);
         if (pageId && (!existingAd.pageId || existingAd.pageId === 'P1')) existingAd.pageId = pageId;
-        if (pageName && (!existingAd.pageName || existingAd.pageName === 'Facebook เพจหลัก')) existingAd.pageName = pageName;
+        if (pageName && (!existingAd.pageName || existingAd.pageName.includes('เพจหลัก'))) existingAd.pageName = pageName;
         if (platform && !existingAd.platform) existingAd.platform = platform;
         if (rawThumb && !existingAd.thumb) existingAd.thumb = rawThumb;
         if (rawVideo && !existingAd.videoUrl) { existingAd.videoUrl = rawVideo; existingAd.creative = 'VIDEO'; }

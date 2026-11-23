@@ -10,7 +10,7 @@
     "connectedAt": null,
     "webhookVerifyToken": "3c4b556cd2e95a8f290a0931bca7e552"
   },
-  "mode": "demo",
+  "mode": "meta",
   "sheets": {
     "lastUrl": "https://docs.google.com/spreadsheets/d/1hDT2bqqFFCPdiZn0K7pJVXjo-KmUgjgaLtMOpcONjpk/edit?usp=sharing",
     "autoSync": true,
