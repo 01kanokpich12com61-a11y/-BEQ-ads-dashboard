@@ -1089,13 +1089,16 @@ async function api(req, res, url, session) {
       const pageId = resolvedPageId || clean(r.pageId, 50) || `P_${pageName.replace(/[^a-zA-Z0-9ก-๙]/g, '_')}`;
       recordPage(pageId, pageName, platform);
 
-      // ตรวจสอบว่ามี lead เดิมจาก Meta ในเพจเดียวกันหรือไม่ (ตามชื่อลูกค้า หรือเบอร์โทร)
+      // ตรวจสอบว่ามี lead เดิมจาก Meta หรือระบบเดิม (จับคู่ตามชื่อลูกค้า หรือเบอร์โทร)
       const cleanName = name.trim().toLowerCase();
       const existingMatch = existing.find((ex) => {
-        const samePage = ex.pageId === pageId || String(ex.pageId) === String(pageId);
-        if (!samePage) return false;
-        if (cleanName && ex.name && ex.name.trim().toLowerCase() === cleanName) return true;
-        if (phone && ex.phone && ex.phone.replace(/\D/g, '') === phone.replace(/\D/g, '')) return true;
+        const samePage = ex.pageId === pageId || String(ex.pageId) === String(pageId) ||
+          (isIg && (ex.platform === 'Instagram' || (ex.channel && /ig|instagram/i.test(ex.channel))));
+        const nameMatch = cleanName && ex.name && ex.name.trim().toLowerCase() === cleanName;
+        const phoneMatch = phone && ex.phone && ex.phone.replace(/\D/g, '') === phone.replace(/\D/g, '');
+        if (samePage && (nameMatch || phoneMatch)) return true;
+        // กรณีข้ามเพจ ถ้าชื่อตรงกันเป๊ะและไม่เป็นชื่อทั่วไป
+        if (nameMatch && cleanName.length >= 3 && !cleanName.includes('ลูกค้า') && !cleanName.includes('customer')) return true;
         return false;
       });
 
@@ -1106,12 +1109,13 @@ async function api(req, res, url, session) {
         if (status) {
           existingMatch.status = status;
           existingMatch.quality = ops.QUALITY[status] || existingMatch.quality;
+          existingMatch.uploadedStatus = status; // บันทึกสถานะจากไฟล์ upload เป็นหลัก
         }
         if (value > 0) existingMatch.value = value;
         if (dropReason) existingMatch.dropReason = dropReason;
         if (phone) existingMatch.phone = phone;
         if (email) existingMatch.email = email;
-        existingMatch.pageName = pageName;
+        if (pageName && !existingMatch.pageName) existingMatch.pageName = pageName;
         added.push(existingMatch);
       } else {
         const id = `U-${Date.now().toString(36)}-${String(i).padStart(4, '0')}`;
@@ -1120,6 +1124,7 @@ async function api(req, res, url, session) {
           platform, pageName, pageId,
           repId: rep,
           status, quality: ops.QUALITY[status] || 'average', value, firstResponseMin: null, dropReason,
+          uploadedStatus: status, // บันทึกสถานะจากไฟล์ upload
           phone, email,
         };
         existing.push(lead);
@@ -1714,12 +1719,13 @@ async function api(req, res, url, session) {
       let leads = store.read('leads.json', []);
       let messages = store.read('messages.json', {});
       
-      // แทนที่ข้อมูลเดิม: ลบ leads และ messages เดิมของเพจนี้ออกก่อนนำเข้าใหม่
-      const oldLeadsOfPage = leads.filter((l) => l.pageId === pageId || String(l.pageId) === String(pageId));
+      // ค้นหาลีดเดิมของเพจนี้ที่เคยถูกอัปโหลดเข้ามา (U-xxx) หรือที่มีอยู่เดิม เพื่อไม่ให้ข้อมูลอัปโหลดและสถานะหายไป
+      const existingUploadedLeads = leads.filter((l) => l.pageId === pageId || String(l.pageId) === String(pageId));
+      const oldLeadsOfPage = existingUploadedLeads.filter((l) => !l.id.startsWith('U-') && !l.uploadedStatus);
       for (const oldLead of oldLeadsOfPage) {
         delete messages[oldLead.id];
       }
-      leads = leads.filter((l) => l.pageId !== pageId && String(l.pageId) !== String(pageId));
+      leads = leads.filter((l) => l.id.startsWith('U-') || l.uploadedStatus || (l.pageId !== pageId && String(l.pageId) !== String(pageId)));
 
       let importedLeads = 0;
       let importedMsgs = 0;
@@ -1731,9 +1737,13 @@ async function api(req, res, url, session) {
         if (!customerPart) continue;
         const psid = String(customerPart.id);
         const custName = customerPart.name || ('ลูกค้า ' + psid.slice(-4));
+        const cleanCustName = custName.trim().toLowerCase();
 
         const actualPlat = detectConvPlatform(c, plat);
-        let lead = leads.find((l) => l.psid === psid && (!l.pageId || l.pageId === pageId));
+        // ค้นหา lead โดยดูทั้งจาก psid และชื่อลูกค้าที่เคยอัปโหลดเข้ามา (U-xxx หรือ uploadedStatus)
+        let lead = leads.find((l) => (l.psid === psid && (!l.pageId || l.pageId === pageId)) ||
+          (cleanCustName && l.name && l.name.trim().toLowerCase() === cleanCustName && (!l.pageId || l.pageId === pageId || (actualPlat === 'Instagram' && l.platform === 'Instagram'))));
+
         if (!lead) {
           const res = ops.findOrCreateLead({
             psid,
@@ -1746,8 +1756,13 @@ async function api(req, res, url, session) {
           lead = res.lead;
           leads.push(lead);
           importedLeads++;
-        } else if (!lead.name || lead.name.includes('ลูกค้า')) {
-          lead.name = custName;
+        } else {
+          // ถ้าเป็น lead ที่มีอยู่แล้ว (เช่น มาจากการอัปโหลด lead หรือเคยดึงมาก่อน)
+          lead.psid = psid; // ผูก psid ของ Meta เข้ากับ lead ที่อัปโหลดมาทันที
+          if (!lead.name || lead.name.includes('ลูกค้า')) {
+            lead.name = custName;
+          }
+          importedLeads++;
         }
         lead.pageId = pageId;
         lead.pageName = pageName;
@@ -1757,10 +1772,15 @@ async function api(req, res, url, session) {
           const convDate = new Date(c.updated_time).toISOString().slice(0, 10);
           if (convDate) lead.date = convDate;
         }
-        const detectedStatus1 = detectFbConvStatus(c);
-        if (detectedStatus1) {
-          lead.status = detectedStatus1;
-          lead.quality = ops.QUALITY[detectedStatus1] || lead.quality;
+
+        // ข้อความที่ดึงจาก meta จะต้องเข้าไปตามสถานะข้อความที่อัปโหลด lead มา:
+        // หากลีดนี้มี uploadedStatus หรือถูกตั้งค่าสถานะไว้แล้วจากการอัปโหลด ให้คงสถานะเดิมไว้เป็นหลัก
+        if (!lead.uploadedStatus) {
+          const detectedStatus1 = detectFbConvStatus(c);
+          if (detectedStatus1) {
+            lead.status = detectedStatus1;
+            lead.quality = ops.QUALITY[detectedStatus1] || lead.quality;
+          }
         }
 
         const msgList = (c.messages && c.messages.data) || [];
@@ -1888,12 +1908,13 @@ async function api(req, res, url, session) {
       try {
         const convs = await meta.fetchFbConversations(page.id, limit || 400, pPlat, page.fbPageId || null);
         
-        // แทนที่ข้อมูลเดิม: ลบ leads และ messages เดิมของเพจนี้ออกก่อน
-        const oldLeadsOfPage = leads.filter((l) => l.pageId === page.id || String(l.pageId) === String(page.id));
+        // ค้นหาลีดเดิมของเพจนี้ที่เคยถูกอัปโหลดเข้ามา (U-xxx) หรือที่มีอยู่เดิม เพื่อไม่ให้ข้อมูลอัปโหลดและสถานะหายไป
+        const existingUploadedLeads = leads.filter((l) => l.pageId === page.id || String(l.pageId) === String(page.id));
+        const oldLeadsOfPage = existingUploadedLeads.filter((l) => !l.id.startsWith('U-') && !l.uploadedStatus);
         for (const oldLead of oldLeadsOfPage) {
           delete messages[oldLead.id];
         }
-        leads = leads.filter((l) => l.pageId !== page.id && String(l.pageId) !== String(page.id));
+        leads = leads.filter((l) => l.id.startsWith('U-') || l.uploadedStatus || (l.pageId !== page.id && String(l.pageId) !== String(page.id)));
 
         let pLeads = 0;
         let pMsgs = 0;
@@ -1904,9 +1925,13 @@ async function api(req, res, url, session) {
           if (!customerPart) continue;
           const psid = String(customerPart.id);
           const custName = customerPart.name || ('ลูกค้า ' + psid.slice(-4));
+          const cleanCustName = custName.trim().toLowerCase();
 
           const actualPlat = detectConvPlatform(c, pPlat);
-          let lead = leads.find((l) => l.psid === psid && (!l.pageId || l.pageId === page.id));
+          // ค้นหา lead โดยดูทั้งจาก psid และชื่อลูกค้าที่เคยอัปโหลดเข้ามา (U-xxx หรือ uploadedStatus)
+          let lead = leads.find((l) => (l.psid === psid && (!l.pageId || l.pageId === page.id)) ||
+            (cleanCustName && l.name && l.name.trim().toLowerCase() === cleanCustName && (!l.pageId || l.pageId === page.id || (actualPlat === 'Instagram' && l.platform === 'Instagram'))));
+
           if (!lead) {
             const res = ops.findOrCreateLead({
               psid,
@@ -1919,8 +1944,13 @@ async function api(req, res, url, session) {
             lead = res.lead;
             leads.push(lead);
             pLeads++;
-          } else if (!lead.name || lead.name.includes('ลูกค้า')) {
-            lead.name = custName;
+          } else {
+            // ถ้าเป็น lead ที่มีอยู่แล้ว (เช่น มาจากการอัปโหลด lead หรือเคยดึงมาก่อน)
+            lead.psid = psid; // ผูก psid ของ Meta เข้ากับ lead ที่อัปโหลดมาทันที
+            if (!lead.name || lead.name.includes('ลูกค้า')) {
+              lead.name = custName;
+            }
+            pLeads++;
           }
           lead.pageId = page.id;
           lead.pageName = page.name;
@@ -1930,10 +1960,15 @@ async function api(req, res, url, session) {
             const convDate = new Date(c.updated_time).toISOString().slice(0, 10);
             if (convDate) lead.date = convDate;
           }
-          const detectedStatus2 = detectFbConvStatus(c);
-          if (detectedStatus2) {
-            lead.status = detectedStatus2;
-            lead.quality = ops.QUALITY[detectedStatus2] || lead.quality;
+
+          // ข้อความที่ดึงจาก meta จะต้องเข้าไปตามสถานะข้อความที่อัปโหลด lead มา:
+          // หากลีดนี้มี uploadedStatus หรือถูกตั้งค่าสถานะไว้แล้วจากการอัปโหลด ให้คงสถานะเดิมไว้เป็นหลัก
+          if (!lead.uploadedStatus) {
+            const detectedStatus2 = detectFbConvStatus(c);
+            if (detectedStatus2) {
+              lead.status = detectedStatus2;
+              lead.quality = ops.QUALITY[detectedStatus2] || lead.quality;
+            }
           }
 
           const msgList = (c.messages && c.messages.data) || [];
