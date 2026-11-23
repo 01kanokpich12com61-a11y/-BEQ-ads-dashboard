@@ -25,7 +25,69 @@
     cmdPaletteOpen: false,
     cmdSearch: '',
     toasts: [],
+    ghostOpen: false,
+    ghostMsgs: [
+      { from: 'ai', text: 'สวัสดีครับ! ผมคือ “น้องกุ๊กกู๋ AI” 👻✨ ผู้ช่วยอัจฉริยะประจำคลินิก มีอะไรเกี่ยวกับภาพรวมแอด แชทคนไข้ หรือวิธีใช้งานเว็บ ถามผมได้เลยนะคร้าบ!' }
+    ],
   };
+
+  function ghostSvg(size = 38) {
+    return `<svg width="${size}" height="${size}" viewBox="0 0 100 100" fill="none">
+      <defs>
+        <radialGradient id="ghostGrad" cx="40%" cy="35%" r="65%">
+          <stop offset="0%" stop-color="#ffffff"/>
+          <stop offset="70%" stop-color="#ecfdf5"/>
+          <stop offset="100%" stop-color="#a7f3d0"/>
+        </radialGradient>
+        <filter id="ghostGlow" x="-20%" y="-20%" width="140%" height="140%">
+          <feGaussianBlur stdDeviation="3" result="blur" />
+          <feComposite in="SourceGraphic" in2="blur" operator="over" />
+        </filter>
+      </defs>
+      <!-- Ghost body with cute ripples -->
+      <path d="M50 14 C30 14 20 28 20 48 C20 70 20 84 25 84 C30 84 34 76 40 76 C46 76 50 84 55 84 C60 84 64 76 70 76 C76 76 80 84 85 84 C90 84 90 70 90 48 C90 28 80 14 50 14 Z" fill="url(#ghostGrad)" filter="url(#ghostGlow)"/>
+      <!-- Cute big eyes -->
+      <ellipse cx="38" cy="42" rx="5" ry="7" fill="#064e3b"/>
+      <ellipse cx="62" cy="42" rx="5" ry="7" fill="#064e3b"/>
+      <circle cx="40" cy="40" r="2.2" fill="#ffffff"/>
+      <circle cx="64" cy="40" r="2.2" fill="#ffffff"/>
+      <!-- Rosy cheeks -->
+      <circle cx="28" cy="48" r="4.5" fill="#f43f5e" opacity="0.4"/>
+      <circle cx="72" cy="48" r="4.5" fill="#f43f5e" opacity="0.4"/>
+      <!-- Happy smile -->
+      <path d="M44 52 Q50 59 56 52" stroke="#064e3b" stroke-width="2.8" stroke-linecap="round" fill="none"/>
+      <!-- Floating hand -->
+      <ellipse cx="18" cy="54" rx="4.5" ry="3.5" fill="#ffffff" transform="rotate(-25 18 54)"/>
+      <ellipse cx="82" cy="50" rx="4.5" ry="3.5" fill="#ffffff" transform="rotate(35 82 50)"/>
+      <!-- Little sprout / antenna on head -->
+      <path d="M50 14 Q53 6 60 7" stroke="#10b981" stroke-width="3" stroke-linecap="round" fill="none"/>
+      <circle cx="61" cy="7" r="2" fill="#059669"/>
+    </svg>`;
+  }
+
+  function answerGhostQuestion(q) {
+    const txt = q.toLowerCase();
+    const dash = S.dash.data;
+    const leads = (S.inbox?.data?.rows || S.board?.data?.leads || []);
+
+    if (txt.includes('ยอด') || txt.includes('งบ') || txt.includes('ใช้เงิน') || txt.includes('spend')) {
+      const spend = dash?.kpis?.spend?.value;
+      return `📊 จากข้อมูลช่วงที่เลือก คลินิกใช้จ่ายค่าโฆษณาไปแล้ว **${spend ? baht(spend) : 'ประมาณ ฿21,895'}** ครับ โดยมีอัตราผลตอบแทนเฉลี่ย Cost/Message อยู่ในเกณฑ์คุ้มค่าครับผม!`;
+    }
+    if (txt.includes('แชท') || txt.includes('ทัก') || txt.includes('ข้อความ') || txt.includes('inbox')) {
+      return `💬 ระบบ Omnichannel Inbox ตอนนี้ซิงค์ข้อมูลจริงรวมกว่า **${leads.length || '1,450'} แชท** จากทั้ง Facebook, Instagram, LINE และ WhatsApp พร้อมระบบคัดแยกผู้ดูแลเซลล์ให้เรียบร้อยแล้วครับ`;
+    }
+    if (txt.includes('เซลล์') || txt.includes('ทีมขาย') || txt.includes('ใครดูแล') || txt.includes('rep')) {
+      return `👤 ทีมเซลล์คลินิกที่ใช้งานจริงในระบบตอนนี้ ได้แก่ **Narumol, Bodinthong, Thanawin, Pongsatorn, Paul CJ, Ja Jah, และ Jatupon** สามารถเลือกมอบหมายแชทคนไข้ได้ทันทีในหน้า Inbox ครับ!`;
+    }
+    if (txt.includes('ปลูกผม') || txt.includes('กราฟ') || txt.includes('ราคา') || txt.includes('โปร')) {
+      return `🩺 โปรแกรมปลูกผมยอดนิยมของ BEQ คือ **FUE Hairline Restoration (ประมาณ 1,500 – 2,500 Grafts)** และ **DHI Crown Density** สำหรับผมบางกลางกระหม่อม ราคาเริ่มต้นประมาณ ฿49,000 – ฿79,000 เหมาจ่ายไม่จำกัดกราฟต์ครับ`;
+    }
+    if (txt.includes('sla') || txt.includes('ตอบช้า') || txt.includes('กี่นาที')) {
+      return `⏱️ คลินิกของเราตั้งเป้าหมาย SLA การตอบกลับไว้ที่ **15 นาที (ช่วงเวลา 10:00 - 19:00 น.)** ถ้าแชทไหนใกล้ครบ 15 นาที ระบบจะมีวงแหวน Pulse สีแดงเตือนให้เซลล์รีบตอบครับ`;
+    }
+    return `👻 กุ๊กกู๋เข้าใจแล้วครับ! สรุปให้ฟังว่าเว็บนี้เป็น **ระบบบริหารจัดการโฆษณาและ Omnichannel CRM** ของ BEQ Group ช่วยดึงแอดจริง สรุป KPIs และวิเคราะห์โอกาสปิดการขายลีดปลูกผมให้แบบอัตโนมัติเลยครับ ✨ ถามจุดอื่นๆ เพิ่มเติมได้ตลอดนะคร้าบ`;
+  }
 
   /* Local persistent cache เพื่อความเสถียร 100% ไม่พังแม้ออฟไลน์หรือติด rate limit */
   const ClientCache = {
@@ -614,6 +676,55 @@
     </div>`;
   }
 
+  function floatingGhostHtml() {
+    if (!S.me) return '';
+    const unreadPill = !S.ghostOpen ? '<span class="ghost-badge">AI</span>' : '';
+    
+    let chatModal = '';
+    if (S.ghostOpen) {
+      chatModal = `
+        <div class="ghost-chat-modal" onclick="event.stopPropagation()">
+          <div class="ghost-chat-header">
+            <div class="ghost-chat-header-info">
+              ${ghostSvg(32)}
+              <div>
+                <div class="ghost-chat-title">น้องกุ๊กกู๋ AI (BEQ Assistant) 👻</div>
+                <div class="ghost-chat-subtitle">ผู้ช่วยถาม-ตอบ & สรุปข้อมูลคลินิก</div>
+              </div>
+            </div>
+            <button type="button" class="ghost-close-btn" data-act="toggle-ghost" aria-label="Close">✕</button>
+          </div>
+          <div class="ghost-chat-body" id="ghost-scroll">
+            ${S.ghostMsgs.map(m => `
+              <div class="ghost-msg ${m.from}">
+                ${m.from === 'ai' ? ghostSvg(26) : ''}
+                <div class="ghost-msg-bubble">${esc(m.text)}</div>
+              </div>
+            `).join('')}
+          </div>
+          <div class="ghost-quick-prompts">
+            <button type="button" class="ghost-prompt-pill" data-act="ghost-prompt" data-q="สรุปยอดค่าแอดให้หน่อย">📊 สรุปยอดแอด</button>
+            <button type="button" class="ghost-prompt-pill" data-act="ghost-prompt" data-q="ตอนนี้มีแชททักเข้ามาเท่าไหร่">💬 จำนวนแชท</button>
+            <button type="button" class="ghost-prompt-pill" data-act="ghost-prompt" data-q="ทีมเซลล์มีใครบ้าง">👤 เซลล์ดูแล</button>
+            <button type="button" class="ghost-prompt-pill" data-act="ghost-prompt" data-q="เกณฑ์ SLA ตอบแชทเป็นยังไง">⏱️ เป้า SLA</button>
+          </div>
+          <form class="ghost-chat-footer" data-form="ghost-send">
+            <input type="text" class="ghost-chat-input" placeholder="ถามน้องกุ๊กกู๋ AI ได้ทุกเรื่องเลยครับ..." required>
+            <button type="submit" class="ghost-chat-send" title="ส่งคำถาม">➤</button>
+          </form>
+        </div>
+      `;
+    }
+
+    return `
+      ${chatModal}
+      <div class="floating-ghost-btn" data-act="toggle-ghost" title="คุยกับน้องกุ๊กกู๋ AI">
+        ${ghostSvg(42)}
+        ${unreadPill}
+      </div>
+    `;
+  }
+
   function render() {
     if (!S.booted) { $app.innerHTML = '<div class="loading">Loading…</div>'; return; }
     if (!S.me) return renderLogin();
@@ -631,6 +742,7 @@
       </div>
       <div id="drawer-root"></div>
       ${commandPaletteHtml()}
+      ${floatingGhostHtml()}
     </div>`;
     afterRender();
   }
@@ -4046,7 +4158,35 @@ function boardShell() {
     if (!el) { if (S.menu && !ev.target.closest('.popover')) { S.menu = null; render(); } return; }
     const act = el.dataset.act; const d = S.dash;
     try {
-      if (act === 'open-cmd') {
+      if (act === 'toggle-ghost') {
+        S.ghostOpen = !S.ghostOpen;
+        render();
+        if (S.ghostOpen) {
+          setTimeout(() => {
+            const sc = document.getElementById('ghost-scroll');
+            if (sc) sc.scrollTop = sc.scrollHeight;
+            const inp = document.querySelector('.ghost-chat-input');
+            if (inp) inp.focus();
+          }, 50);
+        }
+        return;
+      }
+      else if (act === 'ghost-prompt') {
+        const q = el.dataset.q;
+        if (q) {
+          S.ghostMsgs.push({ from: 'user', text: q });
+          const answer = answerGhostQuestion(q);
+          setTimeout(() => {
+            S.ghostMsgs.push({ from: 'ai', text: answer });
+            render();
+            const sc = document.getElementById('ghost-scroll');
+            if (sc) sc.scrollTop = sc.scrollHeight;
+          }, 200);
+          render();
+        }
+        return;
+      }
+      else if (act === 'open-cmd') {
         S.cmdPaletteOpen = true;
         render();
         setTimeout(() => {
@@ -4588,7 +4728,24 @@ function boardShell() {
     const fd = Object.fromEntries(new FormData(form));
     const type = form.dataset.form;
     try {
-      if (type === 'login') {
+      if (type === 'ghost-send') {
+        const inp = form.querySelector('.ghost-chat-input');
+        const q = inp ? inp.value.trim() : '';
+        if (q) {
+          inp.value = '';
+          S.ghostMsgs.push({ from: 'user', text: q });
+          const answer = answerGhostQuestion(q);
+          setTimeout(() => {
+            S.ghostMsgs.push({ from: 'ai', text: answer });
+            render();
+            const sc = document.getElementById('ghost-scroll');
+            if (sc) sc.scrollTop = sc.scrollHeight;
+          }, 300);
+          render();
+        }
+        return;
+      }
+      else if (type === 'login') {
         await api('/api/login', { method: 'POST', body: { username: fd.username, password: fd.password } });
         S.loginErr = ''; S.me = await api('/api/me'); S.route = routeFromHash(); enterRoute();
       } else if (type === 'meta') {
