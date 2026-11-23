@@ -18,6 +18,7 @@
     notifications: { data: null, unread: 0, list: [] },
     notificationSchedule: null,
     scheduleModalOpen: false,
+    importModal: null, // { mode: 'one'|'all', pageId, pageName, afterDate, beforeDate, limit }
     audit: { data: null, err: null, action: '', q: '', from: '', to: '', limit: 100 },
     chat: { id: null, loading: false, data: null, err: null, sending: false, msg: null },
     users: { data: null, err: null, result: null },
@@ -942,6 +943,65 @@
     `;
   }
 
+  function importModalHtml() {
+    if (!S.importModal) return '';
+    const m = S.importModal;
+    const today = new Date().toISOString().slice(0, 10);
+    const defAfter = (() => { const d = new Date(); d.setMonth(d.getMonth() - 3); return d.toISOString().slice(0, 10); })();
+    return `
+      <div class="modal-backdrop" data-act="import-modal-close" style="position:fixed;inset:0;background:rgba(15,23,42,0.5);backdrop-filter:blur(3px);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px">
+        <div class="modal-card" onclick="event.stopPropagation()" style="background:#fff;border-radius:18px;max-width:500px;width:100%;box-shadow:0 20px 40px -8px rgba(0,0,0,0.25);overflow:hidden;border:1px solid #e2e8f0;animation:slideUp 0.2s ease-out">
+          <div style="padding:18px 22px;border-bottom:1px solid #f1f5f9;display:flex;justify-content:space-between;align-items:center;background:#f0fdf4">
+            <div style="display:flex;align-items:center;gap:10px">
+              <span style="font-size:22px">📥</span>
+              <div>
+                <h3 style="margin:0;font-size:16px;color:#0f172a;font-weight:700">ดึงข้อมูลแชท ${m.mode === 'all' ? 'ทุกเพจ' : `"${esc(m.pageName || '')}"`}</h3>
+                <span style="font-size:12px;color:#64748b">เลือกช่วงวันที่ที่ต้องการดึงข้อมูลจาก Meta</span>
+              </div>
+            </div>
+            <button type="button" data-act="import-modal-close" style="background:none;border:0;color:#94a3b8;font-size:20px;cursor:pointer;padding:4px;line-height:1">✕</button>
+          </div>
+          <form data-form="do-import-conv" style="padding:22px">
+            ${m.mode === 'one' ? `<input type="hidden" name="pageId" value="${esc(m.pageId || '')}">` : ''}
+            <input type="hidden" name="mode" value="${m.mode}">
+
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px">
+              <div>
+                <label style="display:block;font-size:12.5px;font-weight:700;color:#334155;margin-bottom:6px">📅 ตั้งแต่วันที่</label>
+                <input type="date" name="afterDate" value="${m.afterDate || defAfter}" max="${today}" style="width:100%;padding:9px 12px;border-radius:10px;border:1.5px solid #cbd5e1;font-size:14px;box-sizing:border-box">
+              </div>
+              <div>
+                <label style="display:block;font-size:12.5px;font-weight:700;color:#334155;margin-bottom:6px">📅 ถึงวันที่</label>
+                <input type="date" name="beforeDate" value="${m.beforeDate || today}" max="${today}" style="width:100%;padding:9px 12px;border-radius:10px;border:1.5px solid #cbd5e1;font-size:14px;box-sizing:border-box">
+              </div>
+            </div>
+
+            <div style="margin-bottom:16px">
+              <label style="display:block;font-size:12.5px;font-weight:700;color:#334155;margin-bottom:6px">🔢 จำนวนแชทสูงสุดที่ดึง</label>
+              <select name="limit" style="width:100%;padding:10px 14px;border-radius:10px;border:1.5px solid #cbd5e1;font-size:14px;background:#f8fafc">
+                <option value="100">100 แชท (เร็ว)</option>
+                <option value="200">200 แชท</option>
+                <option value="400" selected>400 แชท (แนะนำ)</option>
+                <option value="600">600 แชท</option>
+                <option value="1000">1,000 แชท (ช้า)</option>
+              </select>
+            </div>
+
+            <div style="padding:12px;background:#f0fdf4;border-radius:10px;border:1px solid #bbf7d0;font-size:12.5px;color:#166534;line-height:1.6;margin-bottom:20px">
+              💡 ระบบจะดึงเฉพาะแชทที่มีข้อความภายในช่วงวันที่ที่เลือก
+              แชทที่ไม่มีข้อความในช่วงนี้จะถูกข้ามไปอัตโนมัติ<br>
+              ⚠️ ข้อมูลลูกค้าและแชทเดิมของเพจนี้จะถูก<b>แทนที่ด้วยข้อมูลใหม่</b>
+            </div>
+            <div style="display:flex;justify-content:flex-end;gap:10px">
+              <button type="button" class="btn btn-secondary" data-act="import-modal-close">ยกเลิก</button>
+              <button type="submit" class="btn btn-primary" style="background:#059669;color:#fff;padding:9px 22px">📥 เริ่มดึงข้อมูล</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    `;
+  }
+
   function render() {
     if (!S.booted) { $app.innerHTML = '<div class="loading">Loading…</div>'; return; }
     if (!S.me) return renderLogin();
@@ -960,6 +1020,7 @@
       <div id="drawer-root"></div>
       ${commandPaletteHtml()}
       ${scheduleModalHtml()}
+      ${importModalHtml()}
       ${floatingGhostHtml()}
     </div>`;
     afterRender();
@@ -4574,6 +4635,10 @@ function boardShell() {
         S.scheduleModalOpen = false;
         render();
       }
+      else if (act === 'import-modal-close') {
+        S.importModal = null;
+        render();
+      }
       else if (act === 'fu-notify-one') {
         const id = el.dataset.id;
         const name = el.dataset.name;
@@ -4843,50 +4908,18 @@ function boardShell() {
         }
       }
       else if (act === 'fb-import-all') {
-        if (!confirm('ต้องการดึงแชทของทุกเพจพร้อมกันหรือไม่?\n\n⚠️ ข้อมูลแชทและลูกค้าเดิมของแต่ละเพจจะถูกแทนที่ด้วยข้อมูลล่าสุดจาก Meta')) return;
-        el.disabled = true;
-        const originalText = el.textContent;
-        el.textContent = '⏳ กำลังดึงแชททุกเพจ...';
-        try {
-          const r = await api('/api/import/facebook-conversations-all', { method: 'POST', body: { limit: 400 } });
-          if (r.ok) {
-            const errText = r.errors && r.errors.length ? (' (⚠️ มีข้อผิดพลาด: ' + r.errors.join('; ') + ')') : '';
-            S.flash = { type: r.errors && r.errors.length && !r.totalImportedLeads ? 'err' : 'ok', text: `ดึงประวัติแชทสำเร็จ! เพิ่มลูกค้าใหม่ ${r.totalImportedLeads} ราย, ${r.totalImportedMsgs} ข้อความ${errText}` };
-            S.filters = await api('/api/filters').catch(() => null);
-            render();
-          }
-        } catch (e) {
-          S.flash = { type: 'err', text: e.message || 'ดึงแชทไม่สำเร็จ' };
-          render();
-        } finally {
-          el.disabled = false;
-          el.textContent = originalText;
-        }
+        // เปิด modal เลือกวันที่แทน confirm()
+        S.importModal = { mode: 'all', pageId: null, pageName: 'ทุกเพจ', afterDate: '', beforeDate: '' };
+        render();
+        return;
       }
       else if (act === 'fb-import-conv') {
         const pageId = el.dataset.pageId;
         const pageName = el.dataset.pageName;
-        const defaultLimit = pageName.includes('Beq') ? 300 : 400;
-        const customLimit = prompt(`ระบุจำนวนแชทที่ต้องการดึงจากเพจ "${pageName}":`, String(defaultLimit));
-        if (customLimit === null) return;
-        const limitNum = Math.max(10, Math.min(Number(customLimit) || defaultLimit, 1000));
-        if (!confirm(`ต้องการดึงข้อมูลแชท ${limitNum} แชทของเพจ "${pageName}" หรือไม่?\n\n⚠️ ข้อมูลแชทและลูกค้าเดิมของเพจนี้จะถูกแทนที่ด้วยข้อมูลล่าสุดจาก Meta`)) return;
-        el.disabled = true;
-        el.textContent = '⏳ กำลังดึงแชท...';
-        try {
-          const r = await api('/api/import/facebook-conversations', { method: 'POST', body: { pageId, limit: limitNum } });
-          if (r.ok) {
-            S.flash = { type: 'ok', text: `นำเข้าบทสนทนาเพจ ${r.pageName} สำเร็จ: เพิ่มลูกค้าใหม่ ${r.importedLeads} ราย, ${r.importedMsgs} ข้อความ` };
-            S.filters = await api('/api/filters').catch(() => null);
-            render();
-          }
-        } catch (e) {
-          S.flash = { type: 'err', text: e.message || 'ดึงแชทย้อนหลังไม่สำเร็จ' };
-          render();
-        } finally {
-          el.disabled = false;
-          el.textContent = '📥 ดึงแชทย้อนหลัง';
-        }
+        // เปิด modal เลือกวันที่แทน prompt()
+        S.importModal = { mode: 'one', pageId, pageName, afterDate: '', beforeDate: '' };
+        render();
+        return;
       }
       else if (act === 'page-delete') {
         const pageId = el.dataset.pageId;
@@ -5111,6 +5144,41 @@ function boardShell() {
         S.scheduleModalOpen = false;
         showToast(enabled ? `⏰ เปิดระบบแจ้งเตือนอัตโนมัติทุก ${intervalMinutes >= 60 ? (intervalMinutes / 60) + ' ชม.' : intervalMinutes + ' นาที'} เรียบร้อยแล้ว` : '⏸️ ปิดระบบแจ้งเตือนอัตโนมัติแล้ว', 'success');
         render();
+        return;
+      } else if (type === 'do-import-conv') {
+        // Modal form submit: ดึงแชทพร้อม date range
+        const mode = fd.mode; // 'one' | 'all'
+        const afterDate = fd.afterDate || '';
+        const beforeDate = fd.beforeDate || '';
+        const limit = Number(fd.limit) || 400;
+        const pageId = fd.pageId || null;
+
+        const submitBtn = form.querySelector('[type="submit"]');
+        if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = '⏳ กำลังดึงข้อมูล...'; }
+
+        try {
+          if (mode === 'all') {
+            const r = await api('/api/import/facebook-conversations-all', { method: 'POST', body: { limit, afterDate, beforeDate } });
+            if (r.ok) {
+              const errText = r.errors && r.errors.length ? (' (⚠️ มีข้อผิดพลาด: ' + r.errors.join('; ') + ')') : '';
+              const dateRange = afterDate && beforeDate ? ` ช่วง ${afterDate} ถึง ${beforeDate}` : '';
+              S.flash = { type: r.errors && r.errors.length && !r.totalImportedLeads ? 'err' : 'ok', text: `ดึงประวัติแชทสำเร็จ${dateRange}! เพิ่มลูกค้าใหม่ ${r.totalImportedLeads} ราย, ${r.totalImportedMsgs} ข้อความ${errText}` };
+              S.filters = await api('/api/filters').catch(() => null);
+            }
+          } else {
+            const r = await api('/api/import/facebook-conversations', { method: 'POST', body: { pageId, limit, afterDate, beforeDate } });
+            if (r.ok) {
+              const dateRange = afterDate && beforeDate ? ` ช่วง ${afterDate} ถึง ${beforeDate}` : '';
+              S.flash = { type: 'ok', text: `นำเข้าบทสนทนาเพจ ${r.pageName} สำเร็จ${dateRange}: เพิ่มลูกค้าใหม่ ${r.importedLeads} ราย, ${r.importedMsgs} ข้อความ` };
+              S.filters = await api('/api/filters').catch(() => null);
+            }
+          }
+        } catch (e) {
+          S.flash = { type: 'err', text: e.message || 'ดึงแชทไม่สำเร็จ' };
+        } finally {
+          S.importModal = null;
+          render();
+        }
         return;
       } else if (type === 'meta') {
         const after = (ev.submitter && ev.submitter.dataset.after) || 'save';
