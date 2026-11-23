@@ -71,137 +71,321 @@
   }
 
   async function answerGhostQuestion(q) {
-    const txt = q.toLowerCase();
-    
-    // 1. ตรวจสอบข้อมูล SLA ล่าสุด (สำหรับคำถามเกี่ยวกับ SLA, แอดมินตอบช้า, ใครคะแนนแย่สุด/ดีสุด)
-    if (txt.includes('sla') || txt.includes('คะแนน') || txt.includes('แย่') || txt.includes('ดีสุด') || txt.includes('ช้า') || txt.includes('หลุด')) {
-      let slaData = S.sla.data;
-      if (!slaData) {
-        try {
-          slaData = await api('/api/sla?range=all');
-          S.sla.data = slaData;
-        } catch {}
-      }
+    const rawTxt = String(q || '').trim();
+    const txt = rawTxt.toLowerCase();
+
+    // 1. ตรวจสอบและดึงข้อมูล State สำหรับใช้ตอบแบบ Real-time
+    let dData = S.dash.data;
+    let inboxData = S.inbox.data;
+    let slaData = S.sla.data;
+    let fuData = S.followup.data;
+    let filtersData = S.filters;
+
+    // Helper โหลดข้อมูลล่วงหน้าหากยังไม่เคยโหลด
+    const ensureContext = async () => {
+      const tasks = [];
+      if (!dData) tasks.push(api('/api/dashboard?range=30d').then(r => { dData = r; S.dash.data = r; }).catch(() => {}));
+      if (!inboxData) tasks.push(api('/api/inbox?range=all').then(r => { inboxData = r; S.inbox.data = r; }).catch(() => {}));
+      if (!slaData) tasks.push(api('/api/sla?range=all').then(r => { slaData = r; S.sla.data = r; }).catch(() => {}));
+      if (!fuData) tasks.push(api('/api/followups').then(r => { fuData = r; S.followup.data = r; }).catch(() => {}));
+      if (!filtersData) tasks.push(api('/api/filters').then(r => { filtersData = r; S.filters = r; }).catch(() => {}));
+      if (tasks.length) await Promise.all(tasks);
+    };
+
+    // -------------------------------------------------------------------------
+    // หมวด 1: ตามลูกค้า & ระบบแจ้งเตือน (Follow-up & Notifications)
+    // -------------------------------------------------------------------------
+    if (txt.includes('ตามลูกค้า') || txt.includes('followup') || txt.includes('follow-up') || txt.includes('นัดตาม') || txt.includes('แจ้งเตือน') || txt.includes('รอบเวลา') || txt.includes('ตั้งเวลา') || txt.includes('เตือนตาม') || txt.includes('กระดิ่ง') || txt.includes('เสียงเตือน') || txt.includes('desktop notification')) {
+      await ensureContext();
+      const st = (fuData && fuData.stats) || { reply: 0, chase: 0, due: 0, scheduled: 0 };
+      const totalRows = (fuData && fuData.rows && fuData.rows.length) || 0;
+      const sched = S.notificationSchedule || { enabled: false, intervalMinutes: 60 };
+
+      return `📅 **สรุปข้อมูลและวิธีใช้งานหน้าตามลูกค้า (Follow-up Leads):**\n\n` +
+        `📊 **สถานะคิวลูกค้าในระบบตอนนี้:**\n` +
+        `• ⚡ **ลูกค้ารอตอบ:** **${num(st.reply)} เคส** (ลูกค้าส่งข้อความมาแต่ยังไม่มีการตอบกลับ)\n` +
+        `• ⏳ **ถึงเวลาตามต่อ:** **${num(st.chase)} เคส** (ทักไปแล้วลูกค้าเงียบเกิน 24 ชม. แต่ไม่เกิน 30 วัน)\n` +
+        `• ⚠️ **นัดตามเกินกำหนด / วันนี้:** **${num(st.due)} เคส**\n` +
+        `• 📅 **นัดตามทั้งหมด:** **${num(st.scheduled)} เคส** (รวมในคิวทั้งหมด ${num(totalRows)} รายการ)\n\n` +
+        `✨ **ฟังก์ชันการทำงานเด่นในหน้านี้:**\n` +
+        `1. **ปุ่ม "✏️ แก้ไข" (ในตาราง):** กดเพื่อเปิดหน้าต่างแก้ไขวันนัดตาม พร้อมปุ่มลัด (วันนี้/พรุ่งนี้/3 วัน/1 สัปดาห์), ใส่โน้ตช่วยจำ, เปลี่ยนสถานะลีด หรือกด "ปิดงานตาม"\n` +
+        `2. **ปุ่ม "🔔 แจ้งเตือน" (ในตาราง):** กดส่งการแจ้งเตือนเคสนั้นๆ เข้าสู่ศูนย์กระดิ่งบนเว็บและกลุ่ม LINE ทันที\n` +
+        `3. **ปุ่ม "🔔 ส่งแจ้งเตือนตอนนี้" (ด้านบน):** สรุปจำนวนลูกค้าที่ต้องตามทั้งหมดส่งแจ้งเตือนทันที\n` +
+        `4. **ปุ่ม "⏰ ตั้งรอบเวลาแจ้งเตือน":** ปัจจุบัน **${sched.enabled ? `เปิดอยู่ (ทุก ${sched.intervalMinutes >= 60 ? (sched.intervalMinutes / 60) + ' ชม.' : sched.intervalMinutes + ' นาที'})` : 'ปิดอยู่'}** สามารถคลิกตั้งรอบเวลาอัตโนมัติ (15 นาที – 24 ชม.) พร้อมเปิดเสียงเตือน Chime และแจ้งเตือนบนหน้าจอ (Desktop Notification) ได้เลยครับ`;
+    }
+
+    // -------------------------------------------------------------------------
+    // หมวด 2: SLA & การรีวิวคุณภาพแชท (SLA Performance & Chat Review)
+    // -------------------------------------------------------------------------
+    if (txt.includes('sla') || txt.includes('คะแนน') || txt.includes('แย่') || txt.includes('ดีสุด') || txt.includes('ช้า') || txt.includes('หลุด') || txt.includes('รีวิว') || txt.includes('เกณฑ์ 15') || txt.includes('หักแต้ม') || txt.includes('scorecard')) {
+      await ensureContext();
       if (slaData && slaData.reps && slaData.reps.length) {
         const sortedWorst = [...slaData.reps].sort((a, b) => a.points - b.points);
         const sortedBest = [...slaData.reps].sort((a, b) => b.points - a.points);
         const worst = sortedWorst[0];
-        const secondWorst = sortedWorst[1];
         const best = sortedBest[0];
 
         if (txt.includes('แย่') || txt.includes('ต่ำ') || txt.includes('หัก') || txt.includes('ช้าสุด')) {
-          const rep1 = worst;
-          const rep2 = secondWorst;
-          return `⏱️ **อันดับผู้ที่ถูกหักคะแนน SLA มากที่สุด:**\n\n` +
-            `🥇 **อันดับ 1:** **${rep1.rep}**\n` +
-            `• คะแนน: **${rep1.points} แต้ม**\n` +
-            `• ตอบช้า: **${rep1.late}** จาก ${rep1.turns} รอบ\n` +
-            `• เวลาเฉลี่ย: **${rep1.avgMin ? num(rep1.avgMin, 1) + ' นาที' : '—'}**\n\n` +
-            (rep2 ? `🥈 **อันดับ 2:** **${rep2.rep}**\n` +
-            `• คะแนน: **${rep2.points} แต้ม**\n` +
-            `• ตอบช้า: **${rep2.late}** จาก ${rep2.turns} รอบ\n` +
-            `• เวลาเฉลี่ย: **${rep2.avgMin ? num(rep2.avgMin, 1) + ' นาที' : '—'}**\n\n` : '') +
-            `📌 *เกณฑ์ SLA 15 นาที:* ช่วง 10:00–19:00 น. ตอบเกิน 15 นาที หัก 1 แต้ม / อ่านแล้วไม่ตอบ หัก 0.5 แต้มครับ (ดูรายละเอียดได้ที่เมนู **SLA & Review**)`;
+          return `⏱️ **อันดับเซลส์/แอดมินที่ถูกหักคะแนน SLA มากที่สุด:**\n\n` +
+            `🥇 **อันดับ 1:** **${worst.rep}**\n` +
+            `• คะแนนผลงาน: **${worst.points} แต้ม**\n` +
+            `• ตอบช้าเกิน 15 นาที: **${worst.late}** จาก ${worst.turns} รอบ\n` +
+            `• เวลาตอบเฉลี่ย: **${worst.avgMin ? num(worst.avgMin, 1) + ' นาที' : '—'}**\n\n` +
+            `📌 **เกณฑ์การคิดคะแนน SLA 15 นาที:**\n` +
+            `• คิดเฉพาะช่วงเวลาทำการ **10:00 – 19:00 น.**\n` +
+            `• ตอบเกิน 15 นาที: **หัก 1 แต้ม**\n` +
+            `• ลูกค้าทักแล้วอ่านแต่ไม่ตอบ: **หัก 0.5 แต้ม**\n` +
+            `• ช่วงนอกเวลาทำการ (กลางคืน/เช้าตรู่): เป็นการบันทึกสถิติความเร็ว แต่ไม่นำมาหักแต้มพนักงานครับ`;
         }
-        if (txt.includes('ดี') || txt.includes('สูงสุด') || txt.includes('เร็วสุด')) {
-          return `🏆 **ผู้ที่ทำคะแนน SLA ตอบแชทได้ดีที่สุด:**\n\n` +
+
+        if (txt.includes('ดี') || txt.includes('สูงสุด') || txt.includes('เร็วสุด') || txt.includes('อันดับ')) {
+          return `🏆 **ผู้ที่ทำคะแนน SLA ตอบแชทได้ดีที่สุดในทีม:**\n\n` +
             `🌟 **${best.rep}**\n` +
             `• คะแนนผลงาน: **${best.points} แต้ม**\n` +
             `• ตอบทันเวลา: **${best.onTime} / ${best.turns} รอบ**\n` +
-            `• เวลาตอบเฉลี่ย: **${best.avgMin ? num(best.avgMin, 1) + ' นาที' : 'เร็วมาก'}** 🚀`;
+            `• เวลาตอบเฉลี่ย: **${best.avgMin ? num(best.avgMin, 1) + ' นาที' : 'เร็วมาก'}** 🚀\n\n` +
+            `💡 ดูสถิติเชิงลึกและแยกตามช่วงวันที่ได้ที่เมนู **⏱️ SLA & Review** ครับ`;
         }
       }
+
+      return `⏱️ **เกณฑ์การประเมิน SLA และรีวิวแชทของคลินิก:**\n\n` +
+        `• **เกณฑ์ SLA 15 นาที:** ลูกค้าทักเข้ามาต้องได้รับการตอบกลับครั้งแรกภายใน 15 นาที (คิดเฉพาะ 10:00–19:00 น.)\n` +
+        `• **การรีวิวคุณภาพแชท 5 มิติ (Scorecard 100%):**\n` +
+        `  1. การทักทาย / เปิดบทสนทนาสุภาพเป็นมิตร\n` +
+        `  2. ถามความต้องการและประเมินปัญหาผมของคนไข้\n` +
+        `  3. ให้ข้อมูลโปรแกรมการรักษาและราคาชัดเจน\n` +
+        `  4. เทคนิคการชวนนัดเข้าพบแพทย์ / การปิดการขาย\n` +
+        `  5. ความเร็วในการตอบกลับตลอดบทสนทนา`;
     }
 
-    // 2. ข้อมูล Dashboard & KPIs (งบ, ค่าแอด, ROAS, ยอดซื้อ, CTR)
-    const dash = S.dash.data;
-    if (txt.includes('ยอด') || txt.includes('งบ') || txt.includes('ใช้เงิน') || txt.includes('spend') || txt.includes('roas') || txt.includes('cpm') || txt.includes('cpc') || txt.includes('dashboard')) {
-      let dData = dash;
-      if (!dData) {
-        try { dData = await api('/api/dashboard?range=30d'); S.dash.data = dData; } catch {}
-      }
+    // -------------------------------------------------------------------------
+    // หมวด 3: แดชบอร์ด & ตัวเลขการตลาด (Dashboard, Spend, ROAS, KPIs)
+    // -------------------------------------------------------------------------
+    if (txt.includes('ยอด') || txt.includes('งบ') || txt.includes('ใช้เงิน') || txt.includes('spend') || txt.includes('roas') || txt.includes('cpm') || txt.includes('cpc') || txt.includes('dashboard') || txt.includes('รายได้') || txt.includes('ยอดซื้อ') || txt.includes('ยอดขาย') || txt.includes('kpi')) {
+      await ensureContext();
       if (dData && dData.kpis) {
         const k = dData.kpis;
-        return `📊 **สรุปตัวเลข KPIs และผลตอบแทนโฆษณา (ช่วง 30 วันล่าสุด):**\n\n` +
+        return `📊 **สรุปผลลัพธ์โฆษณาและ Marketing KPIs ล่าสุด (ช่วง 30 วัน):**\n\n` +
           `• **งบโฆษณาที่ใช้ (Spend):** **${baht(k.spend?.value || 0)}**\n` +
-          `• **จำนวนคนเห็น (Reach):** **${num(k.reach?.value || 0)}** คน (${num(k.impressions?.value || 0)} ครั้ง)\n` +
-          `• **จำนวนคลิก (Clicks):** **${num(k.clicks?.value || 0)}** คลิก (CTR: **${pct(k.ctr?.value || 0)}**)\n` +
-          `• **ทักแชท (Messages):** **${num(k.messages?.value || 0)}** ข้อความ\n` +
+          `• **จำนวนคนเห็น (Reach):** **${num(k.reach?.value || 0)} คน** (${num(k.impressions?.value || 0)} ครั้ง)\n` +
+          `• **จำนวนคลิก (Clicks):** **${num(k.clicks?.value || 0)} คลิก** (CTR: **${pct(k.ctr?.value || 0)}**)\n` +
+          `• **จำนวนแชททัก (Messages):** **${num(k.messages?.value || 0)} ข้อความ**\n` +
           `• **ต้นทุนต่อแชท (Cost/Msg):** **${baht(k.costMessage?.value || 0)}**\n` +
-          `• **ยอดซื้อ (Purchases):** **${num(k.purchases?.value || 0)}** เคส\n` +
-          `• **รายได้ปิดการขาย (Revenue):** **${baht(k.revenue?.value || 0)}** ${k.roas?.value ? `(ROAS: **${num(k.roas.value, 2)}×**)` : ''}`;
+          `• **ยอดซื้อสำเร็จ (Purchases):** **${num(k.purchases?.value || 0)} เคส**\n` +
+          `• **รายได้ปิดการขาย (Revenue):** **${baht(k.revenue?.value || 0)}** ${k.roas?.value ? `(ROAS: **${num(k.roas.value, 2)}×**)` : ''}\n\n` +
+          `💡 สามารถปรับเลือกช่วงเวลา (7 วัน, 30 วัน, 90 วัน) หรือเลือกกรองเฉพาะเพจที่แถบด้านบนของหน้าจอได้เลยครับ`;
       }
     }
 
-    // 3. ข้อมูล Inbox & แชทคนไข้
-    if (txt.includes('แชท') || txt.includes('ทัก') || txt.includes('ข้อความ') || txt.includes('inbox') || txt.includes('คนไข้') || txt.includes('ลูกค้า')) {
-      let inboxRows = (S.inbox && S.inbox.data && S.inbox.data.rows) ? S.inbox.data.rows : [];
-      if (!inboxRows.length) {
-        try {
-          const res = await api('/api/inbox?range=all');
-          if (res && res.rows) {
-            inboxRows = res.rows;
-            if (!S.inbox.data) S.inbox.data = res;
-          }
-        } catch {}
-      }
-      const total = inboxRows.length || (S.dash?.data?.kpis?.messages?.value) || 0;
-      const unreplied = inboxRows.filter(r => r.status === 'no_reply' || !r.last || r.last.from !== 'staff').length;
-      return `💬 **สรุปข้อมูล Unified Inbox ของคลินิก:**\n\n` +
+    // -------------------------------------------------------------------------
+    // หมวด 4: Unified Inbox & แชทคนไข้ (Chats, Unreplied, Copilot)
+    // -------------------------------------------------------------------------
+    if (txt.includes('แชท') || txt.includes('ทัก') || txt.includes('ข้อความ') || txt.includes('inbox') || txt.includes('คนไข้') || txt.includes('ลูกค้า') || txt.includes('unreplied') || txt.includes('ยังไม่ตอบ') || txt.includes('copilot') || txt.includes('ไอจี') || txt.includes('ดึงแชท')) {
+      await ensureContext();
+      const allRows = (inboxData && inboxData.rows) || [];
+      const total = allRows.length || (dData?.kpis?.messages?.value) || 0;
+      const unreplied = allRows.filter(r => r.status === 'no_reply' || !r.last || r.last.from !== 'staff').length;
+      const starred = allRows.filter(r => r.starred || r.status === 'converted' || r.status === 'booked').length;
+
+      return `💬 **สรุปข้อมูล Unified Omnichannel Inbox ของคลินิก:**\n\n` +
         `• **แชททั้งหมดในระบบ:** **${num(total)} บทสนทนา**\n` +
         `• **แชทที่ยังรอการตอบกลับ (Unreplied):** **${num(unreplied)} แชท** ⚠️\n` +
-        `• **ช่องทางที่เชื่อมต่อ:** Facebook Messenger, Instagram Direct, LINE Official Account, WhatsApp Business\n` +
-        `• **ฟังก์ชันเด่น:** AI Smart Replies ตอบไวใน 1 วินาที, ประเมินกราฟต์ผมอัตโนมัติ และระบบมอบหมายเซลล์`;
+        `• **เคสติดดาว / นัดหมายแล้ว:** **${num(starred)} เคส** ⭐\n` +
+        `• **ช่องทางเชื่อมต่อ:** Facebook Messenger, Instagram Direct, LINE Official Account, WhatsApp Business\n\n` +
+        `🤖 **ฟังก์ชันช่วยเหลือในการตอบแชท:**\n` +
+        `1. **BEQ Copilot Suggested Replies:** มีปุ่มคลิกข้อความเสนอแนะฉลาด 3 รูปแบบ (โปรโมชั่นราคา, นัดคิวตรวจ, ข้อมูลการดูแลแผล)\n` +
+        `2. **BEQ Copilot Intelligence:** ประเมินปัญหาเส้นผม และคำนวณจำนวนกราฟต์ผมที่ต้องใช้ให้อัตโนมัติ (เช่น 2,500 Grafts)\n` +
+        `3. **โหมดสลับสิทธิ์:** กดปุ่ม **Takeover** เพื่อสลับระหว่างพนักงานควบคุมเอง (Manual) หรือให้ Copilot ช่วยแนะนำ`;
     }
 
-    // 4. ทีมเซลล์ & ผู้ดูแลเคส
-    if (txt.includes('เซลล์') || txt.includes('ทีมขาย') || txt.includes('ใครดูแล') || txt.includes('rep') || txt.includes('ผู้ดูแล')) {
+    // -------------------------------------------------------------------------
+    // หมวด 5: การจัดการเพจ (Facebook & Instagram Pages Management)
+    // -------------------------------------------------------------------------
+    if (txt.includes('เพจ') || txt.includes('page') || txt.includes('dr.nay') || txt.includes('beq_wellness') || txt.includes('ลบเพจ') || txt.includes('เพิ่มเพจ') || txt.includes('ad account') || txt.includes('page id') || txt.includes('ชื่อเล่น')) {
+      await ensureContext();
+      const rawPages = (filtersData && filtersData.pages) || [];
+      const validPages = rawPages.filter(isValidPage);
+
+      return `📄 **ข้อมูลการจัดการเพจในระบบ BEQ Suite:**\n\n` +
+        `🌐 **เพจหลักที่เชื่อมต่อและเปิดใช้งานอยู่ (${validPages.length} เพจ):**\n` +
+        validPages.map(p => `• ${p.platform === 'Instagram' ? '📸' : '🔵'} **${p.name}** (แพลตฟอร์ม: ${p.platform || 'Facebook'}, ID: \`${p.id}\`)${p.adAccountId ? ` [ผูก Ad Account: ${p.adAccountId}]` : ''}`).join('\n') + `\n\n` +
+        `⚙️ **วิธีเพิ่ม/แก้ไข/ลบเพจ:**\n` +
+        `1. ไปที่เมนู **⚙️ Settings** ด้านซ้าย\n` +
+        `2. เลื่อนลงมาที่หัวข้อ **➕ เพิ่มหรือแก้ไขข้อมูลเพจ**\n` +
+        `3. สามารถแก้ไขชื่อเล่นเพจ, แก้ไข Page ID, ผูก Ad Account หรือกดปุ่ม **"ลบ"** ที่เพจที่ไม่ต้องการออกได้ทันทีครับ`;
+    }
+
+    // -------------------------------------------------------------------------
+    // หมวด 6: การตั้งค่าระบบ & การเชื่อมต่อ API (Settings & Integrations)
+    // -------------------------------------------------------------------------
+    if (txt.includes('setting') || txt.includes('ตั้งค่า') || txt.includes('เชื่อมต่อ') || txt.includes('meta') || txt.includes('facebook') || txt.includes('line notify') || txt.includes('whatsapp') || txt.includes('token') || txt.includes('webhook') || txt.includes('app secret') || txt.includes('verify token')) {
+      return `⚙️ **คู่มือการตั้งค่าและการเชื่อมต่อระบบ (Settings):**\n\n` +
+        `1. **เชื่อมต่อ Meta Graph API (Facebook / Instagram):**\n` +
+        `   • กรอก App ID, App Secret, System User Permanent Access Token\n` +
+        `   • ตั้งค่า Webhook URL และ Verify Token เพื่อรับข้อความแชทและคอมเมนต์เรียลไทม์\n` +
+        `   • มีปุ่มสลับโหมดข้อมูลระหว่าง **Meta (ข้อมูลจริง)** และ **Demo (ข้อมูลทดสอบ)**\n\n` +
+        `2. **เชื่อมต่อ LINE Notify:**\n` +
+        `   • ใส่ LINE Notify Token เพื่อให้ระบบส่งแจ้งเตือนสรุปคิวตามลูกค้า และเคสนัดตามเกินกำหนดเข้ากลุ่ม LINE\n\n` +
+        `3. **เชื่อมต่อ WhatsApp Business:**\n` +
+        `   • กรอก Permanent Token, Phone Number ID และ WhatsApp Webhook Path\n\n` +
+        `4. **ความปลอดภัยและผู้ใช้:** เปลี่ยนรหัสผ่านของตนเอง และเพิ่ม/รีเซ็ตรหัสผ่านทีมงาน`;
+    }
+
+    // -------------------------------------------------------------------------
+    // หมวด 7: Leads Board & 12 ลำดับขั้นคนไข้ (Pipeline Stages)
+    // -------------------------------------------------------------------------
+    if (txt.includes('board') || txt.includes('บอร์ด') || txt.includes('กระดาน') || txt.includes('pipeline') || txt.includes('12 ขั้นตอน') || txt.includes('ลากการ์ด') || txt.includes('kanban') || txt.includes('สถานะ')) {
+      return `📋 **Leads Board กระดานติดตามคนไข้ 12 ลำดับขั้น:**\n\n` +
+        `1. **มาใหม่ (New Leads):** ทักแชทเข้ามาครั้งแรก รอแอดมินรับเรื่อง\n` +
+        `2. **In-take:** เก็บประวัติเบื้องต้นและปัญหาเส้นผม\n` +
+        `3. **พอได้คุย:** พูดคุยสอบถามรายละเอียดต่อเนื่อง\n` +
+        `4. **กำลังดำเนินการ:** อยู่ระหว่างนำเสนอโปรแกรมปลูกผม\n` +
+        `5. **นัดหมายแล้ว:** ลงคิวนัดเข้าพบแพทย์ที่คลินิก\n` +
+        `6. **ผ่านการประเมิน (Qualified):** ประเมินกราฟต์ผมและงบประมาณชัดเจน\n` +
+        `7. **ทักซ้ำ (Follow-up):** ติดตามต่อหลังจากเงียบไป\n` +
+        `8. **สร้างคอนเวอร์ชั่นแล้ว:** วางมัดจำหรือตกลงรับบริการ\n` +
+        `9. **ปิดการขายสำเร็จ (Converted):** ทำหัตถการเรียบร้อย ปิดยอดขาย 🎉\n` +
+        `10. **ยังไม่ตอบ (No Reply):** ลูกค้ายังไม่ตอบข้อความ\n` +
+        `11. **ไม่สนใจ / หลุด (Lost):** ปฏิเสธหรือไม่ตรงเงื่อนไข\n` +
+        `12. **เคสมีปัญหา (Disqualified):** ข้อมูลไม่ถูกต้องหรือผิดกลุ่ม\n\n` +
+        `✨ **วิธีใช้งาน:** สามารถคลิกลากการ์ดคนไข้สลับคอลัมน์เพื่อเปลี่ยนสถานะได้ทันที หรือกดปุ่มกระโดดไปยังคอลัมน์ที่ต้องการได้ด้านบนบอร์ดครับ`;
+    }
+
+    // -------------------------------------------------------------------------
+    // หมวด 8: การอัปโหลดข้อมูล & ระบบ Smart Auto-Mapping (Upload & CSV)
+    // -------------------------------------------------------------------------
+    if (txt.includes('อัปโหลด') || txt.includes('upload') || txt.includes('csv') || txt.includes('excel') || txt.includes('ไฟล์') || txt.includes('นำเข้า') || txt.includes('smart mapping')) {
+      return `☁️ **คู่มือการอัปโหลดไฟล์ (Upload & Data):**\n\n` +
+        `• **ประเภทไฟล์ที่รองรับ:** ไฟล์ \`.csv\` ทั้งไฟล์ข้อมูลลีด (Leads) และข้อมูลแคมเปญโฆษณา (Campaigns)\n` +
+        `• **ระบบ Smart Auto-Mapping:** เมื่ออัปโหลดไฟล์ที่มีข้อมูลผสมกันระหว่าง Facebook และ Instagram ระบบจะคัดแยกเพจให้อัตโนมัติ:\n` +
+        `  - แถวที่เป็น Instagram Dr. Nay จะเข้าเพจ **dr.nay_hairtransplant**\n` +
+        `  - แถวที่เป็น Facebook Dr. Nay จะเข้าเพจ **Dr. Nay Hair Transplant by BEQ**\n` +
+        `  - แถวที่เป็น Instagram BEQ Wellness จะเข้าเพจ **beq_wellness**\n` +
+        `  - แถวที่เป็น Facebook BEQ Wellness จะเข้าเพจ **Beq Hair Wellness Center**\n` +
+        `• **วิธีอัปโหลด:** ไปที่เมนู **☁️ Upload & Data** -> เลือกประเภท -> ลากไฟล์ CSV มาวางในกล่องอัปโหลดได้เลยครับ`;
+    }
+
+    // -------------------------------------------------------------------------
+    // หมวด 9: การจัดการผู้ใช้ & สิทธิ์การใช้งาน (User Management & Roles)
+    // -------------------------------------------------------------------------
+    if (txt.includes('ผู้ใช้') || txt.includes('user') || txt.includes('แอดมิน') || txt.includes('admin') || txt.includes('staff') || txt.includes('พนักงาน') || txt.includes('รหัสผ่าน') || txt.includes('เปลี่ยนรหัส') || txt.includes('รีเซ็ตรหัส') || txt.includes('สิทธิ์') || txt.includes('เซลล์') || txt.includes('ทีมขาย')) {
+      await ensureContext();
       const reps = ['Narumol Molmol', 'Bodinthong Jeams', 'Thanawin Win', 'Pongsatorn Nack', 'Paul CJ', 'Ja Jah', 'Jatupon James'];
-      return `👤 **รายชื่อทีมเซลล์และการมอบหมายเคสในระบบ:**\n\n` +
+
+      return `👤 **การจัดการผู้ใช้และทีมงานในระบบ (User Management):**\n\n` +
+        `🛡️ **ระดับสิทธิ์ในระบบ:**\n` +
+        `• **Admin (ผู้ดูแลระบบ):** เข้าถึงได้ทุกฟังก์ชัน ตั้งค่าระบบ, เชื่อมต่อ API, จัดการเพจ, เพิ่ม/ลบ/รีเซ็ตรหัสผู้ใช้\n` +
+        `• **Staff (เซลส์/แอดมินตอบแชท):** ดู Dashboard, ตอบแชท Inbox, จัดการบอร์ดลีด, บันทึกนัดตามลูกค้า, ดูรายงาน SLA\n\n` +
+        `👥 **รายชื่อทีมเซลส์ที่ผูกอยู่ในระบบ:**\n` +
         reps.map(r => `• **${r}**`).join('\n') + `\n\n` +
-        `💡 คุณสามารถกดเปลี่ยนผู้ดูแลเคสในหน้า **Inbox** หรือกรองดูผลงานของเซลล์แต่ละคนได้ที่หน้า **Board** และ **Review** ครับ`;
+        `🔑 **การเปลี่ยนรหัสผ่าน:** ไปที่หน้า **Settings** -> เลื่อนลงล่างสุดในหัวข้อ "เปลี่ยนรหัสผ่าน" กรอกรหัสผ่านเดิมและรหัสผ่านใหม่ (อย่างน้อย 8 ตัวอักษร) แล้วกดบันทึกครับ`;
     }
 
-    // 5. ข้อมูล Board / Lead Pipeline 12 ขั้นตอน
-    if (txt.includes('board') || txt.includes('บอร์ด') || txt.includes('สถานะ') || txt.includes('pipeline') || txt.includes('ขั้นตอน')) {
-      return `📋 **Leads Board ลำดับขั้นตอนคนไข้ของคลินิก:**\n\n` +
-        `1. **มาใหม่ (New Lead):** ทักแชทเข้ามาครั้งแรก\n` +
-        `2. **In-take:** เก็บประวัติและปัญหาเบื้องต้น\n` +
-        `3. **พอได้คุย:** สนทนาต่อเนื่องและซักประวัติเพิ่ม\n` +
-        `4. **กำลังดำเนินการ:** อยู่ระหว่างแนะนำโปรแกรมการรักษา\n` +
-        `5. **มีคุณสมบัติ (Qualified):** ประเมินกราฟต์ผมและงบประมาณตรงกลุ่ม\n` +
-        `6. **นัดแล้ว:** ปักหมุดวันเข้าพบแพทย์ที่คลินิก\n` +
-        `7. **สร้างคอนเวอร์ชั่นแล้ว:** วางมัดจำหรือตกลงเข้ารับบริการ\n` +
-        `8. **Converted:** ปิดการขายสำเร็จ รับการปลูกผมเรียบร้อย 🎉\n` +
-        `9. **ไม่ตอบ / เงียบ:** ระบบจะย้ายเข้าสู่หมวดติดตามต่อใน Follow-up\n` +
-        `10. **แย่มาก / หลุด:** ปฏิเสธหรือไม่สนใจบริการ\n\n` +
-        `✨ สามารถคลิกลากการ์ดคนไข้สลับคอลัมน์ได้ทันที และมีสีแยกตามระดับความคืบหน้าชัดเจนครับ`;
+    // -------------------------------------------------------------------------
+    // หมวด 10: โพสต์ & คอมเมนต์ (Posts & Comments)
+    // -------------------------------------------------------------------------
+    if (txt.includes('comment') || txt.includes('คอมเมนต์') || txt.includes('post') || txt.includes('โพสต์') || txt.includes('ใต้โพสต์') || txt.includes('ตอบคอมเมนต์')) {
+      return `💬 **ระบบจัดการคอมเมนต์ใต้โพสต์ (Posts & Comments):**\n\n` +
+        `• ดึงโพสต์โฆษณาและคอมเมนต์ใต้โพสต์ของเพจ Facebook มารวมศูนย์ในที่เดียว\n` +
+        `• ตรวจจับ SLA การตอบคอมเมนต์ของแอดมินไม่ให้ตกหล่น\n` +
+        `• แอดมินสามารถพิมพ์ตอบกลับคอมเมนต์ได้จากหน้าเว็บโดยตรง ไม่ต้องสลับไปหน้า Facebook ครับ`;
     }
 
-    // 6. ข้อมูลบริการปลูกผม & หัตถการของ BEQ
-    if (txt.includes('ปลูกผม') || txt.includes('กราฟ') || txt.includes('fue') || txt.includes('dhi') || txt.includes('ราคา') || txt.includes('โปร')) {
-      return `🩺 **โปรแกรมปลูกผมและดูแลเส้นผมของ BEQ Group:**\n\n` +
-        `• **FUE Hairline Restoration (1,500 – 2,500 Grafts):** ปรับกรอบหน้าแนวเกาหลี แผลเล็ก ไม่ต้องพักฟื้นยาว (เริ่มต้น ฿59,000 – ฿79,000)\n` +
-        `• **FUE + DHI Crown Density (2,500 – 3,500 Grafts):** เพิ่มความหนาแน่นบริเวณไข่ดาวกลางกระหม่อม (฿79,000 – ฿99,000)\n` +
-        `• **Regenerative PRP & Stem Cell:** ฟื้นฟูรากผมฝ่อระยะเริ่มต้น ชะลอผมร่วงกรรมพันธุ์\n` +
-        `• **BEQ Scalp Care:** วิตามิน เซรั่ม และแชมพูสูตรแพทย์ดูแลหนังศีรษะ`;
+    // -------------------------------------------------------------------------
+    // หมวด 11: การวิเคราะห์คุณภาพโฆษณา (Quality Analysis)
+    // -------------------------------------------------------------------------
+    if (txt.includes('quality') || txt.includes('คุณภาพ') || txt.includes('วิเคราะห์แอด') || txt.includes('creative') || txt.includes('ชิ้นงาน')) {
+      return `✨ **ระบบวิเคราะห์คุณภาพโฆษณา (Quality Analysis):**\n\n` +
+        `• ให้คะแนนคุณภาพชิ้นงานโฆษณาแต่ละตัว (Creative Quality Score)\n` +
+        `• เปรียบเทียบอัตรา Conversion Rate, Cost per Lead และ ROAS ของแต่ละชิ้นงาน\n` +
+        `• แนะนำชิ้นงานที่คุ้มค่าต่อการสเกลงบ และเตือนชิ้นงานที่ควรหยุดแอด`;
     }
 
-    // 7. สรุปภาพรวมทุกหน้าในเว็บ (Sitemap & Guide)
-    if (txt.includes('หน้า') || txt.includes('เว็บ') || txt.includes('มีอะไรบ้าง') || txt.includes('เมนู') || txt.includes('ทำอะไรได้')) {
-      return `🌐 **แผนผังและฟังก์ชันทุกหน้าในระบบ BEQ Suite:**\n\n` +
-        `1. **Dashboard:** ภาพรวมค่าแอด, ROAS, สถิติวิดีโอ/รูปภาพ, AI Marketing Advisor\n` +
-        `2. **Unified Inbox:** รวมแชท 4 แพลตฟอร์ม, AI ประเมินกราฟต์ผม, มอบหมายเซลล์\n` +
-        `3. **Leads Board:** กระดาน Kanban ลำดับขั้น แยกสีชัดเจน ลากการ์ดได้\n` +
-        `4. **SLA & Review:** ตรวจสอบความเร็วการตอบแชทตามเกณฑ์ 15 นาที, ตรวจคะแนนทีมงาน\n` +
-        `5. **Follow-up:** จัดการนัดหมายและเตือนติดตามผลคนไข้ที่เงียบไป\n` +
-        `6. **Quality Analysis:** วิเคราะห์คุณภาพโฆษณาและอัตรา Conversion\n` +
-        `7. **Posts & Comments:** ดึงคอมเมนต์ใต้โพสต์และ SLA การตอบคอมเมนต์\n` +
-        `8. **Upload & Data:** นำเข้าข้อมูล CSV / Google Sheets\n` +
-        `9. **Settings:** เชื่อมต่อ Meta, LINE OA, WhatsApp, จัดการเพจ และผู้ใช้งาน`;
+    // -------------------------------------------------------------------------
+    // หมวด 12: ประวัติการใช้งานและความปลอดภัย (Audit Trail)
+    // -------------------------------------------------------------------------
+    if (txt.includes('audit') || txt.includes('ประวัติ') || txt.includes('บันทึก') || txt.includes('ความปลอดภัย') || txt.includes('log') || txt.includes('ใครทำ')) {
+      return `📜 **ระบบบันทึกความปลอดภัย (Audit Trail):**\n\n` +
+        `• บันทึกทุกเหตุการณ์สำคัญ: การเข้าสู่ระบบ, การเปลี่ยนรหัสผ่าน, การตอบแชท, การเปลี่ยนสถานะลีด, การตั้งนัดตาม, การลบผู้ใช้, การบันทึกรีวิว\n` +
+        `• บันทึก IP Address, วันเวลา (Timestamp) และชื่อผู้ดำเนินการทุกครั้ง\n` +
+        `• มีปุ่ม **"ส่งออก CSV"** เพื่อดาวน์โหลดประวัติทั้งหมดไปตรวจสอบ`;
     }
 
-    return `👻 กุ๊กกู๋เข้าใจคำถามของคุณครับ! ผมสามารถตอบและสรุปข้อมูลให้ได้ทุกมิติ ทั้ง **ผลคะแนน SLA, ยอดแอด Dashboard, แชทคนไข้ใน Inbox, รายชื่อเซลล์, ขั้นตอนบอร์ด, หรือวิธีตั้งค่าระบบ** ลองถามเจาะจงเพิ่มเติมได้เลยนะคร้าบ ✨`;
+    // -------------------------------------------------------------------------
+    // หมวด 13: บริการปลูกผม & ราคาหัตถการ BEQ Clinic
+    // -------------------------------------------------------------------------
+    if (txt.includes('ปลูกผม') || txt.includes('fue') || txt.includes('dhi') || txt.includes('graft') || txt.includes('กราฟต์') || txt.includes('prp') || txt.includes('stem cell') || txt.includes('svf') || txt.includes('ผมร่วง') || txt.includes('ผมบาง') || txt.includes('หัวล้าน') || txt.includes('ราคา') || txt.includes('โปร') || txt.includes('หมอเนย์') || txt.includes('dr.nay')) {
+      return `🩺 **โปรแกรมปลูกผมและบริการทางการแพทย์ BEQ Clinic:**\n\n` +
+        `• **FUE Hairline Restoration (1,500 – 2,500 Grafts):** ปรับกรอบหน้าแนวเกาหลี แผลเล็กจิ๋ว ไม่ต้องพักฟื้นยาว (เริ่มต้น ฿59,000 – ฿79,000)\n` +
+        `• **FUE + DHI Crown Density (2,500 – 3,500 Grafts):** เพิ่มความหนาแน่นบริเวณไข่ดาวกลางศีรษะ ปลูกด้วยปากกา Implanter ทิศทางเป็นธรรมชาติ (฿79,000 – ฿99,000)\n` +
+        `• **Regenerative Hair PRP & Stem Cell SVF:** ฟื้นฟูรากผมฝ่อ กระตุ้นการงอกใหม่ ชะลอผมร่วงกรรมพันธุ์\n` +
+        `• **BEQ Scalp Care & Laser LLLT:** ทรีตเมนต์ทำความสะอาดรูขุมขน เลเซอร์กระตุ้นการไหลเวียนเลือด และเซรั่มสูตรแพทย์`;
+    }
+
+    // -------------------------------------------------------------------------
+    // หมวด 14: ค้นหาด่วน & คีย์ลัด (Quick Search & Shortcuts)
+    // -------------------------------------------------------------------------
+    if (txt.includes('ctrl k') || txt.includes('ค้นหา') || txt.includes('shortcut') || txt.includes('ปุ่มลัด') || txt.includes('command palette')) {
+      return `🔍 **การค้นหาด่วนด้วย Command Palette (Ctrl + K):**\n\n` +
+        `• กดปุ่ม **Ctrl + K** (หรือ **Cmd + K** บน Mac) ได้จากทุกหน้าในระบบ\n` +
+        `• พิมพ์ชื่อลูกค้า เพื่อค้นหาและคลิกเปิดแชทได้ทันที\n` +
+        `• พิมพ์ชื่อหน้า เช่น "บอร์ด", "ตามลูกค้า", "รีวิว", "ตั้งค่า" เพื่อเปลี่ยนหน้าได้อย่างรวดเร็วใน 1 วินาที`;
+    }
+
+    // -------------------------------------------------------------------------
+    // หมวด 15: แผนผังทุกหน้าในระบบ (Sitemap & Navigation Guide)
+    // -------------------------------------------------------------------------
+    if (txt.includes('หน้า') || txt.includes('เว็บ') || txt.includes('มีอะไรบ้าง') || txt.includes('เมนู') || txt.includes('ทำอะไรได้') || txt.includes('ทั้งหมด')) {
+      return `🌐 **แผนผังเมนูและฟังก์ชันทั้งหมดในระบบ BEQ Suite:**\n\n` +
+        `1. **📊 Dashboard:** ภาพรวมผลลัพธ์โฆษณา, ค่าแอด, ROAS, กราฟแนวโน้ม, AI Advisor\n` +
+        `2. **💬 Unified Inbox:** รวมศูนย์แชท Facebook, Instagram, LINE, WhatsApp พร้อมระบบ BEQ Copilot\n` +
+        `3. **📋 Leads Board:** กระดาน Kanban 12 ลำดับขั้น ลากการ์ดเปลี่ยนสถานะคนไข้ได้ทันที\n` +
+        `4. **⏱️ SLA & Review:** ตรวจจับความเร็วตอบแชทตามเกณฑ์ 15 นาที, ตรวจรีวิวคุณภาพบทสนทนา\n` +
+        `5. **📅 Follow-up:** จัดการนัดหมายและเตือนติดตามผลลูกค้าที่เงียบไป พร้อมปุ่มแก้ไขและตั้งรอบเตือนอัตโนมัติ\n` +
+        `6. **✨ Quality Analysis:** วิเคราะห์คุณภาพชิ้นงานโฆษณาและอัตรา Conversion\n` +
+        `7. **💬 Posts & Comments:** ดึงคอมเมนต์ใต้โพสต์และ SLA ตอบคอมเมนต์\n` +
+        `8. **☁️ Upload & Data:** นำเข้าข้อมูล CSV พร้อมระบบ Smart Auto-Mapping แยก FB/IG อัตโนมัติ\n` +
+        `9. **📜 Audit Trail:** ประวัติการใช้งานและความปลอดภัย พร้อมส่งออก CSV\n` +
+        `10. **⚙️ Settings:** เชื่อมต่อ Meta, LINE Notify, WhatsApp, จัดการเพจ และผู้ใช้งาน`;
+    }
+
+    // -------------------------------------------------------------------------
+    // หมวด 16: ทักทาย & แนะนำตัว (Greetings & Bot Info)
+    // -------------------------------------------------------------------------
+    if (txt.includes('สวัสดี') || txt.includes('ดีครับ') || txt.includes('ดีค่ะ') || txt.includes('หวัดดี') || txt.includes('hello') || txt.includes('hi') || txt.includes('กุ๊กกู๋') || txt.includes('ใคร') || txt.includes('ช่วยอะไร')) {
+      return `👻 **สวัสดีครับ! ผมคือ "น้องกุ๊กกู๋ AI" ผู้ช่วยอัจฉริยะประจำคลินิก BEQ ครับ ✨**\n\n` +
+        `ผมรอบรู้ข้อมูลทุกอย่างในระบบ สามารถถามผมได้ทุกเรื่องเลยนะคร้าบ เช่น:\n` +
+        `• 📊 *"สรุปยอดค่าแอดและ ROAS ช่วงนี้"* หรือ *"ตอนนี้มีแชททักเข้ามาเท่าไหร่"*\n` +
+        `• ⏱️ *"ใครได้คะแนน SLA ดีที่สุด"* หรือ *"เกณฑ์หักแต้ม SLA คิดยังไง"*\n` +
+        `• 📅 *"มีลูกค้าที่ต้องตามกี่คน"* หรือ *"วิธีตั้งรอบเวลาแจ้งเตือนทำยังไง"*\n` +
+        `• 📄 *"เพจที่เชื่อมต่ออยู่มีเพจอะไรบ้าง"* หรือ *"วิธีลบเพจ/เพิ่มเพจ"*\n` +
+        `• 🩺 *"โปรแกรมปลูกผม FUE มีราคาเท่าไหร่บ้าง"*\n` +
+        `• 🔍 *"ปุ่มลัด Ctrl K ใช้ทำอะไร"*\n\n` +
+        `พิมพ์ถามมาได้เลยครับ ผมพร้อมตอบทันที! 😊`;
+    }
+
+    // -------------------------------------------------------------------------
+    // Fallback อัจฉริยะ: ค้นหาและแนะนำคำตอบที่ตรงกับเนื้อหามากที่สุด
+    // -------------------------------------------------------------------------
+    await ensureContext();
+    const inboxCount = (inboxData && inboxData.rows && inboxData.rows.length) || 0;
+    const fuCount = (fuData && fuData.rows && fuData.rows.length) || 0;
+    const spendVal = dData?.kpis?.spend?.value ? baht(dData.kpis.spend.value) : '—';
+    const roasVal = dData?.kpis?.roas?.value ? `${num(dData.kpis.roas.value, 2)}×` : '—';
+
+    return `👻 **น้องกุ๊กกู๋ AI พร้อมช่วยตอบเรื่องนี้ครับ!**\n\n` +
+      `📌 *สรุปสถานะปัจจุบันของระบบ BEQ Clinic:*\n` +
+      `• **ยอดแอดรวม (30 วัน):** ใช้ไป ${spendVal} (ROAS: ${roasVal})\n` +
+      `• **แชทใน Inbox:** ${num(inboxCount)} บทสนทนา\n` +
+      `• **คิวต้องตามลูกค้า:** ${num(fuCount)} เคส\n\n` +
+      `คุณสามารถถามเจาะลึกได้ในทุกหัวข้อ เช่น:\n` +
+      `1. **"สรุปยอดแอด"** หรือ **"ตัวเลข KPIs"**\n` +
+      `2. **"แชทที่ยังไม่ตอบ"** หรือ **"วิธีใช้ Inbox"**\n` +
+      `3. **"วิธีตามลูกค้า"** หรือ **"การตั้งรอบเวลาแจ้งเตือน"**\n` +
+      `4. **"เกณฑ์ SLA ตอบแชท"** หรือ **"คะแนนทีมเซลส์"**\n` +
+      `5. **"รายชื่อเพจ Facebook / Instagram"**\n` +
+      `6. **"โปรแกรมปลูกผมและราคา"**\n\n` +
+      `ลองพิมพ์หัวข้อที่ต้องการทราบเพิ่มเติมได้เลยนะคร้าบ ✨`;
   }
 
   /* Local persistent cache เพื่อความเสถียร 100% ไม่พังแม้ออฟไลน์หรือติด rate limit */
@@ -898,10 +1082,13 @@
             `).join('')}
           </div>
           <div class="ghost-quick-prompts">
-            <button type="button" class="ghost-prompt-pill" data-act="ghost-prompt" data-q="สรุปยอดค่าแอดให้หน่อย">📊 สรุปยอดแอด</button>
+            <button type="button" class="ghost-prompt-pill" data-act="ghost-prompt" data-q="สรุปยอดค่าแอดและ ROAS ให้หน่อย">📊 สรุปยอดแอด</button>
             <button type="button" class="ghost-prompt-pill" data-act="ghost-prompt" data-q="ตอนนี้มีแชททักเข้ามาเท่าไหร่">💬 จำนวนแชท</button>
-            <button type="button" class="ghost-prompt-pill" data-act="ghost-prompt" data-q="ทีมเซลล์มีใครบ้าง">👤 เซลล์ดูแล</button>
-            <button type="button" class="ghost-prompt-pill" data-act="ghost-prompt" data-q="เกณฑ์ SLA ตอบแชทเป็นยังไง">⏱️ เป้า SLA</button>
+            <button type="button" class="ghost-prompt-pill" data-act="ghost-prompt" data-q="มีลูกค้าที่ต้องตามกี่คน">📅 ตามลูกค้า</button>
+            <button type="button" class="ghost-prompt-pill" data-act="ghost-prompt" data-q="เกณฑ์ SLA ตอบแชทคิดยังไง">⏱️ เป้า SLA</button>
+            <button type="button" class="ghost-prompt-pill" data-act="ghost-prompt" data-q="บอร์ดลีด 12 ขั้นตอนมีอะไรบ้าง">📋 บอร์ดลีด</button>
+            <button type="button" class="ghost-prompt-pill" data-act="ghost-prompt" data-q="โปรแกรมปลูกผมและราคาของคลินิก">🩺 โปรปลูกผม</button>
+            <button type="button" class="ghost-prompt-pill" data-act="ghost-prompt" data-q="เว็บนี้มีหน้าอะไรและทำอะไรได้บ้าง">🌐 สรุปทุกหน้า</button>
           </div>
           <form class="ghost-chat-footer" data-form="ghost-send">
             <input type="text" class="ghost-chat-input" placeholder="ถามน้องกุ๊กกู๋ AI ได้ทุกเรื่องเลยครับ..." required>
