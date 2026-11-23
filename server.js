@@ -1512,16 +1512,21 @@ async function api(req, res, url, session) {
     const id = clean(b.id, 80);
     const name = clean(b.name, 120);
     const platform = clean(b.platform, 40) || 'Facebook';
-    const color = clean(b.color, 20) || '#1877f2';
+    const color = clean(b.color, 20) || (platform === 'Instagram' ? '#e1306c' : '#1877f2');
     const adAccountId = clean(b.adAccountId, 80) || '';
+    const fbPageId = clean(b.fbPageId, 80) || '';
     const pageToken = clean(b.pageToken, 500) || '';
     if (!id || !name) return send(res, 400, { error: 'กรุณากรอก Page ID และชื่อเพจ' });
 
     let pages = store.read('pages.json', []);
     const idx = pages.findIndex((p) => p.id === id || String(p.id) === String(id));
+    const resolvedFbPageId = fbPageId || (idx >= 0 && pages[idx].fbPageId ? pages[idx].fbPageId : '');
+    const parentFbPage = resolvedFbPageId ? pages.find((p) => String(p.id) === String(resolvedFbPageId)) : null;
+    const resolvedToken = pageToken || (parentFbPage && parentFbPage.pageToken) || (idx >= 0 && pages[idx].pageToken) || '';
     const pageItem = {
       id, name, platform, color, adAccountId,
-      ...(pageToken ? { pageToken } : (idx >= 0 && pages[idx].pageToken ? { pageToken: pages[idx].pageToken } : {}))
+      ...(resolvedFbPageId ? { fbPageId: resolvedFbPageId } : {}),
+      ...(resolvedToken ? { pageToken: resolvedToken } : {}),
     };
     if (idx >= 0) {
       pages[idx] = pageItem;
@@ -1728,9 +1733,9 @@ async function api(req, res, url, session) {
 
 
 
-                // ตรวจสอบว่า Facebook เพจนี้เชื่อมกับ Instagram Business Account หรือไม่
-        if (fp.instagram_business_account && fp.instagram_business_account.id) {
-          const ig = fp.instagram_business_account;
+        // ตรวจสอบว่า Facebook เพจนี้เชื่อมกับ Instagram Business / Connected Account หรือไม่
+        const ig = fp.instagram_business_account || fp.connected_instagram_account;
+        if (ig && ig.id) {
           const igId = String(ig.id);
           const igName = clean(ig.username || ig.name || `IG - ${name}`, 120);
           const igIdx = pages.findIndex((p) => p.id === igId || String(p.id) === igId);
@@ -1916,6 +1921,48 @@ async function api(req, res, url, session) {
     }
   }
 
+  if (route === 'POST /api/settings/instagram/test') {
+    if (!auth.isAdmin(session.user)) return send(res, 403, { error: 'เฉพาะผู้ดูแล (admin) เท่านั้น' });
+    const m = meta.getSettings().meta || {};
+    if (!m.accessToken) return send(res, 200, { ok: false, error: 'กรุณาบันทึก Meta Access Token ก่อนกดทดสอบ Instagram' });
+    try {
+      const diag = await meta.testInstagramConnection();
+      let pages = store.read('pages.json', []);
+      for (const ig of diag.igAccounts) {
+        const igIdx = pages.findIndex((p) => String(p.id) === ig.igId);
+        if (igIdx >= 0) {
+          pages[igIdx].name = ig.username;
+          pages[igIdx].platform = 'Instagram';
+          pages[igIdx].fbPageId = ig.fbPageId;
+          if (ig.pageToken) pages[igIdx].pageToken = ig.pageToken;
+        } else {
+          pages.push({
+            id: ig.igId,
+            name: ig.username,
+            platform: 'Instagram',
+            fbPageId: ig.fbPageId,
+            color: '#e1306c',
+            ...(ig.pageToken ? { pageToken: ig.pageToken } : {}),
+          });
+        }
+      }
+      store.write('pages.json', pages);
+      meta.clearCache();
+      return send(res, 200, {
+        ok: true,
+        igAccounts: diag.igAccounts.map(({ pageToken, ...rest }) => rest),
+        unlinkedFbPages: diag.unlinkedFbPages,
+        totalFbPages: diag.totalFbPages,
+      });
+    } catch (e) {
+      const msg = String(e.message || '');
+      const friendly = (msg.includes('Session has expired') || msg.includes('Error validating access token'))
+        ? 'Meta Access Token ปัจจุบันหมดอายุแล้ว (Session has expired) — กรุณาสร้าง Token ใหม่ที่มีสิทธิ์ instagram_basic, instagram_manage_messages, instagram_manage_comments, pages_show_list, pages_messaging แล้วกดบันทึก'
+        : msg;
+      return send(res, 200, { ok: false, error: friendly });
+    }
+  }
+
   if (route === 'POST /api/meta/sync-all') {
     if (!auth.isAdmin(session.user)) return send(res, 403, { error: 'เฉพาะผู้ดูแล (admin) เท่านั้น' });
     const m = meta.getSettings().meta || {};
@@ -1955,8 +2002,8 @@ async function api(req, res, url, session) {
             pages.push({ id, name, platform: 'Facebook', color: '#1877f2', ...(pTok ? { pageToken: pTok } : {}) });
             pagesAdded++;
           }
-          if (fp.instagram_business_account && fp.instagram_business_account.id) {
-            const ig = fp.instagram_business_account;
+          const ig = fp.instagram_business_account || fp.connected_instagram_account;
+          if (ig && ig.id) {
             const igId = String(ig.id);
             const igName = clean(ig.username || ig.name || `IG - ${name}`, 120);
             const igIdx = pages.findIndex((p) => p.id === igId || String(p.id) === igId);

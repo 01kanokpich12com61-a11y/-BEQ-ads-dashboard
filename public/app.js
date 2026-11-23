@@ -4081,7 +4081,8 @@ function boardShell() {
             </div>
             <div style="display:flex;gap:6px;flex-wrap:wrap">
               <button class="btn primary" type="button" data-act="meta-sync-all" style="font-size:12px;padding:6px 12px">🚀 ซิงค์ข้อมูล Meta ทั้งหมด</button>
-              <button class="btn" type="button" data-act="meta-discover" style="font-size:12px;padding:6px 12px">🔄 ดึงเพจทั้งหมด</button>
+              <button class="btn" type="button" data-act="meta-discover" style="font-size:12px;padding:6px 12px">🔄 ดึงเพจ FB/IG</button>
+              <button class="btn" type="button" data-act="ig-test" style="font-size:12px;padding:6px 12px;background:#fdf2f8;border-color:#fbcfe8;color:#be185d;font-weight:700">📸 ตรวจสอบ Instagram</button>
             </div>
           </div>
           <form class="form" data-form="meta" autocomplete="off" style="margin-top:14px">
@@ -4089,7 +4090,7 @@ function boardShell() {
             <div class="field"><label>Meta Ad Account ID หลัก</label><input type="text" name="adAccountId" value="${esc(m.adAccountId)}" placeholder="เช่น 1234567890 หรือเว้นว่างเพื่อค้นหาอัตโนมัติจาก Token" inputmode="numeric"><small>ดูได้ที่ Ads Manager (หากเว้นว่าง ระบบจะค้นหา Ad Account แรกจาก Token ให้อัตโนมัติ)</small></div>
             <div class="field"><label>Access Token ${m.hasToken ? `<span class="chip good" style="margin-left:6px">บันทึกแล้ว ${esc(m.tokenHint)}</span>` : ''}</label>
               <input type="password" name="accessToken" placeholder="${m.hasToken ? 'เว้นว่างไว้ถ้าไม่ต้องการเปลี่ยน' : 'วาง System User Token ที่นี่'}" autocomplete="new-password">
-              <small>สิทธิ์: <code>pages_show_list</code>, <code>pages_messaging</code>, <code>ads_read</code>, <code>read_insights</code></small>
+              <small>สิทธิ์ Facebook & IG: <code>pages_show_list</code>, <code>pages_messaging</code>, <code>instagram_basic</code>, <code>instagram_manage_messages</code>, <code>instagram_manage_comments</code>, <code>ads_read</code>, <code>read_insights</code></small>
             </div>
             <details style="margin:10px 0;background:#f9f8f4;padding:10px 14px;border-radius:8px;border:1px solid var(--line-soft)">
               <summary style="cursor:pointer;font-weight:600;font-size:13px;color:var(--text-soft)">⚙️ ตัวเลือกขั้นสูง (App ID / Secret)</summary>
@@ -4128,6 +4129,7 @@ function boardShell() {
               </div>
             </div>
             <div class="field"><label>Meta Ad Account ID สำหรับเพจนี้ (ไม่บังคับ)</label><input type="text" id="p-adAccountId" name="adAccountId" placeholder="เช่น act_12345 หรือตัวเลข"><small>รองรับหลาย Ad Account — ระบบจะดึงแคมเปญจากทุก Ad Account ที่ผูกไว้</small></div>
+            <div class="field"><label>Facebook Page ID ที่ผูกคู่กัน (เฉพาะ Instagram Business)</label><input type="text" id="p-fbPageId" name="fbPageId" placeholder="เช่น 109373461849494 (ระบบใส่ให้อัตโนมัติเมื่อกดดึงเพจ FB/IG)"><small>จำเป็นสำหรับการดึงแชท Instagram Direct ผ่าน Graph API ({fbPageId}/conversations?platform=instagram)</small></div>
             <div class="row-actions" style="margin-top:16px">
               <button class="btn primary" type="submit" id="p-submit-btn" style="width:100%;justify-content:center">💾 บันทึกข้อมูลเพจ</button>
             </div>
@@ -4499,6 +4501,8 @@ function boardShell() {
           document.getElementById('p-name').value = p.name || '';
           document.getElementById('p-id').value = p.id || '';
           document.getElementById('p-adAccountId').value = p.adAccountId || '';
+          const fbInput = document.getElementById('p-fbPageId');
+          if (fbInput) fbInput.value = p.fbPageId || '';
           document.getElementById('p-platform').value = p.platform || 'Facebook';
           document.getElementById('page-edit-heading').textContent = `✏️ กำลังแก้ไขเพจ: ${p.name}`;
           document.getElementById('p-cancel-btn').style.display = 'inline-block';
@@ -4574,6 +4578,38 @@ function boardShell() {
           }
         } catch (e) {
           S.flash = { type: 'err', text: '❌ ซิงค์ข้อมูล Meta ไม่สำเร็จ: ' + (e.message || 'ตรวจสอบ Access Token และสิทธิ์ ads_read, pages_show_list') };
+          render();
+        } finally {
+          el.disabled = false;
+          el.textContent = orig;
+        }
+      }
+      else if (act === 'ig-test') {
+        el.disabled = true;
+        const orig = el.textContent;
+        el.textContent = '⏳ กำลังตรวจสอบ IG...';
+        try {
+          const r = await api('/api/settings/instagram/test', { method: 'POST' });
+          if (r && r.ok) {
+            S.filters = await api('/api/filters').catch(() => null);
+            const igList = r.igAccounts || [];
+            const unlinked = r.unlinkedFbPages || [];
+            if (!igList.length) {
+              S.flash = {
+                type: 'err',
+                text: `⚠️ พบเพจ Facebook ${r.totalFbPages} เพจ แต่ยังไม่พบบัญชี Instagram Business ที่ผูกกับเพจเหล่านั้น (ต้องผูกบัญชี IG Professional เข้ากับ Facebook Page ในการตั้งค่าเพจ และให้สิทธิ์ instagram_basic, instagram_manage_messages ตอนสร้าง Token)`
+              };
+            } else {
+              const details = igList.map((ig) => `@${ig.username} (ผูกเพจ ${ig.fbPageName}: โพสต์/รูป ${ig.mediaOk ? '✅' : '❌'}, แชท IG Direct ${ig.messagingOk ? '✅' : '⚠️ ' + (ig.messagingError || 'ต้องเปิด Allow access to messages ในแอป IG')})`).join(' | ');
+              const unlinkedTxt = unlinked.length ? ` · เพจที่ยังไม่ผูก IG: ${unlinked.map((u) => u.fbPageName).join(', ')}` : '';
+              S.flash = { type: 'ok', text: `📸 ตรวจพบ Instagram Business ${igList.length} บัญชี: ${details}${unlinkedTxt}` };
+            }
+          } else {
+            S.flash = { type: 'err', text: '❌ ตรวจสอบ Instagram ไม่สำเร็จ: ' + ((r && r.error) || 'ตรวจสอบ Access Token') };
+          }
+          render();
+        } catch (e) {
+          S.flash = { type: 'err', text: '❌ ตรวจสอบ Instagram ไม่สำเร็จ: ' + (e.message || 'ตรวจสอบ Access Token') };
           render();
         } finally {
           el.disabled = false;
