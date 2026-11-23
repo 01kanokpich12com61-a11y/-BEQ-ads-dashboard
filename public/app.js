@@ -347,15 +347,26 @@
         </div>
 
         <div class="sidebar-user-card rel">
-          <button type="button" class="sidebar-user-btn" data-act="menu" data-menu="user">
+          <button type="button" class="sidebar-user-btn" data-act="menu" data-menu="user" title="เมนูบัญชีผู้ใช้">
             <span class="avatar">${esc((S.me.username || 'A')[0].toUpperCase())}</span>
             <div class="user-meta">
               <span class="user-name">${esc(S.me.username)}</span>
               <span class="user-role">${S.me.role === 'admin' ? 'ADMINISTRATOR' : 'STAFF'}</span>
             </div>
-            <span class="chevron">▾</span>
+            <span class="chevron">▴</span>
           </button>
-          ${S.menu === 'user' ? `<div class="popover popover-up"><a class="item" style="display:block;font-weight:600;color:var(--primary)">${esc(S.me.clinicName || 'BEQ Hair Wellness')}</a><button data-act="goto" data-to="setting">Settings</button><button data-act="logout">Log out</button></div>` : ''}
+          <button type="button" class="sidebar-logout-btn" data-act="logout" title="ออกจากระบบ (Log out)" aria-label="Log out">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+              <polyline points="16 17 21 12 16 7"></polyline>
+              <line x1="21" y1="12" x2="9" y2="12"></line>
+            </svg>
+          </button>
+          ${S.menu === 'user' ? `<div class="popover popover-up">
+            <div class="item" style="display:block;font-weight:700;color:var(--primary);border-bottom:1px solid var(--line-soft);margin-bottom:4px;padding-bottom:8px">🏥 ${esc(S.me.clinicName || 'BEQ Hair Wellness')}</div>
+            <button type="button" data-act="goto" data-to="setting">⚙️ ตั้งค่าระบบ (Settings)</button>
+            <button type="button" class="popover-logout-item" data-act="logout">🚪 ออกจากระบบ (Log out)</button>
+          </div>` : ''}
         </div>
       </div>
     </aside>`;
@@ -418,6 +429,15 @@
           </button>
           ${S.menu === 'bell' ? `<div class="popover">${list.length ? list.map((t) => `<div class="item">${esc(t)}</div>`).join('') : '<div class="item">ไม่มีการแจ้งเตือน</div>'}</div>` : ''}
         </div>
+
+        <button type="button" class="header-logout-btn" data-act="logout" title="ออกจากระบบ (Log out)">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+            <polyline points="16 17 21 12 16 7"></polyline>
+            <line x1="21" y1="12" x2="9" y2="12"></line>
+          </svg>
+          <span>ออกจากระบบ</span>
+        </button>
       </div>
     </header>`;
   }
@@ -3382,7 +3402,14 @@ function boardShell() {
           render();
         }
       }
-      else if (act === 'logout') { await api('/api/logout', { method: 'POST' }); S.me = null; S.filters = null; S.menu = null; render(); }
+      else if (act === 'logout') {
+        await api('/api/logout', { method: 'POST' }).catch(() => {});
+        S.me = null;
+        S.filters = null;
+        S.menu = null;
+        S.loginErr = '';
+        render();
+      }
       else if (act === 'supabase-sync-now') {
         const btn = el;
         const oldText = btn.textContent;
