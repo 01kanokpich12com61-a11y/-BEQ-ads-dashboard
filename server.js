@@ -754,6 +754,28 @@ async function api(req, res, url, session) {
     return send(res, 200, { ok: true, status: b.status });
   }
 
+  if (route === 'POST /api/lead/rep') {
+    const b = await readJson(req);
+    const repName = clean(b.rep, 100);
+    const data = await providers.load(resolveRange({ range: '90d' }));
+    const lead = data.leads.find((l) => l.id === b.id);
+    if (!lead) return send(res, 404, { error: 'ไม่พบแชทนี้' });
+
+    let leads = store.read('leads.json', []);
+    let idx = leads.findIndex((l) => l.id === b.id);
+    if (idx !== -1) {
+      leads[idx].repId = repName;
+      leads[idx].rep = repName;
+      store.write('leads.json', leads);
+    } else {
+      leads.push({ ...lead, repId: repName, rep: repName });
+      store.write('leads.json', leads);
+    }
+
+    audit.log(session.user.username, 'rep_assigned', `${lead.id} ${lead.name}: มอบหมายให้ ${repName || 'ยังไม่ระบุ'}`, clientIp(req));
+    return send(res, 200, { ok: true, rep: repName });
+  }
+
   if (route === 'GET /api/notifications') {
     const data = await providers.load(resolveRange({ range: '90d' }));
     const fuData = ops.buildFollowups(data, providers.currentMode() === 'demo', q);

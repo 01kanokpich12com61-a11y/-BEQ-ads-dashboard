@@ -213,12 +213,17 @@
       ...(messages || []).map(m => m.text || '')
     ].join(' ').toLowerCase();
 
-    let hairIssue = 'ผมร่วง / ปรึกษาฟื้นฟูเส้นผมทั่วไป';
+    let hairIssue = 'ปรึกษาปัญหาผม / ดูแลสุขภาพผมเบื้องต้น';
     let grafts = '1,500 - 2,000 Grafts';
     let dealEst = 69000;
     let procType = 'FUE Hairline Restoration';
 
-    if (allText.includes('เว้า') || allText.includes('ตัว m') || allText.includes('ร่น') || allText.includes('ไรผม') || allText.includes('ขมับ')) {
+    if (allText.includes('จัดส่ง') || allText.includes('ส่งของ') || allText.includes('โอนเงิน') || allText.includes('สลิป') || allText.includes('แชมพู') || allText.includes('เซรั่ม') || allText.includes('ยา')) {
+      hairIssue = 'สั่งซื้อผลิตภัณฑ์ดูแลเส้นผม / วิตามินบำรุงรากผม';
+      grafts = 'Hair Products & Treatment Care';
+      dealEst = 3500;
+      procType = 'BEQ Scalp Care & Medications';
+    } else if (allText.includes('เว้า') || allText.includes('ตัว m') || allText.includes('ร่น') || allText.includes('ไรผม') || allText.includes('ขมับ')) {
       hairIssue = 'หน้าผากเว้าลึกรูปตัว M / ไรผมร่นสองข้าง';
       grafts = '2,000 - 2,500 Grafts';
       dealEst = 79000;
@@ -233,6 +238,11 @@
       grafts = '1,200 - 1,800 Grafts หรือ PRP Stem Cell';
       dealEst = 49000;
       procType = 'Regenerative PRP + Hairline';
+    } else if (!allText.trim()) {
+      hairIssue = 'ลูกค้าทักเข้ามาสอบถามผ่านโฆษณาคลินิก';
+      grafts = 'รอประเมินภาพถ่ายแนวผม';
+      dealEst = 59000;
+      procType = 'Specialist Consultation';
     }
 
     let sentiment = { label: 'สอบถามข้อมูลทั่วไป', icon: '💬', cls: 'cool', tip: 'ส่งข้อมูลโปรแกรมการรักษาและเคสรีวิวเปรียบเทียบก่อน-หลังทำ' };
@@ -2914,6 +2924,7 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
             <div class="cura-card-footer">
               <span class="cura-ai-pill">✨ Copilot</span>
               <span class="cura-sla-badge ${slaState}">${slaLabel}</span>
+              ${r.rep ? `<span class="cura-tag-pill" style="background:#e0f2fe;color:#0369a1;font-weight:600">👤 ${esc(r.rep)}</span>` : ''}
               ${r.pageName ? `<span class="cura-tag-pill">${esc(r.pageName)}</span>` : ''}
             </div>
           </div>
@@ -3000,7 +3011,7 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
             </div>
             <div class="cura-thread-sub">
               <span>${chanHtml(l.channel)}</span>
-              <span>· Assigned: <b>${esc(l.rep || 'BEQ Copilot')}</b></span>
+              <span>· เซลล์ผู้ดูแล: <b style="color:var(--brand-deep)">${esc(l.rep || '✨ BEQ Copilot (ยังไม่มอบหมาย)')}</b></span>
             </div>
           </div>
         </div>
@@ -3067,8 +3078,19 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
               </select>
             </div>
             <div class="cura-field-group">
-              <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase">Assigned Agent</label>
-              <input type="text" value="${esc(l.rep || 'BEQ Copilot Assistant')}" readonly style="background:#f1f5f9;width:100%;padding:6px 10px;border-radius:8px;border:1px solid #e2e8f0;font-size:12.5px">
+              <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase">ผู้ดูแลแชท / เซลล์ที่รับผิดชอบ (Assigned Agent)</label>
+              <select data-bind="rep-select" data-id="${esc(l.id)}" style="width:100%;padding:6px 10px;border-radius:8px;border:1px solid #e2e8f0;font-size:12.5px;font-weight:600">
+                <option value="">✨ BEQ Copilot (ยังไม่มอบหมาย)</option>
+                ${[
+                  'Narumol Molmol',
+                  'Bodinthong Jeams',
+                  'Thanawin Win',
+                  'Pongsatorn Nack',
+                  'Paul CJ',
+                  'Ja Jah',
+                  'Jatupon James'
+                ].map((repName) => `<option value="${esc(repName)}" ${l.rep === repName || l.repId === repName ? 'selected' : ''}>👤 ${esc(repName)}</option>`).join('')}
+              </select>
             </div>
             <div class="cura-field-group">
               <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase">Lead Stage / Status (12 Stages)</label>
@@ -4470,6 +4492,26 @@ function boardShell() {
       return;
     }
     if (b === 'lead-status') { changeStatus(ev.target.value); return; }
+    if (b === 'rep-select') {
+      const repVal = ev.target.value;
+      const leadId = ev.target.dataset.id || (currentLead() && currentLead().id);
+      if (leadId) {
+        try {
+          await api('/api/lead/rep', { method: 'POST', body: { id: leadId, rep: repVal } });
+          const cur = currentLead();
+          if (cur) { cur.rep = repVal; cur.repId = repVal; }
+          const row = (S.inbox?.data?.rows || []).find(r => r.id === leadId);
+          if (row) { row.rep = repVal; row.repId = repVal; }
+          showToast(`👤 มอบหมายเคสให้: ${repVal || 'ยังไม่ระบุ'}`);
+          renderInboxChat();
+          renderInboxInfo();
+          renderInboxList();
+        } catch (err) {
+          showToast(err.message || 'มอบหมายไม่สำเร็จ', 'error');
+        }
+      }
+      return;
+    }
     if (b === 'frep') { S.followup.rep = ev.target.value; loadFollowups(); return; }
     if (b === 'rrep') { S.review.rep = ev.target.value; renderReviewBody(); return; }
     if (b === 'aaction') { S.audit.action = ev.target.value; S.audit.limit = 100; loadAudit(); return; }
