@@ -3134,8 +3134,9 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
     if (!s.data) return;
     box.innerHTML = `
       <div class="cura-panels-row">
-        <!-- Panel 1: Conversation List (320px) -->
+        <!-- Panel 1: Folders Rail & Conversation List Combined (420px) -->
         <div class="cura-panel-left">
+          <div class="cura-rail-col" id="mess-tools"></div>
           <div class="cura-convs-col">
             <div class="cura-conv-search-wrap">
               <div class="cura-search-inner">
@@ -3152,7 +3153,7 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
         <div class="cura-panel-right" id="mess-info"></div>
       </div>
     `;
-    renderInboxList();
+    renderInboxTools(); renderInboxList();
     if (s.focus) { const id = s.focus; s.focus = ''; openChat(id); return; }
     const ids = new Set(s.data.rows.map((r) => r.id));
     if (S.chat.id && ids.has(S.chat.id)) { renderInboxChat(); renderInboxInfo(); }
@@ -3373,16 +3374,6 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
     let tabContent = '';
     if (curTab === 'overview') {
       tabContent = `
-        <!-- Deals & Pipeline Card -->
-        <div class="cura-deal-card">
-          <div class="cura-deal-head">
-            <span class="cura-deal-title">💼 Deal Stage & Value</span>
-            <span class="cura-deal-prob">${aiAnalysis ? aiAnalysis.prob : '75%'} Close Prob.</span>
-          </div>
-          <div class="cura-deal-val">฿${aiAnalysis ? aiAnalysis.dealEst.toLocaleString() : '79,000'} <span style="font-size:12px;font-weight:600;color:var(--muted)">· ${esc(aiAnalysis ? aiAnalysis.procType : 'FUE Hair Transplant')}</span></div>
-          <div style="font-size:11.5px;color:var(--brand-deep);font-weight:600">🎯 AI Estimate: ${esc(aiAnalysis ? aiAnalysis.grafts : '2,500 Grafts')} (${esc(S.branch || 'BEQ Clinic')})</div>
-        </div>
-
         <!-- Warm Tinted Notes Card -->
         <div class="cura-notes-card">
           <div class="cura-notes-head">
