@@ -15,6 +15,7 @@
     inbox: { range: 'all', from: '', to: '', data: null, err: null, search: '', channel: '', status: '', folder: 'all', pageNo: 1 },
     review: { range: '30d', from: '', to: '', data: null, err: null, state: '', rep: '' },
     followup: { data: null, err: null, tab: '', rep: '' },
+    notifications: { data: null, unread: 0, list: [] },
     audit: { data: null, err: null, action: '', q: '', from: '', to: '', limit: 100 },
     chat: { id: null, loading: false, data: null, err: null, sending: false, msg: null },
     users: { data: null, err: null, result: null },
@@ -517,10 +518,36 @@
   }
 
   /* ---------------- shell ---------------- */
+  async function loadWebNotifications() {
+    try {
+      const res = await api('/api/notifications');
+      if (res) {
+        S.notifications = {
+          data: res,
+          counts: res.counts || {},
+          unread: (res.counts && res.counts.unreadWeb) || 0,
+          list: res.webNotifications || [],
+        };
+      }
+    } catch (_) {}
+  }
+
   function notices() {
     const list = [];
-    if (S.me && S.me.mode === 'demo') list.push('กำลังแสดงข้อมูลเดโม — เชื่อม Meta ได้ที่เมนู Setting');
-    if (S.me && S.me.mustChange) list.push('ยังใช้รหัสผ่านเริ่มต้นอยู่ กรุณาเปลี่ยนที่เมนู Setting');
+    if (S.me && S.me.mode === 'demo') list.push({ text: 'กำลังแสดงข้อมูลเดโม — เชื่อม Meta ได้ที่เมนู Setting', type: 'info' });
+    if (S.me && S.me.mustChange) list.push({ text: 'ยังใช้รหัสผ่านเริ่มต้นอยู่ กรุณาเปลี่ยนที่เมนู Setting', type: 'warn' });
+    if (S.notifications && S.notifications.list) {
+      for (const n of S.notifications.list) {
+        list.push({
+          id: n.id,
+          text: `📢 ${n.title}: ${n.message}`,
+          leadId: n.leadId,
+          read: n.read,
+          at: n.at,
+          type: 'alert'
+        });
+      }
+    }
     return list;
   }
 
@@ -709,9 +736,22 @@
         <div class="rel">
           <button type="button" class="icon-btn header-icon-btn" data-act="menu" data-menu="bell" aria-label="Notifications">
             ${icon('bell')}
-            ${list.length ? `<span class="dot count-dot">${list.length > 9 ? '9+' : list.length}</span>` : ''}
+            ${list.length ? `<span class="dot count-dot" style="${S.notifications?.unread ? 'background:#ef4444' : ''}">${list.length > 9 ? '9+' : list.length}</span>` : ''}
           </button>
-          ${S.menu === 'bell' ? `<div class="popover">${list.length ? list.map((t) => `<div class="item">${esc(t)}</div>`).join('') : '<div class="item">ไม่มีการแจ้งเตือน</div>'}</div>` : ''}
+          ${S.menu === 'bell' ? `<div class="popover" style="min-width:320px;max-width:380px;right:-10px">
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid #f1f5f9">
+              <span style="font-weight:700;font-size:13px;color:#0f172a">🔔 ศูนย์แจ้งเตือนในระบบ (${list.length})</span>
+              ${S.notifications?.list?.length ? `<button type="button" data-act="mark-all-notifs" style="width:auto;padding:2px 8px;font-size:11px;color:#059669;background:#ecfdf5;border-radius:6px;font-weight:600">อ่านทั้งหมด</button>` : ''}
+            </div>
+            <div style="max-height:360px;overflow-y:auto;padding:4px 0">
+              ${list.length ? list.map((t) => typeof t === 'string' ? `<div class="item">${esc(t)}</div>` : `
+                <div class="item notif-item ${t.read ? 'read' : 'unread'}" data-act="${t.leadId ? 'open-chat' : 'noop'}" data-id="${esc(t.leadId || '')}" style="display:block;padding:10px 14px;cursor:${t.leadId ? 'pointer' : 'default'};border-bottom:1px solid #f8fafc;${!t.read ? 'background:#f0fdf4' : ''}">
+                  <div style="font-size:12.5px;color:#0f172a;line-height:1.45;font-weight:${t.read ? '500' : '700'}">${esc(t.text)}</div>
+                  ${t.at ? `<div style="font-size:11px;color:#94a3b8;margin-top:4px">${ago(t.at)}ที่แล้ว ${t.leadId ? '· <span style="color:#059669;font-weight:600">คลิกเพื่อเปิดแชท</span>' : ''}</div>` : ''}
+                </div>
+              `).join('') : '<div class="item" style="padding:16px;text-align:center;color:#94a3b8">ไม่มีการแจ้งเตือนใหม่</div>'}
+            </div>
+          </div>` : ''}
         </div>
 
         <button type="button" class="header-logout-btn" data-act="logout" title="ออกจากระบบ (Log out)">
@@ -3803,7 +3843,13 @@ function boardShell() {
   }
   function followShell() {
     return `<div class="page-head"><div><h1>ตามลูกค้า</h1><div class="meta-line"><span>ลูกค้าที่รอคำตอบ ถึงเวลาตามต่อ และนัดตามที่ตั้งไว้ (ลีดย้อนหลัง 90 วัน ไม่นับที่ปิดการขายแล้ว)</span></div></div>
-      <button class="btn" data-act="fu-refresh">${icon('refresh')}Refresh</button></div><div id="follow-body"><div class="loading">Loading…</div></div>`;
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="btn btn-primary" data-act="fu-notify-all" style="background:#059669;color:#fff;border-radius:10px;font-weight:600;display:inline-flex;align-items:center;gap:6px">
+          🔔 ส่งแจ้งเตือนตามลูกค้าทั้งหมด
+        </button>
+        <button class="btn" data-act="fu-refresh">${icon('refresh')}Refresh</button>
+      </div>
+    </div><div id="follow-body"><div class="loading">Loading…</div></div>`;
   }
   const KIND_TH = { reply: ['ลูกค้ารอตอบ', 'q-poor'], chase: ['ถึงเวลาตามต่อ', 'q-average'], scheduled: ['นัดตามไว้', 'q-good'] };
   function renderFollowBody() {
@@ -3825,14 +3871,19 @@ function boardShell() {
         <div class="stat"><div class="k-label">นัดตามทั้งหมด</div><div class="k-value">${num(st.scheduled)}</div></div></div>
       <section class="card filters"><div class="pills">${tabs.map(([k, l, n, cls]) => `<button type="button" class="pill ${cls} ${s.tab === k ? 'active' : ''}" data-act="ftab" data-tab="${k}">${l} <b class="tab-badge">${num(n)}</b></button>`).join('')}</div>
         <span class="label">ทีมขาย</span>${repSelect('frep', s.rep)}</section>
-      <section class="card table-card"><div class="tscroll"><table style="min-width:860px"><thead><tr><th class="nosort">ลูกค้า</th><th class="nosort">ข้อความล่าสุด</th><th class="nosort">สถานะตาม</th><th class="nosort">ความคืบหน้า</th><th class="nosort">ผู้ดูแล</th><th class="nosort">นัด / บันทึก</th></tr></thead><tbody>
+      <section class="card table-card"><div class="tscroll"><table style="min-width:920px"><thead><tr><th class="nosort">ลูกค้า</th><th class="nosort">ข้อความล่าสุด</th><th class="nosort">สถานะตาม</th><th class="nosort">ความคืบหน้า</th><th class="nosort">ผู้ดูแล</th><th class="nosort">นัด / บันทึก</th><th class="nosort" style="text-align:center;width:120px">การแจ้งเตือน</th></tr></thead><tbody>
       ${rows.length ? rows.map((r) => `<tr class="click-row" data-act="open-chat" data-id="${esc(r.id)}">
         <td><div class="ad-name">${esc(r.name)}</div><div class="ad-sub">${chanHtml(r.channel)}</div></td>
         <td><div class="fu-last">${r.lastFrom === 'staff' ? 'คุณ: ' : ''}${esc(r.lastText)}</div><div class="ad-sub">${r.lastAt ? ago(r.lastAt) + 'ที่แล้ว' : ''}</div></td>
         <td><span class="q-badge ${r.overdue ? 'q-poor' : KIND_TH[r.kind][1]}">${r.overdue && r.kind === 'scheduled' ? 'นัดเกินกำหนด' : KIND_TH[r.kind][0]}</span></td>
         <td>${statusHtml(r.status)}</td><td>${esc(r.rep || '—')}</td>
-        <td>${r.dueDate ? `<b>${esc(r.dueDate)}</b><div class="ad-sub">${esc(r.note)}</div>` : '—'}</td></tr>`).join('')
-        : '<tr><td colspan="6"><div class="empty">ไม่มีลูกค้าที่ต้องตามในตอนนี้ 🎉</div></td></tr>'}</tbody></table></div>
+        <td>${r.dueDate ? `<b>${esc(r.dueDate)}</b><div class="ad-sub">${esc(r.note)}</div>` : '—'}</td>
+        <td style="text-align:center" onclick="event.stopPropagation()">
+          <button type="button" class="btn btn-secondary fu-notify-btn" data-act="fu-notify-one" data-id="${esc(r.id)}" data-name="${esc(r.name)}" data-rep="${esc(r.rep || '')}" data-kind="${esc(r.kind)}" data-due="${esc(r.dueDate || '')}" title="ส่งแจ้งเตือนเตือนตามเคสนี้เข้าเว็บและ LINE" style="padding:4px 8px;font-size:11.5px;border-radius:8px;background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0;font-weight:600;display:inline-flex;align-items:center;gap:4px">
+            🔔 แจ้งเตือน
+          </button>
+        </td></tr>`).join('')
+        : '<tr><td colspan="7"><div class="empty">ไม่มีลูกค้าที่ต้องตามในตอนนี้ 🎉</div></td></tr>'}</tbody></table></div>
       ${d.total > d.rows.length ? `<div class="ad-sub" style="padding:10px;text-align:center">แสดง ${d.rows.length} จาก ${num(d.total)} รายการ</div>` : ''}</section>`;
   }
 
@@ -4434,6 +4485,78 @@ function boardShell() {
       else if (act === 'close-chat') closeChat();
       else if (act === 'ftab') { S.followup.tab = el.dataset.tab; renderFollowBody(); }
       else if (act === 'fu-refresh') loadFollowups();
+      else if (act === 'mark-all-notifs') {
+        await api('/api/notifications/mark-read', { method: 'POST', body: { all: true } });
+        await loadWebNotifications();
+        render();
+      }
+      else if (act === 'fu-notify-one') {
+        const id = el.dataset.id;
+        const name = el.dataset.name;
+        const rep = el.dataset.rep;
+        const kind = el.dataset.kind;
+        const due = el.dataset.due;
+        const reason = kind === 'reply' ? 'ลูกค้ารอคำตอบนาน' : (due ? `นัดหมายติดตามวันที่ ${due}` : 'ถึงเวลาตามต่อ (เงียบ > 24 ชม.)');
+        el.disabled = true;
+        const orig = el.innerHTML;
+        el.innerHTML = '⏳ ส่ง...';
+        try {
+          const res = await api('/api/notifications/send', {
+            method: 'POST',
+            body: {
+              title: `เตือนติดตามลูกค้า: ${name}`,
+              message: `เคส ${name} (${rep || 'ยังไม่ระบุเซลส์'}) - ${reason}`,
+              leadId: id,
+              leadName: name,
+              rep,
+              type: 'followup'
+            }
+          });
+          if (res.ok) {
+            showToast(`🔔 ส่งการแจ้งเตือนเคส "${name}" สำเร็จแล้ว!`, 'success');
+            await loadWebNotifications();
+            render();
+          }
+        } catch (e) {
+          showToast(`❌ ส่งแจ้งเตือนไม่สำเร็จ: ${e.message}`, 'error');
+        } finally {
+          el.disabled = false;
+          el.innerHTML = orig;
+        }
+      }
+      else if (act === 'fu-notify-all') {
+        const d = S.followup.data;
+        if (!d || !d.rows || !d.rows.length) {
+          showToast('ไม่มีรายการลูกค้าที่ต้องตามในขณะนี้', 'warning');
+          return;
+        }
+        const overdueCount = d.rows.filter(r => r.overdue).length;
+        const replyCount = d.rows.filter(r => r.kind === 'reply').length;
+        const total = d.rows.length;
+        el.disabled = true;
+        const orig = el.innerHTML;
+        el.innerHTML = '⏳ กำลังส่งแจ้งเตือน...';
+        try {
+          const res = await api('/api/notifications/send', {
+            method: 'POST',
+            body: {
+              title: `เตือนสรุปลูกค้าที่ต้องตามทั้งหมด (${total} เคส)`,
+              message: `มีลูกค้าที่ต้องตามรวม ${total} ราย (ลูกค้ารอตอบ ${replyCount} เคส, เกินกำหนด ${overdueCount} เคส) กรุณาเข้าตรวจสอบและทักตามลูกค้า`,
+              type: 'followup_all'
+            }
+          });
+          if (res.ok) {
+            showToast(`🔔 ส่งการแจ้งเตือนภาพรวมตามลูกค้า ${total} เคส เข้าเว็บสำเร็จแล้ว!`, 'success');
+            await loadWebNotifications();
+            render();
+          }
+        } catch (e) {
+          showToast(`❌ ส่งแจ้งเตือนไม่สำเร็จ: ${e.message}`, 'error');
+        } finally {
+          el.disabled = false;
+          el.innerHTML = orig;
+        }
+      }
       else if (act === 'rstate') { S.review.state = el.dataset.state; renderReviewBody(); }
       else if (act === 'audit-more') { S.audit.limit += 100; loadAudit(); }
       else if (act === 'fu-done') {
@@ -5155,7 +5278,19 @@ function boardShell() {
   /* ---------------- boot ---------------- */
   (async () => {
     S.route = routeFromHash();
-    try { S.me = await api('/api/me'); } catch { S.me = null; }
+    try {
+      S.me = await api('/api/me');
+      await loadWebNotifications();
+      // Polling web notifications ทุก 30 วินาที
+      setInterval(async () => {
+        if (S.me) {
+          await loadWebNotifications();
+          const dot = document.querySelector('.header-icon-btn .count-dot');
+          const list = notices();
+          if (dot) dot.textContent = list.length > 9 ? '9+' : list.length;
+        }
+      }, 30000);
+    } catch { S.me = null; }
     S.booted = true;
     enterRoute();
   })();

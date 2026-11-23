@@ -796,14 +796,18 @@ async function api(req, res, url, session) {
       if (repMap[rep].items.length < 5) repMap[rep].items.push({ id: r.id, name: r.name, kind: r.kind, overdue: r.overdue });
     }
 
+    const storedNotifs = store.read('web_notifications.json', []);
+
     return send(res, 200, {
-      total: overdueList.length + replyList.length,
+      total: overdueList.length + replyList.length + storedNotifs.filter(n => !n.read).length,
       counts: {
         overdue: overdueList.length,
         reply: replyList.length,
         chase: chaseList.length,
         scheduled: (fuData.counts && fuData.counts.scheduled) || 0,
+        unreadWeb: storedNotifs.filter(n => !n.read).length,
       },
+      webNotifications: storedNotifs.slice(0, 30),
       byRep: Object.values(repMap),
       recentAlerts: overdueList.slice(0, 10).map(r => ({
         id: r.id,
@@ -814,6 +818,59 @@ async function api(req, res, url, session) {
         type: 'overdue'
       }))
     });
+  }
+
+  if (route === 'POST /api/notifications/send') {
+    const b = await readJson(req);
+    const title = clean(b.title || 'แจ้งเตือนติดตามลูกค้า', 120);
+    const message = clean(b.message || '', 500);
+    const leadId = b.leadId ? String(b.leadId) : null;
+    const leadName = b.leadName ? clean(b.leadName, 100) : null;
+    const rep = b.rep ? clean(b.rep, 100) : null;
+    const type = b.type || 'followup';
+
+    if (!message) return send(res, 400, { error: 'กรุณากรอกข้อความแจ้งเตือน' });
+
+    let notifs = store.read('web_notifications.json', []);
+    const newNotif = {
+      id: 'notif_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+      title,
+      message,
+      leadId,
+      leadName,
+      rep,
+      type,
+      at: new Date().toISOString(),
+      read: false,
+      sender: session.user.username,
+    };
+    notifs.unshift(newNotif);
+    if (notifs.length > 100) notifs = notifs.slice(0, 100);
+    store.write('web_notifications.json', notifs);
+
+    // ส่งเข้า LINE แจ้งเตือนด้วยหากเปิดใช้งาน
+    try {
+      const lineConf = line.getLineConfig();
+      if (lineConf.enabled) {
+        line.sendLineNotification(`\n📢 [แจ้งเตือนทีมงาน - หน้าตามลูกค้า]\n${title}\n${leadName ? `👤 ลูกค้า: ${leadName}\n` : ''}${rep ? `💼 เซลส์: ${rep}\n` : ''}💬 รายละเอียด: ${message}\n⏱️ ผู้ส่ง: ${session.user.username}`).catch(() => {});
+      }
+    } catch {}
+
+    audit.log(session.user.username, 'web_notification_sent', `${title}: ${message.slice(0, 60)}`, clientIp(req));
+    return send(res, 200, { ok: true, notification: newNotif, totalUnread: notifs.filter(n => !n.read).length });
+  }
+
+  if (route === 'POST /api/notifications/mark-read') {
+    const b = await readJson(req);
+    let notifs = store.read('web_notifications.json', []);
+    if (b.all) {
+      notifs.forEach(n => n.read = true);
+    } else if (b.id) {
+      const found = notifs.find(n => n.id === b.id);
+      if (found) found.read = true;
+    }
+    store.write('web_notifications.json', notifs);
+    return send(res, 200, { ok: true, unread: notifs.filter(n => !n.read).length });
   }
 
   if (route === 'GET /api/settings/line-notify') {

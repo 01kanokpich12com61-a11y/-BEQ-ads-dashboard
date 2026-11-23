@@ -114,6 +114,21 @@ async function main() {
   await call('POST', '/api/inbox/reply', { id: target.id, text: 'ตามผลค่ะ' });
   assert.equal((await call('GET', '/api/followups')).json.rows.some((r) => r.id === target.id), false); ok('ตอบแล้วหลุดจากรายการตามลูกค้า');
 
+  // แจ้งเตือนเข้าเว็บ
+  const notifRes = await call('POST', '/api/notifications/send', {
+    title: 'เตือนติดตามลูกค้า: สมชาย',
+    message: 'ลูกค้ารอคำตอบนาน',
+    leadId: target.id,
+    leadName: 'สมชาย',
+    rep: 'Thanawin Win',
+    type: 'followup'
+  });
+  assert.equal(notifRes.json.ok, true);
+  const notifList = (await call('GET', '/api/notifications')).json;
+  assert.ok(notifList.webNotifications.length >= 1);
+  assert.equal((await call('POST', '/api/notifications/mark-read', { all: true })).json.ok, true);
+  ok('แจ้งเตือนเข้าเว็บ ส่ง/บันทึก/อ่าน');
+
   // รีวิว
   const rv0 = (await call('GET', '/api/review?range=30d')).json;
   assert.equal(rv0.stats.reviewed, 0); assert.equal(rv0.stats.total, rv0.stats.pending);
