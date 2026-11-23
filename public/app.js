@@ -2660,7 +2660,7 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
 
   function renderInboxList() {
     const list = $id('mess-list'); if (!list) return;
-    const rows = filteredRows(); const MAX = 300;
+    const rows = filteredRows(); const MAX = 400;
     if (!rows.length) {
       list.innerHTML = '<div class="empty" style="padding:24px 10px;text-align:center">No conversations found</div>';
       return;
@@ -4084,7 +4084,7 @@ function boardShell() {
         const originalText = el.textContent;
         el.textContent = '⏳ กำลังดึงแชททุกเพจ...';
         try {
-          const r = await api('/api/import/facebook-conversations-all', { method: 'POST', body: { limit: 500 } });
+          const r = await api('/api/import/facebook-conversations-all', { method: 'POST', body: { limit: 400 } });
           if (r.ok) {
             const errText = r.errors && r.errors.length ? (' (⚠️ มีข้อผิดพลาด: ' + r.errors.join('; ') + ')') : '';
             S.flash = { type: r.errors && r.errors.length && !r.totalImportedLeads ? 'err' : 'ok', text: `ดึงประวัติแชทสำเร็จ! เพิ่มลูกค้าใหม่ ${r.totalImportedLeads} ราย, ${r.totalImportedMsgs} ข้อความ${errText}` };
@@ -4106,7 +4106,7 @@ function boardShell() {
         el.disabled = true;
         el.textContent = '⏳ กำลังดึงแชท...';
         try {
-          const r = await api('/api/import/facebook-conversations', { method: 'POST', body: { pageId, limit: 500 } });
+          const r = await api('/api/import/facebook-conversations', { method: 'POST', body: { pageId, limit: 400 } });
           if (r.ok) {
             S.flash = { type: 'ok', text: `นำเข้าบทสนทนาเพจ ${r.pageName} สำเร็จ: เพิ่มลูกค้าใหม่ ${r.importedLeads} ราย, ${r.importedMsgs} ข้อความ` };
             S.filters = await api('/api/filters').catch(() => null);
