@@ -1246,9 +1246,9 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
           <input type="file" accept="image/*,video/mp4,video/webm,video/quicktime" style="display:none" data-act="dash-ad-img" data-ad-id="${esc(r.id)}" data-ad-name="${esc(r.name)}">
         </label>
       </div>
-      <div style="display:flex;flex-direction:column;gap:2px">
+      <div style="display:flex;flex-direction:column;gap:3px">
         <span class="creative-lbl" style="font-weight:700;font-size:12px;color:#064e3b">${isVid ? '🎬 Video / Reel' : cType === 'CAROUSEL' ? '📑 Carousel' : '🖼️ Image'}</span>
-        <button type="button" class="btn" data-act="open-ad-media" data-ad-media="${mediaPayload}" style="padding:2px 8px;font-size:10.5px;border-radius:999px;background:#ecfdf5;border-color:#a7f3d0;color:#059669;font-weight:700">
+        <button type="button" class="btn" data-act="open-ad-media" data-ad-media="${mediaPayload}" style="padding:3px 10px;font-size:11px;border-radius:999px;background:#ecfdf5;border:1px solid #a7f3d0;color:#059669;font-weight:700;display:inline-flex;align-items:center;gap:4px">
           ${isVid ? '▶ เล่นวิดีโอ' : '🔍 ดูรูปโฆษณา'}
         </button>
       </div>
