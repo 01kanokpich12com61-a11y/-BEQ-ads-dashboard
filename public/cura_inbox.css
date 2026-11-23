@@ -103,9 +103,9 @@
 
 /* Panel 1: Left Container (Rail + Conversation List) */
 .cura-panel-left {
-  width: 320px;
-  min-width: 280px;
-  max-width: 350px;
+  width: 480px;
+  min-width: 420px;
+  max-width: 520px;
   background: #ffffff;
   border: 1px solid rgba(16, 185, 129, 0.14);
   border-radius: 16px;
@@ -460,7 +460,7 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 100px;
+  max-width: 140px;
 }
 
 .cura-sla-badge {
