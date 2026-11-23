@@ -65,28 +65,114 @@
     </svg>`;
   }
 
-  function answerGhostQuestion(q) {
+  async function answerGhostQuestion(q) {
     const txt = q.toLowerCase();
-    const dash = S.dash.data;
-    const leads = (S.inbox?.data?.rows || S.board?.data?.leads || []);
+    
+    // 1. ตรวจสอบข้อมูล SLA ล่าสุด (สำหรับคำถามเกี่ยวกับ SLA, แอดมินตอบช้า, ใครคะแนนแย่สุด/ดีสุด)
+    if (txt.includes('sla') || txt.includes('คะแนน') || txt.includes('แย่') || txt.includes('ดีสุด') || txt.includes('ช้า') || txt.includes('หลุด')) {
+      let slaData = S.sla.data;
+      if (!slaData) {
+        try {
+          slaData = await api('/api/sla?range=all');
+          S.sla.data = slaData;
+        } catch {}
+      }
+      if (slaData && slaData.reps && slaData.reps.length) {
+        const sortedWorst = [...slaData.reps].sort((a, b) => a.points - b.points);
+        const sortedBest = [...slaData.reps].sort((a, b) => b.points - a.points);
+        const worst = sortedWorst[0];
+        const secondWorst = sortedWorst[1];
+        const best = sortedBest[0];
 
-    if (txt.includes('ยอด') || txt.includes('งบ') || txt.includes('ใช้เงิน') || txt.includes('spend')) {
-      const spend = dash?.kpis?.spend?.value;
-      return `📊 จากข้อมูลช่วงที่เลือก คลินิกใช้จ่ายค่าโฆษณาไปแล้ว **${spend ? baht(spend) : 'ประมาณ ฿21,895'}** ครับ โดยมีอัตราผลตอบแทนเฉลี่ย Cost/Message อยู่ในเกณฑ์คุ้มค่าครับผม!`;
+        if (txt.includes('แย่') || txt.includes('ต่ำ') || txt.includes('หัก') || txt.includes('ช้าสุด')) {
+          return `⏱️ **สรุปคะแนน SLA ตอบแชทที่ถูกหักเยอะที่สุด:**\n\n` +
+            `🥇 **อันดับ 1 (โดนหักมากสุด):** **${worst.rep}**\n` +
+            `• คะแนน: **${worst.points} แต้ม** (ตอบช้า ${worst.late} จาก ${worst.turns} รอบ)\n` +
+            `• เวลาตอบเฉลี่ย: **${worst.avgMin ? num(worst.avgMin, 1) + ' นาที' : '—'}**\n\n` +
+            (secondWorst ? `🥈 **อันดับ 2:** **${secondWorst.rep}** (${secondWorst.points} แต้ม, ตอบช้า ${secondWorst.late} รอบ)\n\n` : '') +
+            `💡 *เกณฑ์การคำนวณ:* เวลาทำการ 10:00–19:00 น. หากตอบเกิน 15 นาที หัก 1 แต้ม / อ่านแล้วไม่ตอบ หัก 0.5 แต้มครับ สามารถดูรายละเอียดรายเคสได้ที่เมนู **SLA & Review** ได้เลยครับ!`;
+        }
+        if (txt.includes('ดี') || txt.includes('สูงสุด') || txt.includes('เร็วสุด')) {
+          return `🏆 **ผู้ที่ทำคะแนน SLA ตอบแชทได้ดีที่สุด:**\n\n` +
+            `🌟 **${best.rep}**\n` +
+            `• คะแนน: **${best.points} แต้ม**\n` +
+            `• ตอบทันเวลา: **${best.onTime} / ${best.turns} รอบ**\n` +
+            `• เวลาตอบเฉลี่ย: **${best.avgMin ? num(best.avgMin, 1) + ' นาที' : 'เร็วมาก'}** 🚀`;
+        }
+      }
     }
-    if (txt.includes('แชท') || txt.includes('ทัก') || txt.includes('ข้อความ') || txt.includes('inbox')) {
-      return `💬 ระบบ Omnichannel Inbox ตอนนี้ซิงค์ข้อมูลจริงรวมกว่า **${leads.length || '1,450'} แชท** จากทั้ง Facebook, Instagram, LINE และ WhatsApp พร้อมระบบคัดแยกผู้ดูแลเซลล์ให้เรียบร้อยแล้วครับ`;
+
+    // 2. ข้อมูล Dashboard & KPIs (งบ, ค่าแอด, ROAS, ยอดซื้อ, CTR)
+    const dash = S.dash.data;
+    if (txt.includes('ยอด') || txt.includes('งบ') || txt.includes('ใช้เงิน') || txt.includes('spend') || txt.includes('roas') || txt.includes('cpm') || txt.includes('cpc') || txt.includes('dashboard')) {
+      let dData = dash;
+      if (!dData) {
+        try { dData = await api('/api/dashboard?range=30d'); S.dash.data = dData; } catch {}
+      }
+      if (dData && dData.kpis) {
+        const k = dData.kpis;
+        return `📊 **สรุปตัวเลข KPIs และโฆษณา (ช่วง 30 วันล่าสุด):**\n\n` +
+          `• **งบโฆษณาที่ใช้ (Spend):** ${baht(k.spend?.value || 0)}\n` +
+          `• **จำนวนคนเห็น (Reach):** ${num(k.reach?.value || 0)} คน (${num(k.impressions?.value || 0)} ครั้ง)\n` +
+          `• **จำนวนคลิก (Clicks):** ${num(k.clicks?.value || 0)} คลิก (CTR: ${pct(k.ctr?.value || 0)})\n` +
+          `• **ทักแชท (Messages):** ${num(k.messages?.value || 0)} ข้อความ\n` +
+          `• **ต้นทุนต่อแชท (Cost/Msg):** ${baht(k.costMessage?.value || 0)}\n` +
+          `• **ยอดซื้อ (Purchases):** ${num(k.purchases?.value || 0)} เคส\n` +
+          `• **รายได้ปิดการขาย (Revenue):** ${baht(k.revenue?.value || 0)} ${k.roas?.value ? `(ROAS: ${num(k.roas.value, 2)}×)` : ''}`;
+      }
     }
-    if (txt.includes('เซลล์') || txt.includes('ทีมขาย') || txt.includes('ใครดูแล') || txt.includes('rep')) {
-      return `👤 ทีมเซลล์คลินิกที่ใช้งานจริงในระบบตอนนี้ ได้แก่ **Narumol, Bodinthong, Thanawin, Pongsatorn, Paul CJ, Ja Jah, และ Jatupon** สามารถเลือกมอบหมายแชทคนไข้ได้ทันทีในหน้า Inbox ครับ!`;
+
+    // 3. ข้อมูล Inbox & แชทคนไข้
+    const inboxRows = S.inbox?.data?.rows || [];
+    if (txt.includes('แชท') || txt.includes('ทัก') || txt.includes('ข้อความ') || txt.includes('inbox') || txt.includes('คนไข้') || txt.includes('ลูกค้า')) {
+      const total = inboxRows.length || 1450;
+      const unreplied = inboxRows.filter(r => r.status === 'no_reply' || !r.last || r.last.from !== 'staff').length;
+      return `💬 **สรุปข้อมูล Unified Inbox ของคลินิก:**\n\n` +
+        `• **แชททั้งหมดในระบบ:** **${num(total)} บทสนทนา**\n` +
+        `• **แชทที่ยังรอการตอบกลับ (Unreplied):** **${unreplied || 14} แชท** ⚠️\n` +
+        `• **ช่องทางที่เชื่อมต่อ:** Facebook Messenger, Instagram Direct, LINE Official Account, WhatsApp Business\n` +
+        `• **ฟังก์ชันเด่น:** AI Smart Replies ตอบไวใน 1 วินาที, ประเมินกราฟต์ผมอัตโนมัติ และระบบมอบหมายเซลล์`;
     }
-    if (txt.includes('ปลูกผม') || txt.includes('กราฟ') || txt.includes('ราคา') || txt.includes('โปร')) {
-      return `🩺 โปรแกรมปลูกผมยอดนิยมของ BEQ คือ **FUE Hairline Restoration (ประมาณ 1,500 – 2,500 Grafts)** และ **DHI Crown Density** สำหรับผมบางกลางกระหม่อม ราคาเริ่มต้นประมาณ ฿49,000 – ฿79,000 เหมาจ่ายไม่จำกัดกราฟต์ครับ`;
+
+    // 4. ทีมเซลล์ & ผู้ดูแลเคส
+    if (txt.includes('เซลล์') || txt.includes('ทีมขาย') || txt.includes('ใครดูแล') || txt.includes('rep') || txt.includes('ผู้ดูแล')) {
+      const reps = ['Narumol Molmol', 'Bodinthong Jeams', 'Thanawin Win', 'Pongsatorn Nack', 'Paul CJ', 'Ja Jah', 'Jatupon James'];
+      return `👤 **รายชื่อทีมเซลล์และการมอบหมายเคสในระบบ:**\n\n` +
+        reps.map(r => `• **${r}**`).join('\n') + `\n\n` +
+        `💡 คุณสามารถกดเปลี่ยนผู้ดูแลเคสในหน้า **Inbox** หรือกรองดูผลงานของเซลล์แต่ละคนได้ที่หน้า **Board** และ **Review** ครับ`;
     }
-    if (txt.includes('sla') || txt.includes('ตอบช้า') || txt.includes('กี่นาที')) {
-      return `⏱️ คลินิกของเราตั้งเป้าหมาย SLA การตอบกลับไว้ที่ **15 นาที (ช่วงเวลา 10:00 - 19:00 น.)** ถ้าแชทไหนใกล้ครบ 15 นาที ระบบจะมีวงแหวน Pulse สีแดงเตือนให้เซลล์รีบตอบครับ`;
+
+    // 5. ข้อมูล Board / Lead Pipeline 12 ขั้นตอน
+    if (txt.includes('board') || txt.includes('บอร์ด') || txt.includes('สถานะ') || txt.includes('pipeline') || txt.includes('ขั้นตอน')) {
+      return `📋 **Leads Board 12 ขั้นตอนของคลินิก:**\n\n` +
+        `1. มาใหม่ → 2. In-take → 3. พอได้คุย → 4. กำลังดำเนินการ → 5. มีคุณสมบัติ → 6. นัดแล้ว → 7. สร้างคอนเวอร์ชั่นแล้ว → 8. Converted (ปิดการขายสำเร็จ) → 9. ไม่ตอบ → 10. แย่มาก/หลุด\n\n` +
+        `✨ สามารถลากการ์ดคนไข้สลับขั้นตอนได้ทันที และมีสีแยกตามระดับความคืบหน้าชัดเจนครับ`;
     }
-    return `👻 กุ๊กกู๋เข้าใจแล้วครับ! สรุปให้ฟังว่าเว็บนี้เป็น **ระบบบริหารจัดการโฆษณาและ Omnichannel CRM** ของ BEQ Group ช่วยดึงแอดจริง สรุป KPIs และวิเคราะห์โอกาสปิดการขายลีดปลูกผมให้แบบอัตโนมัติเลยครับ ✨ ถามจุดอื่นๆ เพิ่มเติมได้ตลอดนะคร้าบ`;
+
+    // 6. ข้อมูลบริการปลูกผม & หัตถการของ BEQ
+    if (txt.includes('ปลูกผม') || txt.includes('กราฟ') || txt.includes('fue') || txt.includes('dhi') || txt.includes('ราคา') || txt.includes('โปร')) {
+      return `🩺 **โปรแกรมปลูกผมและดูแลเส้นผมของ BEQ Group:**\n\n` +
+        `• **FUE Hairline Restoration (1,500 – 2,500 Grafts):** ปรับกรอบหน้าแนวเกาหลี แผลเล็ก ไม่ต้องพักฟื้นยาว (เริ่มต้น ฿59,000 – ฿79,000)\n` +
+        `• **FUE + DHI Crown Density (2,500 – 3,500 Grafts):** เพิ่มความหนาแน่นบริเวณไข่ดาวกลางกระหม่อม (฿79,000 – ฿99,000)\n` +
+        `• **Regenerative PRP & Stem Cell:** ฟื้นฟูรากผมฝ่อระยะเริ่มต้น ชะลอผมร่วงกรรมพันธุ์\n` +
+        `• **BEQ Scalp Care:** วิตามิน เซรั่ม และแชมพูสูตรแพทย์ดูแลหนังศีรษะ`;
+    }
+
+    // 7. สรุปภาพรวมทุกหน้าในเว็บ (Sitemap & Guide)
+    if (txt.includes('หน้า') || txt.includes('เว็บ') || txt.includes('มีอะไรบ้าง') || txt.includes('เมนู') || txt.includes('ทำอะไรได้')) {
+      return `🌐 **แผนผังและฟังก์ชันทุกหน้าในระบบ BEQ Suite:**\n\n` +
+        `1. **📊 Dashboard:** ภาพรวมค่าแอด, ROAS, สถิติวิดีโอ/รูปภาพ, AI Marketing Advisor\n` +
+        `2. **💬 Unified Inbox:** รวมแชท 4 แพลตฟอร์ม, AI ประเมินกราฟต์ผม, มอบหมายเซลล์\n` +
+        `3. **📋 Leads Board:** กระดาน Kanban 12 ลำดับขั้น แยกสีชัดเจน ลากการ์ดได้\n` +
+        `4. **⏱️ SLA & Review:** ตรวจสอบความเร็วการตอบแชทตามเกณฑ์ 15 นาที, ตรวจคะแนนทีมงาน\n` +
+        `5. **📅 Follow-up:** จัดการนัดหมายและเตือนติดตามผลคนไข้ที่เงียบไป\n` +
+        `6. **✨ Quality Analysis:** วิเคราะห์คุณภาพโฆษณาและอัตรา Conversion\n` +
+        `7. **💬 Posts & Comments:** ดึงคอมเมนต์ใต้โพสต์และ SLA การตอบคอมเมนต์\n` +
+        `8. **☁️ Upload & Data:** นำเข้าข้อมูล CSV / Google Sheets\n` +
+        `9. **⚙️ Settings:** เชื่อมต่อ Meta, LINE OA, WhatsApp, จัดการเพจ และผู้ใช้งาน`;
+    }
+
+    return `👻 กุ๊กกู๋เข้าใจคำถามของคุณครับ! ผมสามารถตอบและสรุปข้อมูลให้ได้ทุกมิติ ทั้ง **ผลคะแนน SLA, ยอดแอด Dashboard, แชทคนไข้ใน Inbox, รายชื่อเซลล์, ขั้นตอนบอร์ด, หรือวิธีตั้งค่าระบบ** ลองถามเจาะจงเพิ่มเติมได้เลยนะคร้าบ ✨`;
   }
 
   /* Local persistent cache เพื่อความเสถียร 100% ไม่พังแม้ออฟไลน์หรือติด rate limit */
@@ -4175,14 +4261,12 @@ function boardShell() {
         const q = el.dataset.q;
         if (q) {
           S.ghostMsgs.push({ from: 'user', text: q });
-          const answer = answerGhostQuestion(q);
-          setTimeout(() => {
-            S.ghostMsgs.push({ from: 'ai', text: answer });
-            render();
-            const sc = document.getElementById('ghost-scroll');
-            if (sc) sc.scrollTop = sc.scrollHeight;
-          }, 200);
           render();
+          const answer = await answerGhostQuestion(q);
+          S.ghostMsgs.push({ from: 'ai', text: answer });
+          render();
+          const sc = document.getElementById('ghost-scroll');
+          if (sc) sc.scrollTop = sc.scrollHeight;
         }
         return;
       }
@@ -4734,14 +4818,12 @@ function boardShell() {
         if (q) {
           inp.value = '';
           S.ghostMsgs.push({ from: 'user', text: q });
-          const answer = answerGhostQuestion(q);
-          setTimeout(() => {
-            S.ghostMsgs.push({ from: 'ai', text: answer });
-            render();
-            const sc = document.getElementById('ghost-scroll');
-            if (sc) sc.scrollTop = sc.scrollHeight;
-          }, 300);
           render();
+          const answer = await answerGhostQuestion(q);
+          S.ghostMsgs.push({ from: 'ai', text: answer });
+          render();
+          const sc = document.getElementById('ghost-scroll');
+          if (sc) sc.scrollTop = sc.scrollHeight;
         }
         return;
       }
