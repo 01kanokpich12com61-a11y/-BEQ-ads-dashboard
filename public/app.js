@@ -450,15 +450,23 @@
         headers: opts.body ? { 'Content-Type': 'application/json' } : {},
         body: opts.body ? JSON.stringify(opts.body) : undefined,
       });
-      if (res.status === 401 && path !== '/api/login') { S.me = null; render(); throw new Error('กรุณาเข้าสู่ระบบ'); }
+      if (res.status === 401 && path !== '/api/login') {
+        S.me = null;
+        if (typeof sessionStorage !== 'undefined') {
+          sessionStorage.removeItem('beq_c_/api/me');
+        }
+        render();
+        throw new Error('กรุณาเข้าสู่ระบบ');
+      }
       const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(json.error || 'เกิดข้อผิดพลาด');
       // เก็บลงแคชหากเป็น GET สำเร็จ
-      if (!opts.method || opts.method === 'GET') {
+      if ((!opts.method || opts.method === 'GET') && path !== '/api/me') {
         ClientCache.set(path, json);
       }
       return json;
     } catch (err) {
+      if (err.message === 'กรุณาเข้าสู่ระบบ' || path === '/api/me') throw err;
       // Stale-While-Revalidate Fallback: ถ้าเน็ตสะดุดหรือติด Rate limit ดึงแคชเดิมขึ้นมาทำงานต่อทันที
       if (!opts.method || opts.method === 'GET') {
         const cached = ClientCache.get(path);
@@ -968,11 +976,11 @@
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px">
               <div>
                 <label style="display:block;font-size:12.5px;font-weight:700;color:#334155;margin-bottom:6px">📅 ตั้งแต่วันที่</label>
-                <input type="date" name="afterDate" value="${m.afterDate || defAfter}" max="${today}" style="width:100%;padding:9px 12px;border-radius:10px;border:1.5px solid #cbd5e1;font-size:14px;box-sizing:border-box">
+                <input type="date" name="afterDate" id="m-after-date" value="${m.afterDate || defAfter}" style="width:100%;padding:9px 12px;border-radius:10px;border:1.5px solid #cbd5e1;font-size:14px;box-sizing:border-box;background:#fff;cursor:pointer">
               </div>
               <div>
                 <label style="display:block;font-size:12.5px;font-weight:700;color:#334155;margin-bottom:6px">📅 ถึงวันที่</label>
-                <input type="date" name="beforeDate" value="${m.beforeDate || today}" max="${today}" style="width:100%;padding:9px 12px;border-radius:10px;border:1.5px solid #cbd5e1;font-size:14px;box-sizing:border-box">
+                <input type="date" name="beforeDate" id="m-before-date" value="${m.beforeDate || today}" style="width:100%;padding:9px 12px;border-radius:10px;border:1.5px solid #cbd5e1;font-size:14px;box-sizing:border-box;background:#fff;cursor:pointer">
               </div>
             </div>
 
@@ -4115,7 +4123,7 @@ function boardShell() {
         <td>${p.adAccountId ? `<span class="chip good" style="font-size:12px;font-family:monospace">📊 ${esc(p.adAccountId)}</span>` : '<span class="rv-hint">ใช้ Ad กลาง</span>'}</td>
         <td class="nowrap" style="display:flex;gap:6px">
           <button class="btn" type="button" data-act="page-edit" data-page='${esc(JSON.stringify(p))}' style="padding:4px 10px;font-size:12px">✏️ แก้ไข</button>
-          ${(p.platform === 'Facebook' || p.platform === 'Instagram') ? `<button class="btn" type="button" data-act="fb-import-conv" data-page-id="${esc(p.id)}" data-page-name="${esc(p.name)}" style="padding:4px 10px;font-size:12px">📥 ดึงแชท</button><button class="btn" type="button" data-act="sync-page-posts" data-page-id="${esc(p.id)}" data-page-name="${esc(p.name)}" style="padding:4px 10px;font-size:12px;background:#eaf2e8;color:#244c1d">💬 ดึงโพสต์</button>` : ''}
+          ${(p.platform === 'Facebook' || p.platform === 'Instagram') ? `<button class="btn" type="button" data-act="fb-import-conv" data-page-id="${esc(p.id)}" data-page-name="${esc(p.name)}" data-platform="${esc(p.platform || 'Facebook')}" style="padding:4px 10px;font-size:12px">📥 ดึงแชท</button><button class="btn" type="button" data-act="sync-page-posts" data-page-id="${esc(p.id)}" data-page-name="${esc(p.name)}" style="padding:4px 10px;font-size:12px;background:#eaf2e8;color:#244c1d">💬 ดึงโพสต์</button>` : ''}
           <button class="btn danger" type="button" data-act="page-delete" data-page-id="${esc(p.id)}" style="padding:4px 10px;font-size:12px">ลบ</button>
         </td>
       </tr>`;
@@ -4622,7 +4630,40 @@ function boardShell() {
       else if (act === 'import-modal-submit') {
         const form = document.querySelector('[data-form="do-import-conv"]');
         if (form) {
-          form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+          const btn = el;
+          btn.disabled = true;
+          btn.textContent = '⏳ กำลังดึงข้อมูล...';
+          const fd = Object.fromEntries(new FormData(form));
+          const mode = fd.mode;
+          const afterDate = fd.afterDate || '';
+          const beforeDate = fd.beforeDate || '';
+          const limit = Number(fd.limit) || 400;
+          const pageId = fd.pageId || null;
+          (async () => {
+            try {
+              if (mode === 'all') {
+                const r = await api('/api/import/facebook-conversations-all', { method: 'POST', body: { limit, afterDate, beforeDate } });
+                if (r.ok) {
+                  const errText = r.errors && r.errors.length ? (' (⚠️ มีข้อผิดพลาด: ' + r.errors.join('; ') + ')') : '';
+                  const dateRange = afterDate && beforeDate ? ` ช่วง ${afterDate} ถึง ${beforeDate}` : '';
+                  S.flash = { type: r.errors && r.errors.length && !r.totalImportedLeads ? 'err' : 'ok', text: `ดึงประวัติแชทสำเร็จ${dateRange}! เพิ่มลูกค้าใหม่ ${r.totalImportedLeads} ราย, ${r.totalImportedMsgs} ข้อความ${errText}` };
+                  S.filters = await api('/api/filters').catch(() => null);
+                }
+              } else {
+                const r = await api('/api/import/facebook-conversations', { method: 'POST', body: { pageId, limit, afterDate, beforeDate } });
+                if (r.ok) {
+                  const dateRange = afterDate && beforeDate ? ` ช่วง ${afterDate} ถึง ${beforeDate}` : '';
+                  S.flash = { type: 'ok', text: `นำเข้าบทสนทนาเพจ ${r.pageName} สำเร็จ${dateRange}: เพิ่มลูกค้าใหม่ ${r.importedLeads} ราย, ${r.importedMsgs} ข้อความ` };
+                  S.filters = await api('/api/filters').catch(() => null);
+                }
+              }
+            } catch (e) {
+              S.flash = { type: 'err', text: e.message || 'ดึงแชทไม่สำเร็จ' };
+            } finally {
+              S.importModal = null;
+              render();
+            }
+          })();
         }
       }
       else if (act === 'fu-notify-one') {
@@ -4894,17 +4935,61 @@ function boardShell() {
         }
       }
       else if (act === 'fb-import-all') {
-        // เปิด modal เลือกวันที่แทน confirm()
-        S.importModal = { mode: 'all', pageId: null, pageName: 'ทุกเพจ', afterDate: '', beforeDate: '' };
-        render();
+        if (!confirm('ต้องการดึงแชทของทุกเพจพร้อมกันหรือไม่?\n\n⚠️ ข้อมูลแชทและลูกค้าเดิมของแต่ละเพจจะถูกแทนที่ด้วยข้อมูลล่าสุดจาก Meta')) return;
+        el.disabled = true;
+        const originalText = el.textContent;
+        el.textContent = '⏳ กำลังดึงแชททุกเพจ...';
+        try {
+          const r = await api('/api/import/facebook-conversations-all', { method: 'POST', body: { limit: 400 } });
+          if (r.ok) {
+            const errText = r.errors && r.errors.length ? (' (⚠️ มีข้อผิดพลาด: ' + r.errors.join('; ') + ')') : '';
+            S.flash = { type: r.errors && r.errors.length && !r.totalImportedLeads ? 'err' : 'ok', text: `ดึงประวัติแชทสำเร็จ! เพิ่มลูกค้าใหม่ ${r.totalImportedLeads} ราย, ${r.totalImportedMsgs} ข้อความ${errText}` };
+            S.filters = await api('/api/filters').catch(() => null);
+            render();
+          }
+        } catch (e) {
+          S.flash = { type: 'err', text: e.message || 'ดึงแชทไม่สำเร็จ' };
+          render();
+        } finally {
+          el.disabled = false;
+          el.textContent = originalText;
+        }
         return;
       }
       else if (act === 'fb-import-conv') {
         const pageId = el.dataset.pageId;
         const pageName = el.dataset.pageName;
-        // เปิด modal เลือกวันที่แทน prompt()
-        S.importModal = { mode: 'one', pageId, pageName, afterDate: '', beforeDate: '' };
-        render();
+        const platform = el.dataset.platform || 'Facebook';
+
+        // ถ้าเป็น Instagram ให้เปิด Modal เลือกวันที่ตามต้องการ
+        if (platform === 'Instagram') {
+          S.importModal = { mode: 'one', pageId, pageName, platform: 'Instagram', afterDate: '', beforeDate: '' };
+          render();
+          return;
+        }
+
+        // ถ้าเป็นเพจ Facebook ให้ดึงเหมือนเดิมแบบเดิมทันทีผ่าน prompt ระบุจำนวนแชท
+        const defaultLimit = pageName.includes('Beq') ? 300 : 400;
+        const customLimit = prompt(`ระบุจำนวนแชทที่ต้องการดึงจากเพจ "${pageName}":`, String(defaultLimit));
+        if (customLimit === null) return;
+        const limitNum = Math.max(10, Math.min(Number(customLimit) || defaultLimit, 1000));
+        if (!confirm(`ต้องการดึงข้อมูลแชท ${limitNum} แชทของเพจ "${pageName}" หรือไม่?\n\n⚠️ ข้อมูลแชทและลูกค้าเดิมของเพจนี้จะถูกแทนที่ด้วยข้อมูลล่าสุดจาก Meta`)) return;
+        el.disabled = true;
+        el.textContent = '⏳ กำลังดึงแชท...';
+        try {
+          const r = await api('/api/import/facebook-conversations', { method: 'POST', body: { pageId, limit: limitNum } });
+          if (r.ok) {
+            S.flash = { type: 'ok', text: `นำเข้าบทสนทนาเพจ ${r.pageName} สำเร็จ: เพิ่มลูกค้าใหม่ ${r.importedLeads} ราย, ${r.importedMsgs} ข้อความ` };
+            S.filters = await api('/api/filters').catch(() => null);
+            render();
+          }
+        } catch (e) {
+          S.flash = { type: 'err', text: e.message || 'ดึงแชทย้อนหลังไม่สำเร็จ' };
+          render();
+        } finally {
+          el.disabled = false;
+          el.textContent = '📥 ดึงแชท';
+        }
         return;
       }
       else if (act === 'page-delete') {
@@ -5430,19 +5515,26 @@ function boardShell() {
     S.route = routeFromHash();
     try {
       S.me = await api('/api/me');
-      await loadWebNotifications();
-      try { S.notificationSchedule = await api('/api/notifications/schedule'); } catch (_) {}
-      // Polling web notifications ทุก 30 วินาที
-      setInterval(async () => {
-        if (S.me) {
-          await loadWebNotifications();
-          const dot = document.querySelector('.header-icon-btn .count-dot');
-          const list = notices();
-          if (dot) dot.textContent = list.length > 9 ? '9+' : list.length;
-        }
-      }, 30000);
+      if (S.me) {
+        await loadWebNotifications();
+        try { S.notificationSchedule = await api('/api/notifications/schedule'); } catch (_) {}
+        // Polling web notifications ทุก 30 วินาที
+        setInterval(async () => {
+          if (S.me) {
+            await loadWebNotifications();
+            const dot = document.querySelector('.header-icon-btn .count-dot');
+            const list = notices();
+            if (dot) dot.textContent = list.length > 9 ? '9+' : list.length;
+          }
+        }, 30000);
+      }
     } catch { S.me = null; }
     S.booted = true;
-    enterRoute();
+    try {
+      enterRoute();
+    } catch (routeErr) {
+      console.error('enterRoute error:', routeErr);
+      if (!S.me) renderLogin();
+    }
   })();
 })();
