@@ -18,6 +18,7 @@
     notifications: { data: null, unread: 0, list: [] },
     notificationSchedule: null,
     scheduleModalOpen: false,
+    quickEditLead: null,
     importModal: null, // { mode: 'one'|'all', pageId, pageName, afterDate, beforeDate, limit }
     audit: { data: null, err: null, action: '', q: '', from: '', to: '', limit: 100 },
     chat: { id: null, loading: false, data: null, err: null, sending: false, msg: null },
@@ -93,11 +94,11 @@
           const rep2 = secondWorst;
           return `⏱️ **อันดับผู้ที่ถูกหักคะแนน SLA มากที่สุด:**\n\n` +
             `🥇 **อันดับ 1:** **${rep1.rep}**\n` +
-            `• คะแนน: **<span style="color:#ef4444">${rep1.points} แต้ม</span>**\n` +
+            `• คะแนน: **${rep1.points} แต้ม**\n` +
             `• ตอบช้า: **${rep1.late}** จาก ${rep1.turns} รอบ\n` +
             `• เวลาเฉลี่ย: **${rep1.avgMin ? num(rep1.avgMin, 1) + ' นาที' : '—'}**\n\n` +
             (rep2 ? `🥈 **อันดับ 2:** **${rep2.rep}**\n` +
-            `• คะแนน: **<span style="color:#f59e0b">${rep2.points} แต้ม</span>**\n` +
+            `• คะแนน: **${rep2.points} แต้ม**\n` +
             `• ตอบช้า: **${rep2.late}** จาก ${rep2.turns} รอบ\n` +
             `• เวลาเฉลี่ย: **${rep2.avgMin ? num(rep2.avgMin, 1) + ' นาที' : '—'}**\n\n` : '') +
             `📌 *เกณฑ์ SLA 15 นาที:* ช่วง 10:00–19:00 น. ตอบเกิน 15 นาที หัก 1 แต้ม / อ่านแล้วไม่ตอบ หัก 0.5 แต้มครับ (ดูรายละเอียดได้ที่เมนู **SLA & Review**)`;
@@ -105,7 +106,7 @@
         if (txt.includes('ดี') || txt.includes('สูงสุด') || txt.includes('เร็วสุด')) {
           return `🏆 **ผู้ที่ทำคะแนน SLA ตอบแชทได้ดีที่สุด:**\n\n` +
             `🌟 **${best.rep}**\n` +
-            `• คะแนนผลงาน: **<span style="color:#10b981">${best.points} แต้ม</span>**\n` +
+            `• คะแนนผลงาน: **${best.points} แต้ม**\n` +
             `• ตอบทันเวลา: **${best.onTime} / ${best.turns} รอบ**\n` +
             `• เวลาตอบเฉลี่ย: **${best.avgMin ? num(best.avgMin, 1) + ' นาที' : 'เร็วมาก'}** 🚀`;
         }
@@ -128,7 +129,7 @@
           `• **ทักแชท (Messages):** **${num(k.messages?.value || 0)}** ข้อความ\n` +
           `• **ต้นทุนต่อแชท (Cost/Msg):** **${baht(k.costMessage?.value || 0)}**\n` +
           `• **ยอดซื้อ (Purchases):** **${num(k.purchases?.value || 0)}** เคส\n` +
-          `• **รายได้ปิดการขาย (Revenue):** **<span style="color:#10b981">${baht(k.revenue?.value || 0)}</span>** ${k.roas?.value ? `(ROAS: **${num(k.roas.value, 2)}×**)` : ''}`;
+          `• **รายได้ปิดการขาย (Revenue):** **${baht(k.revenue?.value || 0)}** ${k.roas?.value ? `(ROAS: **${num(k.roas.value, 2)}×**)` : ''}`;
       }
     }
 
@@ -148,7 +149,7 @@
       const unreplied = inboxRows.filter(r => r.status === 'no_reply' || !r.last || r.last.from !== 'staff').length;
       return `💬 **สรุปข้อมูล Unified Inbox ของคลินิก:**\n\n` +
         `• **แชททั้งหมดในระบบ:** **${num(total)} บทสนทนา**\n` +
-        `• **แชทที่ยังรอการตอบกลับ (Unreplied):** **<span style="color:#ef4444">${num(unreplied)} แชท</span>** ⚠️\n` +
+        `• **แชทที่ยังรอการตอบกลับ (Unreplied):** **${num(unreplied)} แชท** ⚠️\n` +
         `• **ช่องทางที่เชื่อมต่อ:** Facebook Messenger, Instagram Direct, LINE Official Account, WhatsApp Business\n` +
         `• **ฟังก์ชันเด่น:** AI Smart Replies ตอบไวใน 1 วินาที, ประเมินกราฟต์ผมอัตโนมัติ และระบบมอบหมายเซลล์`;
     }
@@ -853,11 +854,15 @@
 
   function formatGhostText(txt) {
     if (!txt) return '';
-    let html = esc(txt);
-    html = html.replace(/&lt;b\s+style=(?:&quot;|")color:\s*(#[0-9a-fA-F]{3,6})(?:&quot;|")&gt;([\s\S]*?)&lt;\/b&gt;/gi, '<strong style="color:$1;font-weight:700">$2</strong>');
-    html = html.replace(/&lt;span\s+style=(?:&quot;|")color:\s*(#[0-9a-fA-F]{3,6})(?:&quot;|")&gt;([\s\S]*?)&lt;\/span&gt;/gi, '<span style="color:$1;font-weight:700">$2</span>');
-    html = html.replace(/&lt;b&gt;([\s\S]*?)&lt;\/b&gt;/gi, '<strong>$1</strong>');
-    html = html.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
+    let s = String(txt)
+      .replace(/<b\s+style=["']color:\s*(#[0-9a-fA-F]{3,6})["']>([\s\S]*?)<\/b>/gi, '**$2**')
+      .replace(/<span\s+style=["']color:\s*(#[0-9a-fA-F]{3,6})["']>([\s\S]*?)<\/span>/gi, '**$2**')
+      .replace(/&lt;b\s+style=(?:&quot;|")color:\s*(#[0-9a-fA-F]{3,6})(?:&quot;|")&gt;([\s\S]*?)&lt;\/b&gt;/gi, '**$2**')
+      .replace(/&lt;span\s+style=(?:&quot;|")color:\s*(#[0-9a-fA-F]{3,6})(?:&quot;|")&gt;([\s\S]*?)&lt;\/span&gt;/gi, '**$2**')
+      .replace(/<\/?(?:b|span|strong|div|p)[^>]*>/gi, '')
+      .replace(/&lt;\/?(?:b|span|strong|div|p)[^&gt;]*&gt;/gi, '');
+    let html = esc(s);
+    html = html.replace(/\*\*(.+?)\*\*/g, '<b style="color:#0f172a;font-weight:700">$1</b>');
     html = html.replace(/\*(.+?)\*/g, '<i>$1</i>');
     html = html.replace(/^([0-9]+)\.\s+(.+)$/gm, '<div style="margin-left:4px;margin-bottom:4px"><span style="color:#059669;font-weight:700">$1.</span> $2</div>');
     html = html.replace(/^[•\-]\s+(.+)$/gm, '<li style="margin-left:14px;list-style-type:disc;margin-bottom:3px">$1</li>');
@@ -915,32 +920,67 @@
     `;
   }
 
+  function playNotificationSound() {
+    try {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(587.33, ctx.currentTime);
+      osc.frequency.setValueAtTime(880, ctx.currentTime + 0.12);
+      gain.gain.setValueAtTime(0.2, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.4);
+    } catch (_) {}
+  }
+
+  function triggerDesktopNotification(title, body) {
+    playNotificationSound();
+    if ('Notification' in window && Notification.permission === 'granted') {
+      try {
+        new Notification(title, {
+          body,
+          icon: '/logo-mark.png'
+        });
+      } catch (_) {}
+    }
+  }
+
   function scheduleModalHtml() {
     if (!S.scheduleModalOpen) return '';
     const sched = S.notificationSchedule || { enabled: false, intervalMinutes: 60, target: 'all' };
     const mins = sched.intervalMinutes || 60;
+    const target = sched.target || 'all';
     return `
       <div class="modal-backdrop" data-act="fu-close-schedule" style="position:fixed;inset:0;background:rgba(15,23,42,0.45);backdrop-filter:blur(3px);z-index:9998;display:flex;align-items:center;justify-content:center;padding:16px">
-        <div class="modal-card" onclick="event.stopPropagation()" style="background:#fff;border-radius:18px;max-width:460px;width:100%;box-shadow:0 20px 40px -8px rgba(0,0,0,0.2);overflow:hidden;border:1px solid #e2e8f0;animation:slideUp 0.2s ease-out">
+        <div class="modal-card" style="background:#fff;border-radius:18px;max-width:500px;width:100%;box-shadow:0 20px 40px -8px rgba(0,0,0,0.2);overflow:hidden;border:1px solid #e2e8f0;animation:slideUp 0.2s ease-out">
           <div style="padding:18px 22px;border-bottom:1px solid #f1f5f9;display:flex;justify-content:space-between;align-items:center;background:#f8fafc">
             <div style="display:flex;align-items:center;gap:10px">
               <span style="font-size:22px">⏰</span>
               <div>
                 <h3 style="margin:0;font-size:16px;color:#0f172a;font-weight:700">ตั้งรอบเวลาส่งแจ้งเตือนตามลูกค้า</h3>
-                <span style="font-size:12px;color:#64748b">ส่งแจ้งเตือนเข้าเว็บ & LINE อัตโนมัติตามช่วงเวลา</span>
+                <span style="font-size:12px;color:#64748b">ระบบแจ้งเตือนอัตโนมัติเข้าเว็บ & LINE Notify</span>
               </div>
             </div>
-            <button type="button" data-act="fu-close-schedule" style="background:none;border:0;color:#94a3b8;font-size:18px;cursor:pointer;padding:4px;line-height:1">✕</button>
+            <button type="button" data-act="fu-close-schedule" style="background:none;border:0;color:#94a3b8;font-size:20px;cursor:pointer;padding:4px;line-height:1">✕</button>
           </div>
           <form data-form="fu-save-schedule" style="padding:22px">
-            <div style="margin-bottom:18px">
+            <div style="margin-bottom:18px;padding:12px 14px;background:#f0fdf4;border-radius:12px;border:1px solid #bbf7d0">
               <label style="display:flex;align-items:center;gap:10px;cursor:pointer;user-select:none">
-                <input type="checkbox" name="enabled" ${sched.enabled ? 'checked' : ''} style="width:18px;height:18px;accent-color:#059669">
-                <span style="font-weight:700;font-size:14px;color:#0f172a">เปิดใช้งานระบบแจ้งเตือนอัตโนมัติตามรอบเวลา</span>
+                <input type="checkbox" name="enabled" ${sched.enabled ? 'checked' : ''} style="width:20px;height:20px;accent-color:#059669">
+                <div>
+                  <div style="font-weight:700;font-size:14px;color:#065f46">เปิดใช้งานระบบแจ้งเตือนอัตโนมัติตามรอบเวลา</div>
+                  <div style="font-size:12px;color:#047857">ส่งแจ้งเตือนตามรอบนาที/ชั่วโมงที่กำหนดโดยไม่ต้องกดเอง</div>
+                </div>
               </label>
             </div>
             <div style="margin-bottom:16px">
-              <label style="display:block;font-size:13px;font-weight:600;color:#334155;margin-bottom:8px">เลือกรอบระยะเวลาในการส่ง (กี่นาที หรือ กี่ชั่วโมง):</label>
+              <label style="display:block;font-size:13px;font-weight:600;color:#334155;margin-bottom:8px">⏱️ เลือกรอบระยะเวลาในการส่งแจ้งเตือน:</label>
               <select name="intervalMinutes" style="width:100%;padding:10px 14px;border-radius:10px;border:1px solid #cbd5e1;font-size:14px;background:#f8fafc">
                 <option value="15" ${mins === 15 ? 'selected' : ''}>⚡ ทุกๆ 15 นาที (ติดตามด่วนพิเศษ)</option>
                 <option value="30" ${mins === 30 ? 'selected' : ''}>⏱️ ทุกๆ 30 นาที</option>
@@ -952,12 +992,86 @@
                 <option value="1440" ${mins === 1440 ? 'selected' : ''}>📅 วันละ 1 ครั้ง (ทุก 24 ชั่วโมง)</option>
               </select>
             </div>
-            <div style="padding:12px;background:#f0fdf4;border-radius:10px;border:1px solid #bbf7d0;font-size:12.5px;color:#166534;line-height:1.5;margin-bottom:20px">
-              💡 <b>การทำงาน:</b> ระบบจะคำนวณเคสที่รอลูกค้าตอบและเคสที่ถึงเวลาตามต่อ จากนั้นส่งสรุปแจ้งเตือนเข้า <b>กระดิ่งบนหน้าเว็บ</b> และ <b>กลุ่ม LINE</b> ตามรอบเวลาที่คุณเลือกไว้ทันที
+            <div style="margin-bottom:16px">
+              <label style="display:block;font-size:13px;font-weight:600;color:#334155;margin-bottom:8px">🎯 กลุ่มเป้าหมายที่ต้องการให้เตือน:</label>
+              <select name="target" style="width:100%;padding:10px 14px;border-radius:10px;border:1px solid #cbd5e1;font-size:14px;background:#f8fafc">
+                <option value="all" ${target === 'all' ? 'selected' : ''}>🌐 ทั้งหมด (ลูกค้ารอตอบ + เคสนัดตาม + ถึงเวลาตาม)</option>
+                <option value="reply" ${target === 'reply' ? 'selected' : ''}>⚡ เฉพาะเคสลูกค้ารอตอบคำตอบ</option>
+                <option value="overdue" ${target === 'overdue' ? 'selected' : ''}>⚠️ เฉพาะเคสนัดตามเกินกำหนด / วันนี้</option>
+              </select>
+            </div>
+            <div style="margin-bottom:20px;padding:12px;background:#f8fafc;border-radius:10px;border:1px solid #e2e8f0">
+              <div style="font-size:12.5px;font-weight:700;color:#334155;margin-bottom:8px">🔔 ช่องทางและการแจ้งเตือน:</div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap">
+                <button type="button" class="btn" data-act="fu-test-sound" style="font-size:12px;padding:5px 10px;border-radius:8px;background:#fff">
+                  🔊 ฟังเสียงทดสอบ
+                </button>
+                <button type="button" class="btn" data-act="fu-enable-desktop-notif" style="font-size:12px;padding:5px 10px;border-radius:8px;background:#fff">
+                  🖥️ อนุญาตแจ้งเตือนบนหน้าจอ
+                </button>
+                <button type="button" class="btn" data-act="fu-test-notify" style="font-size:12px;padding:5px 10px;border-radius:8px;background:#ecfdf5;color:#065f46;border-color:#a7f3d0">
+                  🧪 ทดสอบส่งแจ้งเตือนตอนนี้
+                </button>
+              </div>
             </div>
             <div style="display:flex;justify-content:flex-end;gap:10px">
               <button type="button" class="btn btn-secondary" data-act="fu-close-schedule">ยกเลิก</button>
-              <button type="submit" class="btn btn-primary" style="background:#059669;color:#fff">บันทึกการตั้งค่า</button>
+              <button type="submit" class="btn btn-primary" style="background:#059669;color:#fff;font-weight:600">💾 บันทึกการตั้งค่า</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    `;
+  }
+
+  function quickEditModalHtml() {
+    if (!S.quickEditLead) return '';
+    const l = S.quickEditLead;
+    const t = today();
+    const tm = tomorrow();
+    return `
+      <div class="modal-backdrop" data-act="fu-quick-close" style="position:fixed;inset:0;background:rgba(15,23,42,0.45);backdrop-filter:blur(3px);z-index:9998;display:flex;align-items:center;justify-content:center;padding:16px">
+        <div class="modal-card" style="background:#fff;border-radius:18px;max-width:480px;width:100%;box-shadow:0 20px 40px -8px rgba(0,0,0,0.2);overflow:hidden;border:1px solid #e2e8f0;animation:slideUp 0.2s ease-out">
+          <div style="padding:16px 20px;border-bottom:1px solid #f1f5f9;display:flex;justify-content:space-between;align-items:center;background:#f8fafc">
+            <div style="display:flex;align-items:center;gap:10px">
+              <span style="font-size:22px">✏️</span>
+              <div>
+                <h3 style="margin:0;font-size:16px;color:#0f172a;font-weight:700">แก้ไขข้อมูลการนัดตามลูกค้า</h3>
+                <span style="font-size:12px;color:#64748b">ลูกค้า: <b style="color:#059669">${esc(l.name)}</b></span>
+              </div>
+            </div>
+            <button type="button" data-act="fu-quick-close" style="background:none;border:0;color:#94a3b8;font-size:20px;cursor:pointer;padding:4px;line-height:1">✕</button>
+          </div>
+          <form data-form="fu-quick-save" style="padding:22px">
+            <input type="hidden" name="id" value="${esc(l.id)}">
+            <div style="margin-bottom:16px">
+              <label style="display:block;font-size:13px;font-weight:600;color:#334155;margin-bottom:6px">📅 วันที่นัดติดตามลูกค้า:</label>
+              <input type="date" id="fu-quick-due-input" name="dueDate" value="${esc(l.dueDate || tm)}" required style="width:100%;padding:10px 14px;border-radius:10px;border:1px solid #cbd5e1;font-size:14px;background:#f8fafc;margin-bottom:8px">
+              <div style="display:flex;gap:6px;flex-wrap:wrap">
+                <button type="button" class="btn" data-act="fu-quick-set-date" data-val="${t}" style="padding:3px 10px;font-size:12px;border-radius:8px">วันนี้</button>
+                <button type="button" class="btn" data-act="fu-quick-set-date" data-val="${tm}" style="padding:3px 10px;font-size:12px;border-radius:8px">พรุ่งนี้</button>
+                <button type="button" class="btn" data-act="fu-quick-set-date" data-val="${addDays(t, 3)}" style="padding:3px 10px;font-size:12px;border-radius:8px">อีก 3 วัน</button>
+                <button type="button" class="btn" data-act="fu-quick-set-date" data-val="${addDays(t, 7)}" style="padding:3px 10px;font-size:12px;border-radius:8px">อีก 1 สัปดาห์</button>
+              </div>
+            </div>
+            <div style="margin-bottom:16px">
+              <label style="display:block;font-size:13px;font-weight:600;color:#334155;margin-bottom:6px">📝 บันทึกช่วยจำ / โน้ตติดตาม:</label>
+              <input type="text" name="note" value="${esc(l.note)}" maxlength="300" placeholder="เช่น โทรแจ้งโปรโมชั่นกราฟต์ผม, ส่งเคสรีวิวเพิ่มเติม" style="width:100%;padding:10px 14px;border-radius:10px;border:1px solid #cbd5e1;font-size:14px;background:#f8fafc">
+            </div>
+            <div style="margin-bottom:20px">
+              <label style="display:block;font-size:13px;font-weight:600;color:#334155;margin-bottom:6px">🔄 สถานะความคืบหน้า:</label>
+              <select name="status" style="width:100%;padding:10px 14px;border-radius:10px;border:1px solid #cbd5e1;font-size:14px;background:#f8fafc">
+                ${STATUS_ORDER.map(k => `<option value="${k}" ${l.status === k ? 'selected' : ''}>${STATUS_TH[k]}</option>`).join('')}
+              </select>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center;padding-top:10px;border-top:1px solid #f1f5f9">
+              <button type="button" class="btn btn-secondary" data-act="fu-quick-done" data-id="${esc(l.id)}" style="color:#d97706;border-color:#fde68a;background:#fffbeb;font-size:12.5px;padding:6px 12px;border-radius:8px">
+                ✅ ปิดงานตามนี้
+              </button>
+              <div style="display:flex;gap:8px">
+                <button type="button" class="btn btn-secondary" data-act="fu-quick-close" style="border-radius:8px">ยกเลิก</button>
+                <button type="submit" class="btn btn-primary" style="background:#059669;color:#fff;border-radius:8px;font-weight:600">💾 บันทึกการแก้ไข</button>
+              </div>
             </div>
           </form>
         </div>
@@ -1042,6 +1156,7 @@
       <div id="drawer-root"></div>
       ${commandPaletteHtml()}
       ${scheduleModalHtml()}
+      ${quickEditModalHtml()}
       ${importModalHtml()}
       ${floatingGhostHtml()}
     </div>`;
@@ -4072,7 +4187,7 @@ function boardShell() {
         <div class="stat"><div class="k-label">นัดตามทั้งหมด</div><div class="k-value">${num(st.scheduled)}</div></div></div>
       <section class="card filters"><div class="pills">${tabs.map(([k, l, n, cls]) => `<button type="button" class="pill ${cls} ${s.tab === k ? 'active' : ''}" data-act="ftab" data-tab="${k}">${l} <b class="tab-badge">${num(n)}</b></button>`).join('')}</div>
         <span class="label">ทีมขาย</span>${repSelect('frep', s.rep)}</section>
-      <section class="card table-card"><div class="tscroll"><table style="min-width:920px"><thead><tr><th class="nosort">ลูกค้า</th><th class="nosort">ข้อความล่าสุด</th><th class="nosort">สถานะตาม</th><th class="nosort">ความคืบหน้า</th><th class="nosort">ผู้ดูแล</th><th class="nosort">นัด / บันทึก</th><th class="nosort" style="text-align:center;width:120px">การแจ้งเตือน</th></tr></thead><tbody>
+      <section class="card table-card"><div class="tscroll"><table style="min-width:960px"><thead><tr><th class="nosort">ลูกค้า</th><th class="nosort">ข้อความล่าสุด</th><th class="nosort">สถานะตาม</th><th class="nosort">ความคืบหน้า</th><th class="nosort">ผู้ดูแล</th><th class="nosort">นัด / บันทึก</th><th class="nosort" style="text-align:center;width:170px">จัดการ / แจ้งเตือน</th></tr></thead><tbody>
       ${rows.length ? rows.map((r) => `<tr class="click-row" data-act="open-chat" data-id="${esc(r.id)}">
         <td><div class="ad-name">${esc(r.name)}</div><div class="ad-sub">${chanHtml(r.channel)}</div></td>
         <td><div class="fu-last">${r.lastFrom === 'staff' ? 'คุณ: ' : ''}${esc(r.lastText)}</div><div class="ad-sub">${r.lastAt ? ago(r.lastAt) + 'ที่แล้ว' : ''}</div></td>
@@ -4080,9 +4195,14 @@ function boardShell() {
         <td>${statusHtml(r.status)}</td><td>${esc(r.rep || '—')}</td>
         <td>${r.dueDate ? `<b>${esc(r.dueDate)}</b><div class="ad-sub">${esc(r.note)}</div>` : '—'}</td>
         <td style="text-align:center" onclick="event.stopPropagation()">
-          <button type="button" class="btn btn-secondary fu-notify-btn" data-act="fu-notify-one" data-id="${esc(r.id)}" data-name="${esc(r.name)}" data-rep="${esc(r.rep || '')}" data-kind="${esc(r.kind)}" data-due="${esc(r.dueDate || '')}" title="ส่งแจ้งเตือนเตือนตามเคสนี้เข้าเว็บและ LINE" style="padding:4px 8px;font-size:11.5px;border-radius:8px;background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0;font-weight:600;display:inline-flex;align-items:center;gap:4px">
-            🔔 แจ้งเตือน
-          </button>
+          <div style="display:inline-flex;gap:6px;align-items:center;justify-content:center">
+            <button type="button" class="btn btn-secondary fu-edit-btn" data-act="fu-quick-edit" data-id="${esc(r.id)}" data-name="${esc(r.name)}" data-due="${esc(r.dueDate || '')}" data-note="${esc(r.note || '')}" data-status="${esc(r.status || '')}" title="แก้ไขการนัดตามหรือบันทึกโน้ต" style="padding:4px 8px;font-size:11.5px;border-radius:8px;background:#f8fafc;color:#334155;border:1px solid #cbd5e1;font-weight:600;display:inline-flex;align-items:center;gap:4px">
+              ✏️ แก้ไข
+            </button>
+            <button type="button" class="btn btn-secondary fu-notify-btn" data-act="fu-notify-one" data-id="${esc(r.id)}" data-name="${esc(r.name)}" data-rep="${esc(r.rep || '')}" data-kind="${esc(r.kind)}" data-due="${esc(r.dueDate || '')}" title="ส่งแจ้งเตือนเตือนตามเคสนี้เข้าเว็บและ LINE" style="padding:4px 8px;font-size:11.5px;border-radius:8px;background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0;font-weight:600;display:inline-flex;align-items:center;gap:4px">
+              🔔 แจ้งเตือน
+            </button>
+          </div>
         </td></tr>`).join('')
         : '<tr><td colspan="7"><div class="empty">ไม่มีลูกค้าที่ต้องตามในตอนนี้ 🎉</div></td></tr>'}</tbody></table></div>
       ${d.total > d.rows.length ? `<div class="ad-sub" style="padding:10px;text-align:center">แสดง ${d.rows.length} จาก ${num(d.total)} รายการ</div>` : ''}</section>`;
@@ -4727,6 +4847,58 @@ function boardShell() {
         S.scheduleModalOpen = false;
         render();
       }
+      else if (act === 'fu-quick-edit') {
+        S.quickEditLead = {
+          id: el.dataset.id,
+          name: el.dataset.name,
+          dueDate: el.dataset.due || tomorrow(),
+          note: el.dataset.note || '',
+          status: el.dataset.status || 'new'
+        };
+        render();
+      }
+      else if (act === 'fu-quick-close') {
+        S.quickEditLead = null;
+        render();
+      }
+      else if (act === 'fu-quick-set-date') {
+        const inp = document.getElementById('fu-quick-due-input');
+        if (inp) inp.value = el.dataset.val;
+      }
+      else if (act === 'fu-quick-done') {
+        const id = el.dataset.id;
+        try {
+          await api('/api/followups/done', { method: 'POST', body: { id } });
+          showToast('✅ ปิดงานตามเคสนี้เรียบร้อยแล้ว', 'success');
+          S.quickEditLead = null;
+          render();
+          await loadFollowups();
+        } catch (e) {
+          showToast('❌ ปิดงานตามไม่สำเร็จ: ' + e.message, 'error');
+        }
+      }
+      else if (act === 'fu-test-sound') {
+        playNotificationSound();
+        showToast('🔊 ทดสอบเสียงกระดิ่งเตือนเรียบร้อย', 'info');
+      }
+      else if (act === 'fu-enable-desktop-notif') {
+        if ('Notification' in window) {
+          const perm = await Notification.requestPermission();
+          if (perm === 'granted') {
+            triggerDesktopNotification('🎉 เปิดแจ้งเตือนสำเร็จ!', 'ระบบจะแจ้งเตือนเคสตามลูกค้าบนหน้าจอของคุณ');
+            showToast('✅ อนุญาตการแจ้งเตือนบนหน้าจอเรียบร้อยแล้ว', 'success');
+          } else {
+            showToast('⚠️ คุณไม่ได้อนุญาตการแจ้งเตือนในเบราว์เซอร์', 'warning');
+          }
+        } else {
+          showToast('เบราว์เซอร์นี้ไม่รองรับ Desktop Notification', 'warning');
+        }
+      }
+      else if (act === 'fu-test-notify') {
+        playNotificationSound();
+        triggerDesktopNotification('🔔 ทดสอบระบบแจ้งเตือน', 'ระบบแจ้งเตือนตามลูกค้าพร้อมทำงานแล้ว');
+        showToast('🔔 ทดสอบส่งการแจ้งเตือนสำเร็จ!', 'success');
+      }
       else if (act === 'import-modal-close') {
         S.importModal = null;
         render();
@@ -4793,6 +4965,7 @@ function boardShell() {
             }
           });
           if (res.ok) {
+            triggerDesktopNotification(`เตือนติดตามลูกค้า: ${name}`, `เคส ${name} (${rep || 'ยังไม่ระบุเซลส์'}) - ${reason}`);
             showToast(`🔔 ส่งการแจ้งเตือนเคส "${name}" สำเร็จแล้ว!`, 'success');
             await loadWebNotifications();
             render();
@@ -4826,6 +4999,7 @@ function boardShell() {
             }
           });
           if (res.ok) {
+            triggerDesktopNotification(`เตือนสรุปลูกค้าที่ต้องตาม (${total} เคส)`, `ลูกค้ารอตอบ ${replyCount} เคส, เกินกำหนด ${overdueCount} เคส`);
             showToast(`🔔 ส่งการแจ้งเตือนภาพรวมตามลูกค้า ${total} เคส เข้าเว็บสำเร็จแล้ว!`, 'success');
             await loadWebNotifications();
             render();
@@ -5321,14 +5495,35 @@ function boardShell() {
       } else if (type === 'fu-save-schedule') {
         const enabled = Boolean(form.querySelector('[name="enabled"]')?.checked);
         const intervalMinutes = parseInt(fd.intervalMinutes || 60, 10);
+        const target = fd.target || 'all';
         const res = await api('/api/notifications/schedule', {
           method: 'POST',
-          body: { enabled, intervalMinutes }
+          body: { enabled, intervalMinutes, target }
         });
         S.notificationSchedule = res.schedule;
         S.scheduleModalOpen = false;
+        playNotificationSound();
         showToast(enabled ? `⏰ เปิดระบบแจ้งเตือนอัตโนมัติทุก ${intervalMinutes >= 60 ? (intervalMinutes / 60) + ' ชม.' : intervalMinutes + ' นาที'} เรียบร้อยแล้ว` : '⏸️ ปิดระบบแจ้งเตือนอัตโนมัติแล้ว', 'success');
         render();
+        return;
+      } else if (type === 'fu-quick-save') {
+        const id = fd.id;
+        const dueDate = fd.dueDate;
+        const note = fd.note || '';
+        const status = fd.status;
+        try {
+          await api('/api/followups', { method: 'POST', body: { id, dueDate, note } });
+          if (status) {
+            await api('/api/lead/status', { method: 'POST', body: { id, status } }).catch(() => {});
+          }
+          playNotificationSound();
+          showToast('💾 บันทึกการแก้ไขนัดตามลูกค้าเรียบร้อยแล้ว', 'success');
+          S.quickEditLead = null;
+          render();
+          await loadFollowups();
+        } catch (e) {
+          showToast('❌ บันทึกไม่สำเร็จ: ' + e.message, 'error');
+        }
         return;
       } else if (type === 'do-import-conv') {
         // Modal form submit: ดึงแชทพร้อม date range

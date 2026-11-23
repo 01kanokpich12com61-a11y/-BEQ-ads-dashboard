@@ -944,7 +944,7 @@ async function api(req, res, url, session) {
     const b = await readJson(req);
     if (!isDate(b.dueDate)) return send(res, 400, { error: 'วันที่นัดไม่ถูกต้อง' });
     const data = await providers.load(resolveRange({ range: '90d' }));
-    const lead = data.leads.find((l) => l.id === b.id);
+    const lead = data.leads.find((l) => String(l.id) === String(b.id));
     if (!lead) return send(res, 404, { error: 'ไม่พบแชทนี้' });
     const fu = ops.setFollowup(lead.id, { dueDate: b.dueDate, note: clean(b.note, 300) }, session.user.username);
     audit.log(session.user.username, 'followup_set', `${lead.id} ${lead.name}: นัด ${fu.dueDate}${fu.note ? ' — ' + fu.note : ''}`, clientIp(req));
