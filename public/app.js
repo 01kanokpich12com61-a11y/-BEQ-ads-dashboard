@@ -4102,11 +4102,15 @@ function boardShell() {
       else if (act === 'fb-import-conv') {
         const pageId = el.dataset.pageId;
         const pageName = el.dataset.pageName;
-        if (!confirm(`ต้องการดึงข้อมูลแชทของเพจ "${pageName}" หรือไม่?\n\n⚠️ ข้อมูลแชทและลูกค้าเดิมของเพจนี้จะถูกแทนที่ด้วยข้อมูลล่าสุดจาก Meta`)) return;
+        const defaultLimit = pageName.includes('Beq') ? 300 : 400;
+        const customLimit = prompt(`ระบุจำนวนแชทที่ต้องการดึงจากเพจ "${pageName}":`, String(defaultLimit));
+        if (customLimit === null) return;
+        const limitNum = Math.max(10, Math.min(Number(customLimit) || defaultLimit, 1000));
+        if (!confirm(`ต้องการดึงข้อมูลแชท ${limitNum} แชทของเพจ "${pageName}" หรือไม่?\n\n⚠️ ข้อมูลแชทและลูกค้าเดิมของเพจนี้จะถูกแทนที่ด้วยข้อมูลล่าสุดจาก Meta`)) return;
         el.disabled = true;
         el.textContent = '⏳ กำลังดึงแชท...';
         try {
-          const r = await api('/api/import/facebook-conversations', { method: 'POST', body: { pageId, limit: 400 } });
+          const r = await api('/api/import/facebook-conversations', { method: 'POST', body: { pageId, limit: limitNum } });
           if (r.ok) {
             S.flash = { type: 'ok', text: `นำเข้าบทสนทนาเพจ ${r.pageName} สำเร็จ: เพิ่มลูกค้าใหม่ ${r.importedLeads} ราย, ${r.importedMsgs} ข้อความ` };
             S.filters = await api('/api/filters').catch(() => null);
