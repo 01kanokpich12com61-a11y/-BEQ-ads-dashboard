@@ -2409,10 +2409,10 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
           <div class="cura-section-card-body" style="padding:12px 14px;display:flex;flex-direction:column;gap:10px">
             <div class="cura-field-group">
               <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase">Branch / Clinic</label>
-              <select style="width:100%;padding:6px 10px;border-radius:8px;border:1px solid #e2e8f0;font-size:12.5px">
-                <option>BEQ GROUP · Hair Wellness & Transplant</option>
-                <option>BEQ Thonglor Aesthetic</option>
-                <option>BEQ Siam Paragon</option>
+              <select data-bind="branch-select" style="width:100%;padding:6px 10px;border-radius:8px;border:1px solid #e2e8f0;font-size:12.5px">
+                <option value="BEQ GROUP" ${(S.branch || '').includes('GROUP') ? 'selected' : ''}>BEQ GROUP · Hair Wellness & Transplant</option>
+                <option value="BEQ Thonglor" ${(S.branch || '').includes('Thonglor') ? 'selected' : ''}>BEQ Thonglor Aesthetic</option>
+                <option value="BEQ Siam Paragon" ${(S.branch || '').includes('Paragon') ? 'selected' : ''}>BEQ Siam Paragon</option>
               </select>
             </div>
             <div class="cura-field-group">

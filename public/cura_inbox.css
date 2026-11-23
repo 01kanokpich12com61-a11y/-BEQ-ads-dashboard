@@ -5,9 +5,11 @@
 
 /* Full-viewport exact fitting for Inbox */
 .page-inbox,
-.page:has(#inbox-body) {
+.page:has(#inbox-body),
+.page.page-inbox {
   padding: 10px 16px;
-  height: calc(100vh - 52px);
+  height: calc(100vh - 54px);
+  max-height: calc(100vh - 54px);
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
@@ -15,18 +17,23 @@
 }
 
 .page-inbox #inbox-body,
-.page:has(#inbox-body) #inbox-body {
+.page:has(#inbox-body) #inbox-body,
+.page.page-inbox #inbox-body {
   flex: 1;
   min-height: 0;
+  height: 100%;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 .page-inbox .cura-panels-row,
-.page:has(#inbox-body) .cura-panels-row {
+.page:has(#inbox-body) .cura-panels-row,
+.page.page-inbox .cura-panels-row {
   flex: 1;
   height: 100%;
   min-height: 0;
+  max-height: 100%;
 }
 
 /* Inbox Page Header */
@@ -88,9 +95,10 @@
   display: flex;
   flex-direction: row;
   gap: 12px;
-  height: calc(100vh - 128px);
-  min-height: 520px;
+  height: 100%;
+  min-height: 0;
   width: 100%;
+  overflow: hidden;
 }
 
 /* Panel 1: Left Container (Rail + Conversation List) */
@@ -839,9 +847,12 @@
    Panel 4: Right Contact Info & CRM Panel
    ========================================================================== */
 .cura-panel-right {
-  width: 300px;
-  min-width: 280px;
-  max-width: 320px;
+  width: 310px;
+  min-width: 290px;
+  max-width: 330px;
+  height: 100%;
+  max-height: 100%;
+  box-sizing: border-box;
   background: #ffffff;
   border: 1px solid rgba(16, 185, 129, 0.14);
   border-radius: 16px;
@@ -851,7 +862,25 @@
   flex-direction: column;
   gap: 12px;
   overflow-y: auto;
+  overflow-x: hidden;
   flex-shrink: 0;
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 #f8fafc;
+}
+
+.cura-panel-right::-webkit-scrollbar {
+  width: 6px;
+}
+.cura-panel-right::-webkit-scrollbar-track {
+  background: #f8fafc;
+  border-radius: 8px;
+}
+.cura-panel-right::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 8px;
+}
+.cura-panel-right::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
 }
 
 .cura-profile-center {
