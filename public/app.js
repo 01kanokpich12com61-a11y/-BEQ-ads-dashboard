@@ -1272,8 +1272,8 @@
     const today = new Date().toISOString().slice(0, 10);
     const defAfter = (() => { const d = new Date(); d.setMonth(d.getMonth() - 3); return d.toISOString().slice(0, 10); })();
     return `
-      <div class="modal-backdrop" data-act="import-modal-close" style="position:fixed;inset:0;background:rgba(15,23,42,0.5);backdrop-filter:blur(3px);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px">
-        <div class="modal-card" onclick="event.stopPropagation()" style="background:#fff;border-radius:18px;max-width:500px;width:100%;box-shadow:0 20px 40px -8px rgba(0,0,0,0.25);overflow:hidden;border:1px solid #e2e8f0;animation:slideUp 0.2s ease-out">
+      <div class="modal-backdrop import-modal-backdrop" style="position:fixed;inset:0;background:rgba(15,23,42,0.5);backdrop-filter:blur(3px);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px">
+        <div class="modal-card" style="background:#fff;border-radius:18px;max-width:520px;width:100%;box-shadow:0 20px 40px -8px rgba(0,0,0,0.25);overflow:hidden;border:1px solid #e2e8f0;animation:slideUp 0.2s ease-out;position:relative;z-index:1">
           <div style="padding:18px 22px;border-bottom:1px solid #f1f5f9;display:flex;justify-content:space-between;align-items:center;background:#f0fdf4">
             <div style="display:flex;align-items:center;gap:10px">
               <span style="font-size:22px">📥</span>
@@ -1288,15 +1288,24 @@
             ${m.mode === 'one' ? `<input type="hidden" name="pageId" value="${esc(m.pageId || '')}">` : ''}
             <input type="hidden" name="mode" value="${m.mode}">
 
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:10px">
               <div>
                 <label style="display:block;font-size:12.5px;font-weight:700;color:#334155;margin-bottom:6px">📅 ตั้งแต่วันที่</label>
-                <input type="date" name="afterDate" id="m-after-date" value="${m.afterDate || defAfter}" style="width:100%;padding:9px 12px;border-radius:10px;border:1.5px solid #cbd5e1;font-size:14px;box-sizing:border-box;background:#fff;cursor:pointer">
+                <input type="date" name="afterDate" id="m-after-date" value="${m.afterDate || defAfter}" onclick="try{this.showPicker()}catch(_){}" style="width:100%;padding:10px 12px;border-radius:10px;border:1.5px solid #cbd5e1;font-size:14px;box-sizing:border-box;background:#fff;cursor:pointer">
               </div>
               <div>
                 <label style="display:block;font-size:12.5px;font-weight:700;color:#334155;margin-bottom:6px">📅 ถึงวันที่</label>
-                <input type="date" name="beforeDate" id="m-before-date" value="${m.beforeDate || today}" style="width:100%;padding:9px 12px;border-radius:10px;border:1.5px solid #cbd5e1;font-size:14px;box-sizing:border-box;background:#fff;cursor:pointer">
+                <input type="date" name="beforeDate" id="m-before-date" value="${m.beforeDate || today}" onclick="try{this.showPicker()}catch(_){}" style="width:100%;padding:10px 12px;border-radius:10px;border:1.5px solid #cbd5e1;font-size:14px;box-sizing:border-box;background:#fff;cursor:pointer">
               </div>
+            </div>
+
+            <!-- ปุ่มลัดเลือกช่วงเวลาเร็ว -->
+            <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px">
+              <span style="font-size:11.5px;color:#64748b;align-self:center;margin-right:2px">ช่วงลัด:</span>
+              <button type="button" class="btn" data-act="import-quick-range" data-days="7" style="padding:3px 8px;font-size:11.5px;border-radius:6px;background:#f8fafc;border:1px solid #e2e8f0">7 วันล่าสุด</button>
+              <button type="button" class="btn" data-act="import-quick-range" data-days="30" style="padding:3px 8px;font-size:11.5px;border-radius:6px;background:#f8fafc;border:1px solid #e2e8f0">30 วันล่าสุด</button>
+              <button type="button" class="btn" data-act="import-quick-range" data-days="90" style="padding:3px 8px;font-size:11.5px;border-radius:6px;background:#ecfdf5;border:1px solid #a7f3d0;color:#065f46;font-weight:600">3 เดือน (แนะนำ)</button>
+              <button type="button" class="btn" data-act="import-quick-range" data-days="180" style="padding:3px 8px;font-size:11.5px;border-radius:6px;background:#f8fafc;border:1px solid #e2e8f0">6 เดือน</button>
             </div>
 
             <div style="margin-bottom:16px">
@@ -4833,6 +4842,11 @@ function boardShell() {
       render();
       return;
     }
+    if (ev.target.classList.contains('import-modal-backdrop')) {
+      S.importModal = null;
+      render();
+      return;
+    }
     const el = ev.target.closest('[data-act]');
     if (!el) { if (S.menu && !ev.target.closest('.popover')) { S.menu = null; render(); } return; }
     const act = el.dataset.act; const d = S.dash;
@@ -5093,8 +5107,24 @@ function boardShell() {
         showToast('🔔 ทดสอบส่งการแจ้งเตือนสำเร็จ!', 'success');
       }
       else if (act === 'import-modal-close') {
+        if (ev.target.closest('.modal-card') && !ev.target.closest('button[data-act="import-modal-close"]')) return;
         S.importModal = null;
         render();
+      }
+      else if (act === 'import-quick-range') {
+        const days = parseInt(el.dataset.days || 90, 10);
+        const toD = new Date();
+        const fromD = new Date();
+        fromD.setDate(fromD.getDate() - days);
+        const ymd = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        const afterInput = document.getElementById('m-after-date');
+        const beforeInput = document.getElementById('m-before-date');
+        if (afterInput) afterInput.value = ymd(fromD);
+        if (beforeInput) beforeInput.value = ymd(toD);
+        if (S.importModal) {
+          S.importModal.afterDate = ymd(fromD);
+          S.importModal.beforeDate = ymd(toD);
+        }
       }
       else if (act === 'import-modal-submit') {
         const form = document.querySelector('[data-form="do-import-conv"]');
