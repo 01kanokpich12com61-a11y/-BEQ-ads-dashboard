@@ -1048,18 +1048,10 @@
         </button>
         <div class="header-title-box">
           <h1 class="header-page-title">${pageTitle}</h1>
-          <span class="header-page-sub">${pageSub}</span>
         </div>
       </div>
 
       <div class="header-actions">
-        <!-- Live System Pulse & HUD Telemetry -->
-        <div class="header-telemetry-hud" title="System Latency & Copilot Core Status">
-          <span>⚡ HUD</span>
-          <span style="opacity:0.4">|</span>
-          <span class="hud-ping-val">38ms</span>
-        </div>
-
         <div class="header-live-badge" title="ระบบเชื่อมต่อ Meta & ตอบแชทแบบเรียลไทม์">
           <span class="live-pulse-dot"></span>
           <span>LIVE SYNC</span>
