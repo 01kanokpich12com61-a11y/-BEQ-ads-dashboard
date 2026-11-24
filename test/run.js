@@ -375,9 +375,9 @@ async function main() {
   assert.equal(upBeq.ok, true);
   assert.equal(upBeq.added, 2);
 
-  const beqFbLead = (await call('GET', '/api/inbox?range=90d&page=11432947713900')).json.rows.find((r) => r.name === 'คุณสมศักดิ์ Wellness FB');
+  const beqFbLead = (await call('GET', '/api/inbox?range=90d&page=111432947713900')).json.rows.find((r) => r.name === 'คุณสมศักดิ์ Wellness FB');
   assert.ok(beqFbLead, 'ต้องพบ Facebook lead ของ Beq Hair Wellness Center');
-  assert.equal(beqFbLead.pageId, '11432947713900');
+  assert.equal(beqFbLead.pageId, '111432947713900');
   assert.equal(beqFbLead.pageName, 'Beq Hair Wellness Center');
 
   const beqIgLead = (await call('GET', '/api/inbox?range=90d&page=17841401019079620')).json.rows.find((r) => r.name === 'คุณศศิธร Wellness IG');

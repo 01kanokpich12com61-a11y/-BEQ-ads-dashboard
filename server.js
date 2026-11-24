@@ -1088,7 +1088,7 @@ async function api(req, res, url, session) {
 
       const checkStr = `${uploadPageName} ${rawRowPage} ${rawRowPlat} ${rawRowChan} ${r.pageId || ''} ${r.adId || ''} ${r.campaign || ''}`.toLowerCase();
       const isNayBrand = /nay|109373461849494|17841448814795762/.test(checkStr);
-      const isBeqWellness = /wellness|11432947713900|17841401019079620/.test(checkStr) || (!isNayBrand && /beq/.test(checkStr));
+      const isBeqWellness = /wellness|111432947713900|17841401019079620/.test(checkStr) || (!isNayBrand && /beq/.test(checkStr));
 
       if (platform === 'Instagram') {
         if (isBeqWellness) {
@@ -1106,9 +1106,9 @@ async function api(req, res, url, session) {
           pageName = fbNay ? fbNay.name : 'Dr. Nay Hair Transplant by BEQ ปลูกผมถาวร';
           resolvedPageId = fbNay ? fbNay.id : '109373461849494';
         } else if (isBeqWellness) {
-          const fbWel = knownPages.find((p) => p.platform === 'Facebook' && (p.id === '11432947713900' || p.name.includes('Wellness') || p.name.includes('Beq')));
+          const fbWel = knownPages.find((p) => p.platform === 'Facebook' && (p.id === '111432947713900' || p.name.includes('Wellness') || p.name.includes('Beq')));
           pageName = fbWel ? fbWel.name : 'Beq Hair Wellness Center';
-          resolvedPageId = fbWel ? fbWel.id : '11432947713900';
+          resolvedPageId = fbWel ? fbWel.id : '111432947713900';
         } else {
           const fbPav = knownPages.find((p) => p.platform === 'Facebook' && (p.id === '239105462619075' || p.name.includes('Pavicon')));
           pageName = fbPav ? fbPav.name : (uploadPageName || rawRowPage || 'Pavicon Hair Clinic คลินิกปลูกผมมาตรฐานสากล');
