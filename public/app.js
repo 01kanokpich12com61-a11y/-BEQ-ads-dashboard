@@ -1289,7 +1289,7 @@
     return `
       ${chatModal}
       <div class="floating-ghost-btn" data-act="toggle-ghost" title="คุยกับน้อง AI ผู้ช่วยประจำคลินิก">
-        ${ghostSvg(42)}
+        ${ghostSvg(46)}
         ${unreadPill}
       </div>
     `;
