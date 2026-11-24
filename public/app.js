@@ -32,41 +32,76 @@
     toasts: [],
     ghostOpen: false,
     ghostMsgs: [
-      { from: 'ai', text: 'สวัสดีครับพี่ๆ! ผมคือ “น้องกุ๊กกู๋ AI” 👻✨ เด็กน้อยผู้ช่วยประจำคลินิกครับ! พี่ๆ ไม่ต้องเสียเวลาเปิดหาข้อมูลในเว็บเองเลยนะครับ อยากรู้เรื่องอะไร ไม่ว่าจะเป็นยอดแอด แชทคนไข้ เซลล์คนไหนตอบเร็ว/ช้าสุด หรือสรุปตัวเลขต่างๆ ถามน้องกุ๊กกู๋ได้หมดเลยนะครับ ผมพร้อมตอบให้ทุกเรื่องเลยครับผม! 😊' }
+      { from: 'ai', text: 'สวัสดีครับพี่ๆ! ผมคือ “น้อง AI” 👦🏻✨ เด็กน้อยผู้ช่วยประจำคลินิกครับ! พี่ๆ ไม่ต้องเสียเวลาเปิดหาข้อมูลในเว็บเองเลยนะครับ อยากรู้เรื่องอะไร ไม่ว่าจะเป็นยอดแอด แชทคนไข้ เซลล์คนไหนตอบเร็ว/ช้าสุด หรือสรุปตัวเลขต่างๆ ถามน้องได้หมดเลยนะครับ ผมพร้อมตอบให้ทุกเรื่องเลยครับผม! 😊' }
     ],
   };
 
   function ghostSvg(size = 38) {
     return `<svg width="${size}" height="${size}" viewBox="0 0 100 100" fill="none">
       <defs>
-        <radialGradient id="ghostGrad" cx="40%" cy="35%" r="65%">
-          <stop offset="0%" stop-color="#ffffff"/>
-          <stop offset="70%" stop-color="#ecfdf5"/>
-          <stop offset="100%" stop-color="#a7f3d0"/>
+        <linearGradient id="boyHairGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#334155"/>
+          <stop offset="100%" stop-color="#1e293b"/>
+        </linearGradient>
+        <radialGradient id="boySkinGrad" cx="45%" cy="40%" r="60%">
+          <stop offset="0%" stop-color="#fff1eb"/>
+          <stop offset="85%" stop-color="#fed7aa"/>
+          <stop offset="100%" stop-color="#fdba74"/>
         </radialGradient>
-        <filter id="ghostGlow" x="-20%" y="-20%" width="140%" height="140%">
-          <feGaussianBlur stdDeviation="3" result="blur" />
-          <feComposite in="SourceGraphic" in2="blur" operator="over" />
+        <linearGradient id="boyShirtGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#34d399"/>
+          <stop offset="100%" stop-color="#059669"/>
+        </linearGradient>
+        <filter id="boyGlow" x="-15%" y="-15%" width="130%" height="130%">
+          <feDropShadow dx="0" dy="3" stdDeviation="3" flood-color="#059669" flood-opacity="0.25"/>
         </filter>
       </defs>
-      <!-- Ghost body with cute ripples -->
-      <path d="M50 14 C30 14 20 28 20 48 C20 70 20 84 25 84 C30 84 34 76 40 76 C46 76 50 84 55 84 C60 84 64 76 70 76 C76 76 80 84 85 84 C90 84 90 70 90 48 C90 28 80 14 50 14 Z" fill="url(#ghostGrad)" filter="url(#ghostGlow)"/>
-      <!-- Cute big eyes -->
-      <ellipse cx="38" cy="42" rx="5" ry="7" fill="#064e3b"/>
-      <ellipse cx="62" cy="42" rx="5" ry="7" fill="#064e3b"/>
-      <circle cx="40" cy="40" r="2.2" fill="#ffffff"/>
-      <circle cx="64" cy="40" r="2.2" fill="#ffffff"/>
-      <!-- Rosy cheeks -->
-      <circle cx="28" cy="48" r="4.5" fill="#f43f5e" opacity="0.4"/>
-      <circle cx="72" cy="48" r="4.5" fill="#f43f5e" opacity="0.4"/>
-      <!-- Happy smile -->
-      <path d="M44 52 Q50 59 56 52" stroke="#064e3b" stroke-width="2.8" stroke-linecap="round" fill="none"/>
-      <!-- Floating hand -->
-      <ellipse cx="18" cy="54" rx="4.5" ry="3.5" fill="#ffffff" transform="rotate(-25 18 54)"/>
-      <ellipse cx="82" cy="50" rx="4.5" ry="3.5" fill="#ffffff" transform="rotate(35 82 50)"/>
-      <!-- Little sprout / antenna on head -->
-      <path d="M50 14 Q53 6 60 7" stroke="#10b981" stroke-width="3" stroke-linecap="round" fill="none"/>
-      <circle cx="61" cy="7" r="2" fill="#059669"/>
+      <!-- Green medical collar / polo shirt -->
+      <path d="M26 82 C26 72 36 68 50 68 C64 68 74 72 74 82 L76 96 C76 98 74 100 72 100 L28 100 C26 100 24 98 24 96 Z" fill="url(#boyShirtGrad)" filter="url(#boyGlow)"/>
+      <path d="M46 68 L50 78 L54 68 Z" fill="#ffffff" opacity="0.9"/>
+      <circle cx="50" cy="83" r="1.8" fill="#ffffff"/>
+      <circle cx="50" cy="91" r="1.8" fill="#ffffff"/>
+
+      <!-- Neck -->
+      <rect x="44" y="60" width="12" height="12" rx="4" fill="#fbcfe8" opacity="0.6"/>
+
+      <!-- Ears -->
+      <circle cx="25" cy="51" r="6" fill="#fed7aa"/>
+      <circle cx="75" cy="51" r="6" fill="#fed7aa"/>
+      <circle cx="25" cy="51" r="3.2" fill="#fca5a5" opacity="0.6"/>
+      <circle cx="75" cy="51" r="3.2" fill="#fca5a5" opacity="0.6"/>
+
+      <!-- Cute Round Boy Face -->
+      <ellipse cx="50" cy="51" rx="26" ry="24" fill="url(#boySkinGrad)"/>
+
+      <!-- Boy's Cute Hairstyle (Bangs & Front Tuft) -->
+      <path d="M24 45 C23 27 34 16 50 16 C66 16 77 27 76 45 C73 40 68 36 62 36 C57 36 53 39 49 37 C45 35 40 37 36 38 C31 39 27 42 24 45 Z" fill="url(#boyHairGrad)"/>
+      <!-- Soft front bangs strands -->
+      <path d="M36 36 Q42 43 45 38" fill="none" stroke="#1e293b" stroke-width="2" stroke-linecap="round"/>
+      <path d="M52 36 Q58 44 63 38" fill="none" stroke="#1e293b" stroke-width="2" stroke-linecap="round"/>
+
+      <!-- Big expressive lively eyes with sparkles -->
+      <ellipse cx="39" cy="50" rx="4.5" ry="6" fill="#0f172a"/>
+      <ellipse cx="61" cy="50" rx="4.5" ry="6" fill="#0f172a"/>
+      <circle cx="40.5" cy="48" r="1.9" fill="#ffffff"/>
+      <circle cx="62.5" cy="48" r="1.9" fill="#ffffff"/>
+      <circle cx="37.5" cy="52" r="1" fill="#ffffff"/>
+      <circle cx="59.5" cy="52" r="1" fill="#ffffff"/>
+
+      <!-- Eyebrows -->
+      <path d="M34 42 Q39 39 44 42" stroke="#334155" stroke-width="2" stroke-linecap="round" fill="none"/>
+      <path d="M56 42 Q61 39 66 42" stroke="#334155" stroke-width="2" stroke-linecap="round" fill="none"/>
+
+      <!-- Blushing Rosy Cheeks -->
+      <circle cx="33" cy="56" r="4.2" fill="#f87171" opacity="0.5"/>
+      <circle cx="67" cy="56" r="4.2" fill="#f87171" opacity="0.5"/>
+
+      <!-- Cute smiling mouth with little tongue -->
+      <path d="M44 56 Q50 63 56 56" stroke="#0f172a" stroke-width="2.4" stroke-linecap="round" fill="#e11d48"/>
+
+      <!-- Hair cowlick / ahoge sprout at top -->
+      <path d="M50 16 Q54 6 62 8" stroke="#10b981" stroke-width="2.6" stroke-linecap="round" fill="none"/>
+      <circle cx="62" cy="8" r="2.2" fill="#059669"/>
     </svg>`;
   }
 
@@ -126,7 +161,7 @@
         const best = sortedBest[0];
 
         if (txt.includes('ช้า') || txt.includes('แย่') || txt.includes('ต่ำ') || txt.includes('หัก') || txt.includes('หลุด')) {
-          return `⏱️ **น้องกุ๊กกู๋สรุปอันดับเซลส์ที่ตอบช้าสุด / ถูกหักคะแนน SLA มากที่สุดให้แล้วครับผม:**\n\n` +
+          return `⏱️ **น้อง AI สรุปอันดับเซลส์ที่ตอบช้าสุด / ถูกหักคะแนน SLA มากที่สุดให้แล้วครับผม:**\n\n` +
             `🥇 **อันดับที่ตอบช้าสุด:** **${worst.rep}**\n` +
             `• คะแนนผลงาน: **${worst.points} แต้ม**\n` +
             `• ตอบช้าเกิน 15 นาที: **${worst.late}** จาก ${worst.turns} รอบ (${pct(worst.lateRate * 100)})\n` +
@@ -139,19 +174,19 @@
         }
 
         if (txt.includes('เร็ว') || txt.includes('ดี') || txt.includes('สูงสุด') || txt.includes('ยอดเยี่ยม')) {
-          return `🏆 **น้องกุ๊กกู๋ขอปรบมือให้ครับ! ผู้ที่ทำคะแนน SLA ตอบแชทได้ดีและเร็วที่สุดในทีม:**\n\n` +
+          return `🏆 **น้อง AI ขอปรบมือให้ครับ! ผู้ที่ทำคะแนน SLA ตอบแชทได้ดีและเร็วที่สุดในทีม:**\n\n` +
             `🌟 **${best.rep}**\n` +
             `• คะแนนผลงาน: **${best.points} แต้ม** (ยอดเยี่ยมมากครับ! ✨)\n` +
             `• ตอบทันเวลา: **${best.onTime} / ${best.turns} รอบ** (${pct(best.onTimeRate * 100)})\n` +
             `• เวลาตอบเฉลี่ย: **${best.avgMin ? num(best.avgMin, 1) + ' นาที' : 'เร็วมากครับ'}** 🚀\n\n` +
-            `💡 พี่ๆ สามารถดูสถิติเชิงลึกของทุกคนได้ที่หน้า **⏱️ SLA & Review** หรือจะพิมพ์ถามชื่อเซลส์คนไหนกับน้องกุ๊กกู๋ได้ตลอดเลยนะครับผม!`;
+            `💡 พี่ๆ สามารถดูสถิติเชิงลึกของทุกคนได้ที่หน้า **⏱️ SLA & Review** หรือจะพิมพ์ถามชื่อเซลส์คนไหนกับน้อง AI ได้ตลอดเลยนะครับผม!`;
         }
 
         // สรุปทั้งเร็วสุดและช้าสุดควบคู่กัน
-        return `⏱️ **น้องกุ๊กกู๋สรุปสถิติความเร็วตอบแชท (SLA) ของทีมเซลส์ให้ฟังครับผม:**\n\n` +
+        return `⏱️ **น้อง AI สรุปสถิติความเร็วตอบแชท (SLA) ของทีมเซลส์ให้ฟังครับผม:**\n\n` +
           `🌟 **เซลส์ที่ตอบเร็วและคะแนนดีที่สุด:** **${best.rep}** (${best.points} แต้ม | ตอบทัน ${best.onTime}/${best.turns} รอบ | เฉลี่ย ${num(best.avgMin, 1)} นาที) 🚀\n\n` +
           `⚠️ **เซลส์ที่ตอบช้าสุด / ถูกหักแต้มมากสุด:** **${worst.rep}** (${worst.points} แต้ม | ตอบช้าเกินเกณฑ์ ${worst.late} รอบ | เฉลี่ย ${num(worst.avgMin, 1)} นาที)\n\n` +
-          `💡 พี่ๆ ไม่ต้องเปิดหน้าเว็บดูเองเลยครับ อยากรู้อันดับใคร ถามน้องกุ๊กกู๋ได้เลยนะคร้าบ! 😊`;
+          `💡 พี่ๆ ไม่ต้องเปิดหน้าเว็บดูเองเลยครับ อยากรู้อันดับใคร ถามน้อง AI ได้เลยนะคร้าบ! 😊`;
       }
     }
 
@@ -398,15 +433,15 @@
     }
 
     if (txt.includes('ขอบคุณ') || txt.includes('ขอบใจ') || txt.includes('แต้งกิ้ว') || txt.includes('thank')) {
-      return `👻 ยินดีมากๆ เลยครับผม! พี่ๆ มีอะไรสงสัยเรื่องตัวเลขแอด แชท หรืออยากให้น้องกุ๊กกู๋ช่วยสรุปข้อมูลอะไร ถามน้องกุ๊กกู๋ได้ตลอดเวลาเลยนะครับ สู้ๆ กับการดูแลคนไข้นะคร้าบผม! ✨😊`;
+      return `👦🏻 ยินดีมากๆ เลยครับผม! พี่ๆ มีอะไรสงสัยเรื่องตัวเลขแอด แชท หรืออยากให้น้อง AI ช่วยสรุปข้อมูลอะไร ถามน้อง AI ได้ตลอดเวลาเลยนะครับ สู้ๆ กับการดูแลคนไข้นะคร้าบผม! ✨😊`;
     }
 
     // -------------------------------------------------------------------------
     // หมวด 17: ทักทาย & แนะนำตัว (Greetings & Bot Info)
     // -------------------------------------------------------------------------
-    if (txt.includes('สวัสดี') || txt.includes('ดีครับ') || txt.includes('ดีค่ะ') || txt.includes('หวัดดี') || txt.includes('hello') || txt.includes('hi') || txt.includes('กุ๊กกู๋') || txt.includes('ใคร') || txt.includes('ช่วยอะไร') || txt.includes('ทำอะไร')) {
-      return `👻 **สวัสดีครับพี่ๆ! ผมคือ "น้องกุ๊กกู๋ AI" เด็กน้อยผู้ช่วยประจำคลินิก BEQ ครับผม ✨**\n\n` +
-        `น้องกุ๊กกู๋มาช่วยเพื่อให้พี่ๆ สบายขึ้น ไม่ต้องเสียเวลาเปิดหาข้อมูลเองในเว็บเลยครับ! พี่ๆ อยากรู้อะไร ถามน้องได้ทันทีเลยนะครับ เช่น:\n` +
+    if (txt.includes('สวัสดี') || txt.includes('ดีครับ') || txt.includes('ดีค่ะ') || txt.includes('หวัดดี') || txt.includes('hello') || txt.includes('hi') || txt.includes('น้อง ai') || txt.includes('กุ๊กกู๋') || txt.includes('ใคร') || txt.includes('ช่วยอะไร') || txt.includes('ทำอะไร')) {
+      return `👦🏻 **สวัสดีครับพี่ๆ! ผมคือ "น้อง AI" เด็กน้อยผู้ช่วยประจำคลินิก BEQ ครับผม ✨**\n\n` +
+        `น้องมาช่วยเพื่อให้พี่ๆ สบายขึ้น ไม่ต้องเสียเวลาเปิดหาข้อมูลเองในเว็บเลยครับ! พี่ๆ อยากรู้อะไร ถามน้องได้ทันทีเลยนะครับ เช่น:\n` +
         `• 📊 *"สรุปยอดค่าแอดและ ROAS ช่วงนี้ให้หน่อยครับ"*\n` +
         `• 💬 *"ตอนนี้มีแชททักเข้ามาเท่าไหร่ และค้างตอบกี่คนครับ"*\n` +
         `• ⏱️ *"ใครตอบแชทเร็วสุด และใครตอบช้าสุดในทีมเซลส์ครับ"*\n` +
@@ -414,7 +449,7 @@
         `• 📅 *"มีลูกค้าที่ต้องตามกี่คน และนัดหมายวันนี้มีใครบ้างครับ"*\n` +
         `• 🩺 *"โปรแกรมปลูกผมและราคาของคลินิกมีอะไรบ้างครับ"*\n` +
         `• 📄 *"คลินิกมีสาขาที่ไหนบ้าง และมีเพจอะไรบ้างครับ"*\n\n` +
-        `พิมพ์ถามน้องกุ๊กกู๋ได้เลยนะคร้าบ น้องพร้อมตอบอย่างสุภาพและรวดเร็วเสมอครับผม! 😊`;
+        `พิมพ์ถามน้องได้เลยนะคร้าบ น้องพร้อมตอบอย่างสุภาพและรวดเร็วเสมอครับผม! 😊`;
     }
 
     // -------------------------------------------------------------------------
@@ -428,20 +463,20 @@
     const msgCount = dData?.kpis?.messages?.value ? num(dData.kpis.messages.value) : '—';
     const sched = S.notificationSchedule || { enabled: false, intervalMinutes: 60 };
 
-    return `👻 **น้องกุ๊กกู๋รับทราบคำถามแล้วครับผม:** *"${esc(rawTxt)}"\n\n` +
-      `น้องกุ๊กกู๋ไปเช็กข้อมูลล่าสุดทั้งคลินิกมาให้พี่ๆ เรียบร้อยแล้วครับผม:\n\n` +
+    return `👦🏻 **น้อง AI รับทราบคำถามแล้วครับผม:** *"${esc(rawTxt)}"\n\n` +
+      `น้องไปเช็กข้อมูลล่าสุดทั้งคลินิกมาให้พี่ๆ เรียบร้อยแล้วครับผม:\n\n` +
       `📌 **สรุปสถานะปัจจุบันของคลินิกเราครับ (Live Snapshot):**\n` +
       `• 📊 **ยอดแอดรวม (30 วัน):** ใช้อยู่ที่ **${spendVal}** | ผลตอบแทน ROAS: **${roasVal}** ครับ\n` +
       `• 💬 **แชทที่ได้รับทั้งหมด:** ทักมาแล้ว **${msgCount} ข้อความ** (กำลังดูแลใน Inbox **${num(inboxCount)} เคส** ครับ)\n` +
       `• 📅 **คิวคนไข้ที่ต้องติดตาม:** รอติดตามผล **${num(fuCount)} เคส** ครับ\n` +
       `• 🏥 **สาขาคลินิก:** **BEQ Hair Clinic สาขาสีลม (Silom)** สาขาเดียวครับผม\n` +
       `• 🔔 **รอบแจ้งเตือนอัตโนมัติ:** ${sched.enabled ? `🟢 เปิดอยู่ (ทุก ${sched.intervalMinutes >= 60 ? (sched.intervalMinutes / 60) + ' ชม.' : sched.intervalMinutes + ' นาที'})` : '⚪ ปิดอยู่'} ครับ\n\n` +
-      `💡 **พี่ๆ สามารถถามน้องกุ๊กกู๋ต่อได้เลยนะครับ ไม่ต้องคลิกหาเองเลยครับผม:**\n` +
+      `💡 **พี่ๆ สามารถถามน้องต่อได้เลยนะครับ ไม่ต้องคลิกหาเองเลยครับผม:**\n` +
       `1. *"ใครตอบแชทเร็วสุด / ช้าสุด"* หรือ *"คะแนน SLA ทีมเซลส์"*\n` +
       `2. *"เซลส์แต่ละคนดูแลกี่แชท"* หรือระบุชื่อเซลส์ได้เลยครับ\n` +
       `3. *"สรุปยอดแอด"* หรือ *"แคมเปญไหนคุ้มสุด"*\n` +
       `4. *"โปรแกรมปลูกผมและราคา"* หรือ *"วิธีดูแลแผลหลังปลูก"*\n\n` +
-      `พิมพ์ถามน้องกุ๊กกู๋ได้ตลอดเวลาเลยนะคร้าบ น้องยินดีรับใช้พี่ๆ เสมอครับผม! ✨😊`;
+      `พิมพ์ถามน้องได้ตลอดเวลาเลยนะคร้าบ น้องยินดีรับใช้พี่ๆ เสมอครับผม! ✨😊`;
   }
 
   /* Local persistent cache เพื่อความเสถียร 100% ไม่พังแม้ออฟไลน์หรือติด rate limit */
@@ -1021,7 +1056,7 @@
 
     const titles = {
       dashboard: ['📊 Dashboard', 'ภาพรวมผลตอบแทนโฆษณา & Marketing KPIs'],
-      inbox: ['💬 Unified Omnichannel Inbox', 'รวมศูนย์แชท Facebook, Instagram, LINE, WhatsApp'],
+      inbox: ['Inbox', 'รวมศูนย์แชท Facebook, Instagram, LINE, WhatsApp'],
       board: ['📋 Leads Board', 'กระดานติดตามความคืบหน้าลีด 12 ลำดับขั้น'],
       review: ['⏱️ SLA & Chat Quality', 'สถิติการตอบแชทตามเกณฑ์ 15 นาที & คะแนนความเร็ว'],
       followup: ['📅 Follow-up Management', 'การนัดหมายและติดตามผลลูกค้า'],
@@ -1209,7 +1244,7 @@
             <div class="ghost-chat-header-info">
               ${ghostSvg(32)}
               <div>
-                <div class="ghost-chat-title">น้องกุ๊กกู๋ AI (เด็กน้อยผู้ช่วยประจำคลินิก) 👻</div>
+                <div class="ghost-chat-title">น้อง AI (เด็กน้อยผู้ช่วยประจำคลินิก) 👦🏻</div>
                 <div class="ghost-chat-subtitle">ผู้ช่วยถาม-ตอบ & สรุปทุกข้อมูลแทนการดูเว็บครับผม ✨</div>
               </div>
             </div>
@@ -1230,7 +1265,7 @@
                   ${ghostSvg(72)}
                 </div>
                 <div style="font-weight:700;color:#0f172a;font-size:14px;margin-bottom:4px">ไม่มีข้อความคงค้างครับผม</div>
-                <div style="font-size:12px;color:#64748b;max-width:220px;line-height:1.5">ประวัติแชทว่างเปล่าแล้วครับ พี่ๆ อยากรู้ยอดแอด แชท หรือคะแนนเซลส์ ถามน้องกุ๊กกู๋ได้เลยนะคร้าบ! ✨</div>
+                <div style="font-size:12px;color:#64748b;max-width:220px;line-height:1.5">ประวัติแชทว่างเปล่าแล้วครับ พี่ๆ อยากรู้ยอดแอด แชท หรือคะแนนเซลส์ ถามน้องได้เลยนะคร้าบ! ✨</div>
               </div>
             `}
           </div>
@@ -1244,7 +1279,7 @@
             <button type="button" class="ghost-prompt-pill" data-act="ghost-prompt" data-q="สรุปภาพรวมทั้งคลินิกให้ฟังหน่อยครับ">🌐 สรุปคลินิกวันนี้</button>
           </div>
           <form class="ghost-chat-footer" data-form="ghost-send">
-            <input type="text" class="ghost-chat-input" placeholder="ถามน้องกุ๊กกู๋ได้ทุกเรื่องเลยครับ ไม่ต้องเปิดหาเองเลยนะคร้าบ..." required>
+            <input type="text" class="ghost-chat-input" placeholder="ถามน้อง AI ได้ทุกเรื่องเลยครับ ไม่ต้องเปิดหาเองเลยนะคร้าบ..." required>
             <button type="submit" class="ghost-chat-send" title="ส่งคำถาม">➤</button>
           </form>
         </div>
@@ -1253,7 +1288,7 @@
 
     return `
       ${chatModal}
-      <div class="floating-ghost-btn" data-act="toggle-ghost" title="คุยกับน้องกุ๊กกู๋ AI">
+      <div class="floating-ghost-btn" data-act="toggle-ghost" title="คุยกับน้อง AI ผู้ช่วยประจำคลินิก">
         ${ghostSvg(42)}
         ${unreadPill}
       </div>
