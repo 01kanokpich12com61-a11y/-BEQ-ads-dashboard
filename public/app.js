@@ -628,59 +628,109 @@
 
   function analyzeLeadConversation(lead, messages) {
     if (!lead && (!messages || !messages.length)) return null;
-    const allText = [
+
+    // แยกข้อความจากคนไข้จริง (Customer Text) ออกจากข้อความอัตโนมัติ/พนักงาน
+    const cleanCustomerMsgs = (messages || [])
+      .filter(m => m.from === 'customer' || m.from === 'user')
+      .map(m => m.text || '')
+      .filter(t => !t.includes('ตรวจสอบสลิป') && !t.includes('ติดตามเพจของคุณ') && !t.includes('คำสั่งซื้อ') && t.trim() !== ',');
+
+    const staffMsgs = (messages || [])
+      .filter(m => m.from === 'staff')
+      .map(m => m.text || '');
+
+    // ข้อความรวมที่กรอง system logs ออกแล้ว
+    const rawAll = [
       lead?.customerMsg || '',
       lead?.reason || '',
-      ...(messages || []).map(m => m.text || '')
+      ...cleanCustomerMsgs,
+      ...staffMsgs
     ].join(' ').toLowerCase();
 
-    let hairIssue = 'ปรึกษาปัญหาผม / ดูแลสุขภาพผมเบื้องต้น';
-    let grafts = '1,500 - 2,000 Grafts';
+    const customerText = cleanCustomerMsgs.join(' ').toLowerCase();
+    const staffText = staffMsgs.join(' ').toLowerCase();
+
+    // ข้อมูลบริบทเสริม: เพจ, แคมเปญ, สถานะ
+    const pageContext = `${lead?.pageName || ''} ${lead?.ad || ''} ${lead?.channel || ''}`.toLowerCase();
+    const isTransplantPage = pageContext.includes('ปลูกผม') || pageContext.includes('dr.nay') || pageContext.includes('hairtransplant');
+
+    let hairIssue = 'ปรึกษาปัญหาผม / วางแผนฟื้นฟูเส้นผม';
+    let grafts = '2,000 - 2,500 Grafts';
     let dealEst = 69000;
     let procType = 'FUE Hairline Restoration';
+    let stageNote = '';
 
-    if (allText.includes('จัดส่ง') || allText.includes('ส่งของ') || allText.includes('โอนเงิน') || allText.includes('สลิป') || allText.includes('แชมพู') || allText.includes('เซรั่ม') || allText.includes('ยา')) {
+    // 1. ตรวจจับเคสที่ตกลงปลูกผมเรียบร้อยแล้ว หรือชำระมัดจำแล้ว (Booked / Paid / Pre-op)
+    const isPaidOrBooked = rawAll.includes('ใกล้ถึงวันปลูก') || rawAll.includes('คอนเฟิร์มนัด') || rawAll.includes('ชำระเงินแล้ว') || rawAll.includes('สลิป') || rawAll.includes('order as paid') || rawAll.includes('20,000') || lead?.status === 'booked' || lead?.status === 'converted' || lead?.status === 'qual';
+
+    if (isPaidOrBooked && (isTransplantPage || rawAll.includes('ปลูก') || rawAll.includes('กราฟ'))) {
+      hairIssue = 'คนไข้วางมัดจำจองคิวปลูกผมถาวรแล้ว (Pre-Op เตรียมผ่าตัด)';
+      grafts = '2,000 - 3,000 Grafts (ล็อกคิวห้องผ่าตัด)';
+      dealEst = 79000;
+      procType = 'FUE Micro-graft Transplant by Dr. Nay';
+      stageNote = 'ชำระมัดจำเรียบร้อยแล้ว อยู่ระหว่างรอนัดคอนเฟิร์มวันผ่าตัดปลูกผม';
+    }
+    // 2. ตรวจจับเคสหน้าผากเว้าตัว M / ไรผมร่น
+    else if (rawAll.includes('เว้า') || rawAll.includes('ตัว m') || rawAll.includes('ร่น') || rawAll.includes('ไรผม') || rawAll.includes('ขมับ') || rawAll.includes('ปรับกรอบหน้า')) {
+      hairIssue = 'หน้าผากเว้าลึกรูปตัว M / ไรผมร่นสองข้าง';
+      grafts = '2,000 - 2,500 Grafts';
+      dealEst = 79000;
+      procType = 'FUE M-Shape Hairline Restoration';
+      stageNote = 'สนใจดึงกรอบหน้าแนวเกาหลี ปรับโครงหน้าให้ดูอ่อนเยาว์';
+    }
+    // 3. ตรวจจับเคสผมบางกลางศีรษะ / ไข่ดาว
+    else if (rawAll.includes('ไข่ดาว') || rawAll.includes('กลางศีรษะ') || rawAll.includes('บางกลาง') || rawAll.includes('ด้านบน') || rawAll.includes('กระหม่อม')) {
+      hairIssue = 'ผมบางบริเวณกลางศีรษะ (Crown Thinning)';
+      grafts = '2,500 - 3,500 Grafts';
+      dealEst = 99000;
+      procType = 'FUE + DHI Crown Density Booster';
+      stageNote = 'ต้องการเพิ่มความหนาแน่นบริเวณขวัญกลางศีรษะ';
+    }
+    // 4. ตรวจจับเคสผมร่วงกรรมพันธุ์ / รากผมฝ่อ
+    else if (rawAll.includes('ร่วง') || rawAll.includes('บาง') || rawAll.includes('กรรมพันธุ์') || rawAll.includes('ผมร่วงหนัก')) {
+      hairIssue = 'ผมร่วงพันธุกรรม / รากผมฝ่อบางระยะเริ่มต้น';
+      grafts = '1,500 - 2,000 Grafts หรือ Regenerative PRP';
+      dealEst = 59000;
+      procType = 'Regenerative Hair PRP & SVF Therapy';
+      stageNote = 'แนะนำฟื้นฟูสเต็มเซลล์รากผมและตรวจวิเคราะห์ Trichoscopy';
+    }
+    // 5. เคสที่สั่งซื้อเฉพาะยา/เซรั่ม/วิตามินเท่านั้น (ต้องไม่ใช่เคสปลูกผม)
+    else if (!isTransplantPage && (customerText.includes('สั่งซื้อ') || customerText.includes('ส่งของ') || customerText.includes('แชมพู') || customerText.includes('เซรั่มบำรุง') || customerText.includes('วิตามิน'))) {
       hairIssue = 'สั่งซื้อผลิตภัณฑ์ดูแลเส้นผม / วิตามินบำรุงรากผม';
       grafts = 'Hair Products & Treatment Care';
       dealEst = 3500;
       procType = 'BEQ Scalp Care & Medications';
-    } else if (allText.includes('เว้า') || allText.includes('ตัว m') || allText.includes('ร่น') || allText.includes('ไรผม') || allText.includes('ขมับ')) {
-      hairIssue = 'หน้าผากเว้าลึกรูปตัว M / ไรผมร่นสองข้าง';
-      grafts = '2,000 - 2,500 Grafts';
-      dealEst = 79000;
-      procType = 'FUE M-Shape Transplant';
-    } else if (allText.includes('ไข่ดาว') || allText.includes('กลางศีรษะ') || allText.includes('บางกลาง') || allText.includes('ด้านบน')) {
-      hairIssue = 'ผมบางบริเวณกลางศีรษะ (Crown Thinning)';
-      grafts = '2,500 - 3,500 Grafts';
-      dealEst = 99000;
-      procType = 'FUE + DHI Crown Density';
-    } else if (allText.includes('ร่วง') || allText.includes('บาง') || allText.includes('กรรมพันธุ์') || allText.includes('สระผม')) {
-      hairIssue = 'ผมร่วงพันธุกรรม / รากผมฝ่อบางระยะเริ่มต้น';
-      grafts = '1,200 - 1,800 Grafts หรือ PRP Stem Cell';
-      dealEst = 49000;
-      procType = 'Regenerative PRP + Hairline';
-    } else if (!allText.trim()) {
-      hairIssue = 'ลูกค้าทักเข้ามาสอบถามผ่านโฆษณาคลินิก';
-      grafts = 'รอประเมินภาพถ่ายแนวผม';
-      dealEst = 59000;
-      procType = 'Specialist Consultation';
+      stageNote = 'สั่งซื้อชุดผลิตภัณฑ์ดูแลหนังศีรษะ';
+    }
+    // 6. ค่าเริ่มต้นตามเพจปลูกผม
+    else if (isTransplantPage) {
+      hairIssue = 'ปรึกษาปลูกผมถาวร FUE / ประเมินแนวไรผม';
+      grafts = '1,800 - 2,500 Grafts';
+      dealEst = 69000;
+      procType = 'FUE Hairline Restoration by Dr. Nay';
+      stageNote = 'คนไข้ทักปรึกษาผ่านเพจคุณหมอเนย์ รอประเมินภาพถ่ายศีรษะ';
     }
 
+    // ประเมิน Intent & Sentiment
     let sentiment = { label: 'สอบถามข้อมูลทั่วไป', icon: '💬', cls: 'cool', tip: 'ส่งข้อมูลโปรแกรมการรักษาและเคสรีวิวเปรียบเทียบก่อน-หลังทำ' };
     let prob = '40%';
     let nextStep = 'ส่งภาพเคสรีวิวก่อน-หลังที่ปัญหาใกล้เคียงกัน';
 
-    if (allText.includes('จอง') || allText.includes('นัด') || allText.includes('โอน') || allText.includes('มัดจำ') || allText.includes('สะดวก')) {
-      sentiment = { label: 'พร้อมนัดหมายตรวจประเมิน', icon: '🎯', cls: 'hot', tip: 'ลูกค้ามีความพร้อมสูง แนะนำเชิญล็อคคิวนัดตรวจประเมินกับแพทย์ที่สาขา' };
+    if (isPaidOrBooked) {
+      sentiment = { label: 'ปิดการขายแล้ว (นัดปลูกผม)', icon: '🎉', cls: 'hot', tip: 'คนไข้จองคิวปลูกผมเรียบร้อยแล้ว แนะนำโทรยืนยันนัดหมายและส่งคู่มือการเตรียมตัวก่อนผ่าตัด' };
+      prob = '100%';
+      nextStep = 'โทรคอนเฟิร์มวันนัดหมายล่วงหน้า 1-2 วัน และส่งข้อปฏิบัติก่อนวันปลูกผม';
+    } else if (rawAll.includes('จอง') || rawAll.includes('นัด') || rawAll.includes('โอน') || rawAll.includes('มัดจำ') || rawAll.includes('สะดวก')) {
+      sentiment = { label: 'พร้อมนัดหมายตรวจประเมิน', icon: '🎯', cls: 'hot', tip: 'ลูกค้ามีความพร้อมสูง แนะนำเชิญล็อคคิวนัดตรวจประเมินกับแพทย์ที่สาขาสีลม' };
       prob = '85%';
       nextStep = 'ขอชื่อและเบอร์ติดต่อ เพื่อยืนยันล็อกคิวปรึกษาแพทย์เฉพาะทาง';
-    } else if (allText.includes('ราคา') || allText.includes('โปร') || allText.includes('กี่บาท') || allText.includes('เท่าไหร่') || allText.includes('กราฟ')) {
-      sentiment = { label: 'สนใจแพ็กเกจและราคา', icon: '⚡', cls: 'warm', tip: 'ส่งเรทราคาประเมินเบื้องต้น พร้อมเสนอสิทธิ์แถมตรวจสแกนรากผมและเลเซอร์ LLLT ฟรี' };
+    } else if (rawAll.includes('ราคา') || rawAll.includes('โปร') || rawAll.includes('กี่บาท') || rawAll.includes('เท่าไหร่') || rawAll.includes('กราฟ')) {
+      sentiment = { label: 'สนใจแพ็กเกจและราคา', icon: '⚡', cls: 'warm', tip: 'ส่งเรทราคาประเมินเบื้องต้น พร้อมเสนอสิทธิ์แถมตรวจสแกนรากผมฟรีที่สาขาสีลม' };
       prob = '65%';
       nextStep = 'เสนอโปรโมชั่นพิเศษจำนวนกราฟต์จำกัดเฉพาะเดือนนี้';
     }
 
-    return { hairIssue, sentiment, grafts, dealEst, procType, prob, nextStep };
+    return { hairIssue, sentiment, grafts, dealEst, procType, prob, nextStep, stageNote };
   }
 
 
@@ -3989,7 +4039,7 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
             <span style="font-size:10px;color:#b45309">Auto-synced</span>
           </div>
           <div class="cura-notes-body">
-            ${esc(l.notes || (aiAnalysis ? `ลูกค้ามีภาวะ${aiAnalysis.hairIssue} แนะนำโปรแกรม ${aiAnalysis.procType} (${aiAnalysis.grafts}) ${aiAnalysis.sentiment.tip}` : 'ลูกค้ากังวลผมร่วงบริเวณขมับ M-Shape สนใจโปร 2,500 กราฟต์ เคยปรึกษาคลินิกอื่นมาแล้ว อยากได้หมอผู้เชี่ยวชาญดูแล'))}
+            ${esc(l.notes || (aiAnalysis ? (aiAnalysis.stageNote ? `${aiAnalysis.stageNote} · ปัญหาหลัก: ${aiAnalysis.hairIssue} · แพ็กเกจที่เหมาะสม: ${aiAnalysis.procType} (${aiAnalysis.grafts}) · แนะนำ: ${aiAnalysis.sentiment.tip}` : `ลูกค้ามีภาวะ${aiAnalysis.hairIssue} แนะนำโปรแกรม ${aiAnalysis.procType} (${aiAnalysis.grafts}) ${aiAnalysis.sentiment.tip}`) : 'คนไข้ทักปรึกษาปัญหาผม นัดตรวจประเมินกับแพทย์ผู้เชี่ยวชาญที่สาขาสีลม'))}
           </div>
         </div>
 
