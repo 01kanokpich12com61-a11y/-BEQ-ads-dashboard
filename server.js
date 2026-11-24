@@ -1769,33 +1769,26 @@ async function api(req, res, url, session) {
 
     try {
       const plat = (matched && matched.platform) || 'Facebook';
-    const fbPageId = matched ? matched.fbPageId : null;
-    const afterDate = clean(b.afterDate, 10) || null;
-    const beforeDate = clean(b.beforeDate, 10) || null;
-    const convs = await meta.fetchFbConversations(pageId, Number(b.limit) || 400, plat, fbPageId, afterDate, beforeDate);
+      const fbPageId = matched ? matched.fbPageId : null;
+      const afterDate = clean(b.afterDate, 10) || null;
+      const beforeDate = clean(b.beforeDate, 10) || null;
+      const convs = await meta.fetchFbConversations(pageId, Number(b.limit) || 400, plat, fbPageId, afterDate, beforeDate);
       let leads = store.read('leads.json', []);
       let messages = store.read('messages.json', {});
-      
-      // แทนที่ข้อมูลเดิม: ลบ leads และ messages เดิมของเพจนี้ออกก่อนนำเข้าใหม่
-      const oldLeadsOfPage = leads.filter((l) => l.pageId === pageId || String(l.pageId) === String(pageId));
-      for (const oldLead of oldLeadsOfPage) {
-        delete messages[oldLead.id];
-      }
-      leads = leads.filter((l) => l.pageId !== pageId && String(l.pageId) !== String(pageId));
 
       let importedLeads = 0;
       let importedMsgs = 0;
 
       for (const c of convs) {
         const parts = (c.participants && c.participants.data) || [];
-        const isSelf = (pid) => String(pid) === String(pageId) || (fbPageId && String(pid) === String(fbPageId));
+        const isSelf = (pid) => String(pid) === String(pageId) || (fbPageId && String(pid) === String(fbPageId)) || (matched && matched.fbPageId && String(pid) === String(matched.fbPageId));
         const customerPart = parts.find((p) => !isSelf(p.id)) || parts[0];
         if (!customerPart) continue;
         const psid = String(customerPart.id);
         const custName = customerPart.name || ('ลูกค้า ' + psid.slice(-4));
 
         const actualPlat = detectConvPlatform(c, plat);
-        let lead = leads.find((l) => l.psid === psid && (l.platform || 'Facebook') === actualPlat && (!l.pageId || l.pageId === pageId));
+        let lead = leads.find((l) => l.psid === psid && (l.platform || 'Facebook') === actualPlat && (!l.pageId || String(l.pageId) === String(pageId)));
         if (!lead) {
           const res = ops.findOrCreateLead({
             psid,
@@ -1828,9 +1821,15 @@ async function api(req, res, url, session) {
         const msgList = (c.messages && c.messages.data) || [];
         const currentLeadMsgs = messages[lead.id] || (messages[lead.id] = []);
         for (const m of msgList) {
-          const fromPage = m.from && (String(m.from.id) === String(pageId) || (fbPageId && String(m.from.id) === String(fbPageId)));
-          const text = m.message || '';
-          if (!text) continue;
+          const fromPage = m.from && isSelf(m.from.id);
+          let text = (m.message || '').trim();
+          if (!text) {
+            if (m.attachments || m.shares || m.sticker) {
+              text = fromPage ? '📷 [เจ้าหน้าที่ส่งรูปภาพหรือไฟล์แนบ]' : '📷 [ลูกค้าส่งรูปภาพหรือไฟล์แนบ]';
+            } else {
+              continue;
+            }
+          }
           const at = ops.nowStamp(m.created_time ? new Date(m.created_time).getTime() : Date.now());
           if (!currentLeadMsgs.some((x) => (m.id && x.mid === m.id) || (x.text === text && Math.abs(new Date(x.at) - new Date(at)) < 60000))) {
             const staffName = fromPage ? ((m.from && m.from.name) || 'Staff') : null;
@@ -1951,13 +1950,6 @@ async function api(req, res, url, session) {
       const pPlat = page.platform || 'Facebook';
       try {
         const convs = await meta.fetchFbConversations(page.id, limit || 400, pPlat, page.fbPageId || null, afterDate, beforeDate);
-        
-        // แทนที่ข้อมูลเดิม: ลบ leads และ messages เดิมของเพจนี้ออกก่อน
-        const oldLeadsOfPage = leads.filter((l) => l.pageId === page.id || String(l.pageId) === String(page.id));
-        for (const oldLead of oldLeadsOfPage) {
-          delete messages[oldLead.id];
-        }
-        leads = leads.filter((l) => l.pageId !== page.id && String(l.pageId) !== String(page.id));
 
         let pLeads = 0;
         let pMsgs = 0;
@@ -1970,7 +1962,7 @@ async function api(req, res, url, session) {
           const custName = customerPart.name || ('ลูกค้า ' + psid.slice(-4));
 
           const actualPlat = detectConvPlatform(c, pPlat);
-          let lead = leads.find((l) => l.psid === psid && (l.platform || 'Facebook') === actualPlat && (!l.pageId || l.pageId === page.id));
+          let lead = leads.find((l) => l.psid === psid && (l.platform || 'Facebook') === actualPlat && (!l.pageId || String(l.pageId) === String(page.id)));
           if (!lead) {
             const res = ops.findOrCreateLead({
               psid,
@@ -2003,18 +1995,27 @@ async function api(req, res, url, session) {
           const msgList = (c.messages && c.messages.data) || [];
           const currentLeadMsgs = messages[lead.id] || (messages[lead.id] = []);
           for (const m of msgList) {
-            const fromPage = m.from && (String(m.from.id) === String(page.id) || (page.fbPageId && String(m.from.id) === String(page.fbPageId)));
-            const text = m.message || '';
-            if (!text) continue;
+            const fromPage = m.from && isSelf(m.from.id);
+            let text = (m.message || '').trim();
+            if (!text) {
+              if (m.attachments || m.shares || m.sticker) {
+                text = fromPage ? '📷 [เจ้าหน้าที่ส่งรูปภาพหรือไฟล์แนบ]' : '📷 [ลูกค้าส่งรูปภาพหรือไฟล์แนบ]';
+              } else {
+                continue;
+              }
+            }
             const at = ops.nowStamp(m.created_time ? new Date(m.created_time).getTime() : Date.now());
             if (!currentLeadMsgs.some((x) => (m.id && x.mid === m.id) || (x.text === text && Math.abs(new Date(x.at) - new Date(at)) < 60000))) {
+              const staffName = fromPage ? ((m.from && m.from.name) || 'Staff') : null;
               currentLeadMsgs.push({
                 from: fromPage ? 'staff' : 'customer',
                 text,
                 mid: m.id || undefined,
                 at,
                 via: 'import',
+                ...(staffName ? { by: staffName } : {}),
               });
+              if (fromPage && staffName && !lead.repId) { lead.repId = staffName; }
               pMsgs++;
             }
           }

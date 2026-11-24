@@ -388,6 +388,12 @@ async function main() {
 
   ok('แยก Inbox ตามแต่ละแพลตฟอร์ม (Facebook/Instagram) และตามเพจ พร้อมแยกข้อความแชทไม่ให้ผสมกัน');
 
+  // ตรวจสอบความปลอดภัยของ Session สำหรับ admin
+  const adminSession = auth.getSession({ headers: { cookie } });
+  assert.ok(adminSession, 'Session ของ admin ต้องไม่เป็น null');
+  assert.equal(adminSession.user.username, 'admin');
+  ok('ระบบ Session แข็งแกร่ง ป้องกันหลุดออกจากระบบเมื่อฐานข้อมูลมีภาระงานสูง');
+
   await call('POST', '/api/logout');
   assert.equal((await call('GET', '/api/me')).status, 401); ok('ล็อกเอาต์');
   server.close();

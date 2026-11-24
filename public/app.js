@@ -517,6 +517,16 @@
     },
     set(k, val) {
       try { sessionStorage.setItem('beq_c_' + k, JSON.stringify(val)); } catch {}
+    },
+    clear(prefix = '') {
+      try {
+        const keys = [];
+        for (let i = 0; i < sessionStorage.length; i++) {
+          const k = sessionStorage.key(i);
+          if (k && k.startsWith('beq_c_' + prefix)) keys.push(k);
+        }
+        for (const k of keys) sessionStorage.removeItem(k);
+      } catch {}
     }
   };
 
@@ -814,12 +824,26 @@
         body: opts.body ? JSON.stringify(opts.body) : undefined,
       });
       if (res.status === 401 && path !== '/api/login') {
-        S.me = null;
-        if (typeof sessionStorage !== 'undefined') {
-          sessionStorage.removeItem('beq_c_/api/me');
+        if (path.startsWith('/api/notifications') || path === '/api/ping') {
+          throw new Error('Unauthorized');
         }
-        render();
-        throw new Error('กรุณาเข้าสู่ระบบ');
+        let stillValid = false;
+        if (path !== '/api/me') {
+          try {
+            const checkMe = await fetch('/api/me', { credentials: 'same-origin' });
+            if (checkMe.ok) stillValid = true;
+          } catch {}
+        }
+        if (!stillValid) {
+          S.me = null;
+          if (typeof sessionStorage !== 'undefined') {
+            sessionStorage.removeItem('beq_c_/api/me');
+          }
+          render();
+          throw new Error('กรุณาเข้าสู่ระบบ');
+        }
+        const json = await res.json().catch(() => ({}));
+        throw new Error(json.error || 'สิทธิ์การใช้งานไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง');
       }
       const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(json.error || 'เกิดข้อผิดพลาด');
@@ -1271,13 +1295,18 @@
 
   function formatGhostText(txt) {
     if (!txt) return '';
-    let s = String(txt)
-      .replace(/<b\s+style=["']color:\s*(#[0-9a-fA-F]{3,6})["']>([\s\S]*?)<\/b>/gi, '**$2**')
-      .replace(/<span\s+style=["']color:\s*(#[0-9a-fA-F]{3,6})["']>([\s\S]*?)<\/span>/gi, '**$2**')
-      .replace(/&lt;b\s+style=(?:&quot;|")color:\s*(#[0-9a-fA-F]{3,6})(?:&quot;|")&gt;([\s\S]*?)&lt;\/b&gt;/gi, '**$2**')
-      .replace(/&lt;span\s+style=(?:&quot;|")color:\s*(#[0-9a-fA-F]{3,6})(?:&quot;|")&gt;([\s\S]*?)&lt;\/span&gt;/gi, '**$2**')
-      .replace(/<\/?(?:b|span|strong|div|p)[^>]*>/gi, '')
-      .replace(/&lt;\/?(?:b|span|strong|div|p)[^&gt;]*&gt;/gi, '');
+    let s = String(txt);
+    // แปลงแท็ก b, strong, span หรือแท็กที่มีสไตล์สี ให้กลายเป็น markdown bold
+    s = s.replace(/<b\b[^>]*>([\s\S]*?)<\/b>/gi, '**$1**')
+         .replace(/<strong\b[^>]*>([\s\S]*?)<\/strong>/gi, '**$1**')
+         .replace(/<span\b[^>]*>([\s\S]*?)<\/span>/gi, '$1')
+         .replace(/<[^>]+>/g, '') // กวาดล้างแท็ก HTML อื่นๆ ทั้งหมด
+         .replace(/&lt;b\b.*?&gt;([\s\S]*?)&lt;\/b&gt;/gi, '**$1**')
+         .replace(/&lt;strong\b.*?&gt;([\s\S]*?)&lt;\/strong&gt;/gi, '**$1**')
+         .replace(/&lt;span\b.*?&gt;([\s\S]*?)&lt;\/span&gt;/gi, '$1')
+         .replace(/&lt;[^&gt;]+&gt;/gi, '') // กวาดล้าง HTML entity tags
+         .replace(/&quot;/g, '"')
+         .replace(/&amp;/g, '&');
     let html = esc(s);
     html = html.replace(/\*\*(.+?)\*\*/g, '<b style="color:#0f172a;font-weight:700">$1</b>');
     html = html.replace(/\*(.+?)\*/g, '<i>$1</i>');
@@ -3600,6 +3629,22 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
     return loadBoard();
   }
 
+  async function refreshAfterImport() {
+    ClientCache.clear();
+    S.inbox.data = null;
+    S.dash.data = null;
+    S.followup.data = null;
+    try { S.filters = await api('/api/filters'); } catch {}
+    if (S.route === 'inbox') {
+      await loadInbox();
+    } else if (S.route === 'followup') {
+      await loadFollowups();
+    } else if (S.route === 'dashboard') {
+      await loadDash();
+    }
+    render();
+  }
+
   async function fetchList(scope, path) {
     const s = S[scope];
     if (s.range === 'custom' && !(s.from && s.to && s.from <= s.to)) return false;
@@ -4643,13 +4688,13 @@ function boardShell() {
     const sched = S.notificationSchedule || { enabled: false, intervalMinutes: 60 };
     return `<div class="page-head"><div><h1>ตามลูกค้า</h1><div class="meta-line"><span>ลูกค้าที่รอคำตอบ ถึงเวลาตามต่อ และนัดตามที่ตั้งไว้ (ลีดย้อนหลัง 90 วัน ไม่นับที่ปิดการขายแล้ว)</span></div></div>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-        <button class="btn btn-primary" data-act="fu-notify-all" style="background:#059669;color:#fff;border-radius:10px;font-weight:600;display:inline-flex;align-items:center;gap:6px">
+        <button class="btn btn-primary" data-act="fu-notify-all" style="background:#059669;color:#fff;border-radius:10px;font-weight:600;display:inline-flex;align-items:center;gap:6px;white-space:nowrap">
           🔔 ส่งแจ้งเตือนตอนนี้
         </button>
-        <button class="btn btn-secondary" data-act="fu-open-schedule" style="background:${sched.enabled ? '#ecfdf5' : '#f8fafc'};color:${sched.enabled ? '#065f46' : '#334155'};border:1px solid ${sched.enabled ? '#a7f3d0' : '#cbd5e1'};border-radius:10px;font-weight:600;display:inline-flex;align-items:center;gap:6px">
-          ⏰ ${sched.enabled ? `ตั้งรอบอัตโนมัติ: ทุก ${sched.intervalMinutes >= 60 ? (sched.intervalMinutes / 60) + ' ชม.' : sched.intervalMinutes + ' นาที'} (เปิดอยู่)` : '⏱️ ตั้งรอบเวลาแจ้งเตือน (นาที/ชม.)'}
+        <button class="btn btn-secondary" data-act="fu-open-schedule" style="background:${sched.enabled ? '#ecfdf5' : '#f8fafc'};color:${sched.enabled ? '#065f46' : '#334155'};border:1px solid ${sched.enabled ? '#a7f3d0' : '#cbd5e1'};border-radius:10px;font-weight:600;display:inline-flex;align-items:center;gap:6px;white-space:nowrap">
+          ${sched.enabled ? `⏰ ตั้งรอบอัตโนมัติ: ทุก ${sched.intervalMinutes >= 60 ? (sched.intervalMinutes / 60) + ' ชม.' : sched.intervalMinutes + ' นาที'} (เปิดอยู่)` : '⏱️ ตั้งรอบเวลาแจ้งเตือน (นาที/ชม.)'}
         </button>
-        <button class="btn" data-act="fu-refresh">${icon('refresh')}Refresh</button>
+        <button class="btn" data-act="fu-refresh" style="white-space:nowrap">${icon('refresh')}Refresh</button>
       </div>
     </div><div id="follow-body"><div class="loading">Loading…</div></div>`;
   }
@@ -5444,14 +5489,14 @@ function boardShell() {
                   const errText = r.errors && r.errors.length ? (' (⚠️ มีข้อผิดพลาด: ' + r.errors.join('; ') + ')') : '';
                   const dateRange = afterDate && beforeDate ? ` ช่วง ${afterDate} ถึง ${beforeDate}` : '';
                   S.flash = { type: r.errors && r.errors.length && !r.totalImportedLeads ? 'err' : 'ok', text: `ดึงประวัติแชทสำเร็จ${dateRange}! เพิ่มลูกค้าใหม่ ${r.totalImportedLeads} ราย, ${r.totalImportedMsgs} ข้อความ${errText}` };
-                  S.filters = await api('/api/filters').catch(() => null);
+                  await refreshAfterImport();
                 }
               } else {
                 const r = await api('/api/import/facebook-conversations', { method: 'POST', body: { pageId, limit, afterDate, beforeDate } });
                 if (r.ok) {
                   const dateRange = afterDate && beforeDate ? ` ช่วง ${afterDate} ถึง ${beforeDate}` : '';
                   S.flash = { type: 'ok', text: `นำเข้าบทสนทนาเพจ ${r.pageName} สำเร็จ${dateRange}: เพิ่มลูกค้าใหม่ ${r.importedLeads} ราย, ${r.importedMsgs} ข้อความ` };
-                  S.filters = await api('/api/filters').catch(() => null);
+                  await refreshAfterImport();
                 }
               }
             } catch (e) {
@@ -5734,7 +5779,7 @@ function boardShell() {
         }
       }
       else if (act === 'fb-import-all') {
-        if (!confirm('ต้องการดึงแชทของทุกเพจพร้อมกันหรือไม่?\n\n⚠️ ข้อมูลแชทและลูกค้าเดิมของแต่ละเพจจะถูกแทนที่ด้วยข้อมูลล่าสุดจาก Meta')) return;
+        if (!confirm('ต้องการดึงและซิงค์แชทของทุกเพจล่าสุดหรือไม่?\n\n✨ ระบบจะดึงข้อความใหม่ล่าสุดจาก Meta มารวมเข้ากับระบบ โดยไม่ทำให้ข้อมูลที่มีอยู่เดิมสูญหาย')) return;
         el.disabled = true;
         const originalText = el.textContent;
         el.textContent = '⏳ กำลังดึงแชททุกเพจ...';
@@ -5743,8 +5788,7 @@ function boardShell() {
           if (r.ok) {
             const errText = r.errors && r.errors.length ? (' (⚠️ มีข้อผิดพลาด: ' + r.errors.join('; ') + ')') : '';
             S.flash = { type: r.errors && r.errors.length && !r.totalImportedLeads ? 'err' : 'ok', text: `ดึงประวัติแชทสำเร็จ! เพิ่มลูกค้าใหม่ ${r.totalImportedLeads} ราย, ${r.totalImportedMsgs} ข้อความ${errText}` };
-            S.filters = await api('/api/filters').catch(() => null);
-            render();
+            await refreshAfterImport();
           }
         } catch (e) {
           S.flash = { type: 'err', text: e.message || 'ดึงแชทไม่สำเร็จ' };
@@ -5772,15 +5816,14 @@ function boardShell() {
         const customLimit = prompt(`ระบุจำนวนแชทที่ต้องการดึงจากเพจ "${pageName}":`, String(defaultLimit));
         if (customLimit === null) return;
         const limitNum = Math.max(10, Math.min(Number(customLimit) || defaultLimit, 1000));
-        if (!confirm(`ต้องการดึงข้อมูลแชท ${limitNum} แชทของเพจ "${pageName}" หรือไม่?\n\n⚠️ ข้อมูลแชทและลูกค้าเดิมของเพจนี้จะถูกแทนที่ด้วยข้อมูลล่าสุดจาก Meta`)) return;
+        if (!confirm(`ต้องการดึงข้อมูลแชท ${limitNum} แชทของเพจ "${pageName}" หรือไม่?\n\n✨ ระบบจะนำเข้าและรวมข้อความใหม่จาก Meta ให้โดยอัตโนมัติ`)) return;
         el.disabled = true;
         el.textContent = '⏳ กำลังดึงแชท...';
         try {
           const r = await api('/api/import/facebook-conversations', { method: 'POST', body: { pageId, limit: limitNum } });
           if (r.ok) {
             S.flash = { type: 'ok', text: `นำเข้าบทสนทนาเพจ ${r.pageName} สำเร็จ: เพิ่มลูกค้าใหม่ ${r.importedLeads} ราย, ${r.importedMsgs} ข้อความ` };
-            S.filters = await api('/api/filters').catch(() => null);
-            render();
+            await refreshAfterImport();
           }
         } catch (e) {
           S.flash = { type: 'err', text: e.message || 'ดึงแชทย้อนหลังไม่สำเร็จ' };
@@ -6067,14 +6110,14 @@ function boardShell() {
               const errText = r.errors && r.errors.length ? (' (⚠️ มีข้อผิดพลาด: ' + r.errors.join('; ') + ')') : '';
               const dateRange = afterDate && beforeDate ? ` ช่วง ${afterDate} ถึง ${beforeDate}` : '';
               S.flash = { type: r.errors && r.errors.length && !r.totalImportedLeads ? 'err' : 'ok', text: `ดึงประวัติแชทสำเร็จ${dateRange}! เพิ่มลูกค้าใหม่ ${r.totalImportedLeads} ราย, ${r.totalImportedMsgs} ข้อความ${errText}` };
-              S.filters = await api('/api/filters').catch(() => null);
+              await refreshAfterImport();
             }
           } else {
             const r = await api('/api/import/facebook-conversations', { method: 'POST', body: { pageId, limit, afterDate, beforeDate } });
             if (r.ok) {
               const dateRange = afterDate && beforeDate ? ` ช่วง ${afterDate} ถึง ${beforeDate}` : '';
               S.flash = { type: 'ok', text: `นำเข้าบทสนทนาเพจ ${r.pageName} สำเร็จ${dateRange}: เพิ่มลูกค้าใหม่ ${r.importedLeads} ราย, ${r.importedMsgs} ข้อความ` };
-              S.filters = await api('/api/filters').catch(() => null);
+              await refreshAfterImport();
             }
           }
         } catch (e) {
