@@ -6,7 +6,7 @@
   /* ---------------- state ---------------- */
   const S = {
     me: null, booted: false, filters: null, route: 'dashboard', menu: null,
-    aiMode: 'copilot', branch: 'BEQ GROUP · Hair Wellness & Transplant',
+    aiMode: 'copilot', branch: 'BEQ Hair Clinic · สาขาสีลม (Silom)',
     sidebarCollapsed: typeof localStorage !== 'undefined' && localStorage.getItem('beq_sidebar_collapsed') === '1',
     dash: { range: '30d', from: '', to: '', platform: '', page: '', campaign: '', agency: '', rep: '', status: '', tab: 'ads',
       data: null, loading: false, err: null, sort: 'spend', dir: 'desc', search: '', pageNo: 1 },
@@ -895,13 +895,11 @@
       </div>
 
       <div class="sidebar-branch-box">
-        <div class="branch-pill" title="เลือกสาขา / คลินิก">
+        <div class="branch-pill" title="สาขา / คลินิก">
           <span class="branch-icon">🏥</span>
           <span class="branch-badge">HQ</span>
-          <select data-bind="branch-select" aria-label="เลือกสาขา">
-            <option value="BEQ GROUP" ${(S.branch || '').includes('GROUP') ? 'selected' : ''}>BEQ GROUP</option>
-            <option value="BEQ Thonglor" ${(S.branch || '').includes('Thonglor') ? 'selected' : ''}>BEQ Thonglor</option>
-            <option value="BEQ Siam Paragon" ${(S.branch || '').includes('Paragon') ? 'selected' : ''}>BEQ Siam Paragon</option>
+          <select data-bind="branch-select" aria-label="สาขา">
+            <option value="BEQ Hair Clinic Silom" selected>BEQ Hair Clinic (สีลม)</option>
           </select>
         </div>
       </div>
@@ -4001,10 +3999,8 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
           <div class="cura-section-card-body" style="padding:12px 14px;display:flex;flex-direction:column;gap:10px">
             <div class="cura-field-group">
               <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase">Branch / Clinic</label>
-              <select data-bind="branch-select" style="width:100%;padding:6px 10px;border-radius:8px;border:1px solid #e2e8f0;font-size:12.5px">
-                <option value="BEQ GROUP" ${(S.branch || '').includes('GROUP') ? 'selected' : ''}>BEQ GROUP · Hair Wellness & Transplant</option>
-                <option value="BEQ Thonglor" ${(S.branch || '').includes('Thonglor') ? 'selected' : ''}>BEQ Thonglor Aesthetic</option>
-                <option value="BEQ Siam Paragon" ${(S.branch || '').includes('Paragon') ? 'selected' : ''}>BEQ Siam Paragon</option>
+              <select data-bind="branch-select" style="width:100%;padding:6px 10px;border-radius:8px;border:1px solid #e2e8f0;font-size:12.5px;font-weight:600">
+                <option value="BEQ Hair Clinic Silom" selected>BEQ Hair Clinic · สาขาสีลม (Silom)</option>
               </select>
             </div>
             <div class="cura-field-group">
@@ -4087,7 +4083,7 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
               <span style="font-size:16px">🏥</span>
               <div>
                 <b style="font-size:12.5px;display:block">Branch Visit Scheduled</b>
-                <small style="color:#64748b">สาขาทองหล่อ · นัดพบแพทย์ผู้เชี่ยวชาญ</small>
+                <small style="color:#64748b">BEQ Hair Clinic สาขาสีลม · นัดพบแพทย์ผู้เชี่ยวชาญ</small>
               </div>
             </div>
           </div>
