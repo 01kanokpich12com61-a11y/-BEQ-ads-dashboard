@@ -268,6 +268,7 @@
       return `📄 **ข้อมูลการจัดการเพจในระบบ BEQ Suite:**\n\n` +
         `🌐 **เพจหลักที่เชื่อมต่อและเปิดใช้งานอยู่ (${validPages.length} เพจ):**\n` +
         validPages.map(p => `• ${p.platform === 'Instagram' ? '📸' : '🔵'} **${p.name}** (แพลตฟอร์ม: ${p.platform || 'Facebook'}, ID: \`${p.id}\`)${p.adAccountId ? ` [ผูก Ad Account: ${p.adAccountId}]` : ''}`).join('\n') + `\n\n` +
+        `📢 **นโยบายการยิงแอดของคลินิก:** โฆษณา (Ads) ทั้งหมดจะวิ่งเข้าเพจหลักเพจเดียวคือ **BEQ Hair Clinic** ครับผม\n\n` +
         `⚙️ **วิธีเพิ่ม/แก้ไข/ลบเพจ:**\n` +
         `1. ไปที่เมนู **⚙️ Settings** ด้านซ้าย\n` +
         `2. เลื่อนลงมาที่หัวข้อ **➕ เพิ่มหรือแก้ไขข้อมูลเพจ**\n` +
@@ -319,8 +320,8 @@
         `• **ระบบ Smart Auto-Mapping:** เมื่ออัปโหลดไฟล์ที่มีข้อมูลผสมกันระหว่าง Facebook และ Instagram ระบบจะคัดแยกเพจให้อัตโนมัติ:\n` +
         `  - แถวที่เป็น Instagram Dr. Nay จะเข้าเพจ **dr.nay_hairtransplant**\n` +
         `  - แถวที่เป็น Facebook Dr. Nay จะเข้าเพจ **Dr. Nay Hair Transplant by BEQ**\n` +
-        `  - แถวที่เป็น Instagram BEQ Wellness จะเข้าเพจ **beq_wellness**\n` +
-        `  - แถวที่เป็น Facebook BEQ Wellness จะเข้าเพจ **Beq Hair Wellness Center**\n` +
+        `  - แถวที่เป็น Facebook Ads จะเข้าเพจ **BEQ Hair Clinic**\n` +
+        `  - แถวที่เป็น Instagram จะเข้าเพจ **beq_wellness**\n` +
         `• **วิธีอัปโหลด:** ไปที่เมนู **☁️ Upload & Data** -> เลือกประเภท -> ลากไฟล์ CSV มาวางในกล่องอัปโหลดได้เลยครับ`;
     }
 
