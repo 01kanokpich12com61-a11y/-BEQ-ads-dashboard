@@ -1009,7 +1009,13 @@
       </div>
 
       <div class="header-actions">
-        <!-- Live System Pulse & Quick Tickers -->
+        <!-- Live System Pulse & HUD Telemetry -->
+        <div class="header-telemetry-hud" title="System Latency & Copilot Core Status">
+          <span>⚡ HUD</span>
+          <span style="opacity:0.4">|</span>
+          <span class="hud-ping-val">38ms</span>
+        </div>
+
         <div class="header-live-badge" title="ระบบเชื่อมต่อ Meta & ตอบแชทแบบเรียลไทม์">
           <span class="live-pulse-dot"></span>
           <span>LIVE SYNC</span>
@@ -1234,6 +1240,26 @@
       gain.connect(ctx.destination);
       osc.start();
       osc.stop(ctx.currentTime + 0.4);
+    } catch (_) {}
+  }
+
+  // Futuristic Sci-Fi UI Click Haptic Sound
+  function playFuturisticClick() {
+    try {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(1200, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(800, ctx.currentTime + 0.04);
+      gain.gain.setValueAtTime(0.03, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.04);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.04);
     } catch (_) {}
   }
 
@@ -4981,6 +5007,7 @@ function boardShell() {
     }
     const el = ev.target.closest('[data-act]');
     if (!el) { if (S.menu && !ev.target.closest('.popover')) { S.menu = null; render(); } return; }
+    playFuturisticClick();
     const act = el.dataset.act; const d = S.dash;
     try {
       if (act === 'toggle-ghost') {
