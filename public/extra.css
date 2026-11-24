@@ -1246,6 +1246,25 @@
 .ghost-close-btn:hover {
   background: rgba(255, 255, 255, 0.35);
 }
+.ghost-clear-btn {
+  background: rgba(255, 255, 255, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 12px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.15s ease;
+}
+.ghost-clear-btn:hover {
+  background: rgba(239, 68, 68, 0.35);
+  border-color: rgba(239, 68, 68, 0.5);
+  color: #fee2e2;
+}
 
 .ghost-chat-body {
   flex: 1;
