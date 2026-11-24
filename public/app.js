@@ -734,12 +734,34 @@
     }
   }
 
-  // Keep-alive heartbeat: ป้องกันเซิร์ฟเวอร์ Render Sleep ทุกๆ 4 นาที
+  // Keep-alive heartbeat: ป้องกันเซิร์ฟเวอร์ Sleep และรักษาสถานะเชื่อมต่อทุกๆ 2.5 นาที (150,000ms)
+  let lastHeartbeat = Date.now();
   setInterval(() => {
     if (document.visibilityState === 'visible') {
-      fetch('/api/ping', { credentials: 'same-origin' }).catch(() => {});
+      fetch('/api/ping', { credentials: 'same-origin', cache: 'no-store' })
+        .then(() => { lastHeartbeat = Date.now(); })
+        .catch(() => {});
     }
-  }, 240000);
+  }, 150000);
+
+  // ตรวจจับเมื่อผู้ใช้สลับแท็บกลับมาทำงาน (Visibility Change) ถ้าหลับไปนาน ให้ ping ปลุกเซิร์ฟเวอร์ทันที
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      if (Date.now() - lastHeartbeat > 180000) {
+        fetch('/api/ping', { credentials: 'same-origin', cache: 'no-store' }).catch(() => {});
+        lastHeartbeat = Date.now();
+      }
+    }
+  });
+
+  // Global Error Boundary & Crash Protection: ป้องกัน uncaught error ทำให้ UI ค้าง
+  window.addEventListener('error', (e) => {
+    console.error('[BEQ Global Error Protection]:', e.error || e.message);
+    // ไม่บล็อกการทำงาน ป้องกันหน้าจอขาว (White screen of death)
+  });
+  window.addEventListener('unhandledrejection', (e) => {
+    console.warn('[BEQ Unhandled Promise Warning]:', e.reason);
+  });
 
   // Global Keyboard Shortcuts (Ctrl+K / Cmd+K สำหรับ Command Palette)
   window.addEventListener('keydown', (e) => {
@@ -1150,7 +1172,7 @@
               </div>
             </div>
             <div style="display:flex;align-items:center;gap:6px">
-              <button type="button" class="ghost-clear-btn" data-act="ghost-clear" title="ล้างประวัติข้อความ">🗑️ ล้างแชท</button>
+              <button type="button" class="ghost-clear-btn" data-act="ghost-clear" title="ล้างข้อความแชท">🗑️</button>
               <button type="button" class="ghost-close-btn" data-act="toggle-ghost" aria-label="Close">✕</button>
             </div>
           </div>
