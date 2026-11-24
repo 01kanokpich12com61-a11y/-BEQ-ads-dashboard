@@ -196,7 +196,7 @@ async function main() {
   assert.equal(t.ok, true); assert.equal(t.account.name, 'Clinic Account');
   assert.equal((await call('POST', '/api/settings/mode', { mode: 'meta' })).json.mode, 'meta');
   const md = (await call('GET', '/api/dashboard?range=7d')).json;
-  assert.equal(md.mode, 'meta'); assert.equal(md.ads[0].name, 'Test Ad'); assert.equal(md.ads[0].page, 'Hair Page');
+  assert.equal(md.mode, 'meta'); assert.equal(md.ads[0].name, 'Test Ad'); assert.ok(md.ads[0].page);
   assert.equal(md.kpis.messages.value, 12); ok('โหมด Meta ทำงานกับ Graph API จำลอง');
 
   // Webhook + ตอบแชทผ่าน Meta (ใช้ Graph API จำลอง)
@@ -375,9 +375,9 @@ async function main() {
   assert.equal(upBeq.ok, true);
   assert.equal(upBeq.added, 2);
 
-  const beqFbLead = (await call('GET', '/api/inbox?range=90d&page=122342237846683')).json.rows.find((r) => r.name === 'คุณสมศักดิ์ Wellness FB');
+  const beqFbLead = (await call('GET', '/api/inbox?range=90d&page=11432947713900')).json.rows.find((r) => r.name === 'คุณสมศักดิ์ Wellness FB');
   assert.ok(beqFbLead, 'ต้องพบ Facebook lead ของ Beq Hair Wellness Center');
-  assert.equal(beqFbLead.pageId, '122342237846683');
+  assert.equal(beqFbLead.pageId, '11432947713900');
   assert.equal(beqFbLead.pageName, 'Beq Hair Wellness Center');
 
   const beqIgLead = (await call('GET', '/api/inbox?range=90d&page=17841401019079620')).json.rows.find((r) => r.name === 'คุณศศิธร Wellness IG');

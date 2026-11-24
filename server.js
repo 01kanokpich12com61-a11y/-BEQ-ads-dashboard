@@ -201,7 +201,7 @@ async function handleWebhook(body) {
           store.write('pages.json', pages);
         } else {
           // ไม่สร้างเพจขยะอัตโนมัติถ้าไม่มีชื่อเพจที่ชัดเจน
-          if (pageName && !pageName.startsWith('Facebook ') && !pageName.startsWith('Instagram ') && pageId !== '111432947713900' && pageId !== '1040829309417229') {
+          if (pageName && !pageName.startsWith('Facebook ') && !pageName.startsWith('Instagram ') && pageId !== '1040829309417229') {
             const defaultPlatform = isInstagram ? 'Instagram' : 'Facebook';
             recordPage(pageId, pageName, defaultPlatform);
           }
@@ -1088,7 +1088,7 @@ async function api(req, res, url, session) {
 
       const checkStr = `${uploadPageName} ${rawRowPage} ${rawRowPlat} ${rawRowChan} ${r.pageId || ''} ${r.adId || ''} ${r.campaign || ''}`.toLowerCase();
       const isNayBrand = /nay|109373461849494|17841448814795762/.test(checkStr);
-      const isBeqWellness = /wellness|122342237846683|17841401019079620/.test(checkStr) || (!isNayBrand && /beq/.test(checkStr));
+      const isBeqWellness = /wellness|11432947713900|17841401019079620/.test(checkStr) || (!isNayBrand && /beq/.test(checkStr));
 
       if (platform === 'Instagram') {
         if (isBeqWellness) {
@@ -1106,9 +1106,9 @@ async function api(req, res, url, session) {
           pageName = fbNay ? fbNay.name : 'Dr. Nay Hair Transplant by BEQ ปลูกผมถาวร';
           resolvedPageId = fbNay ? fbNay.id : '109373461849494';
         } else if (isBeqWellness) {
-          const fbWel = knownPages.find((p) => p.platform === 'Facebook' && (p.id === '122342237846683' || p.name.includes('Wellness') || p.name.includes('Beq')));
+          const fbWel = knownPages.find((p) => p.platform === 'Facebook' && (p.id === '11432947713900' || p.name.includes('Wellness') || p.name.includes('Beq')));
           pageName = fbWel ? fbWel.name : 'Beq Hair Wellness Center';
-          resolvedPageId = fbWel ? fbWel.id : '122342237846683';
+          resolvedPageId = fbWel ? fbWel.id : '11432947713900';
         } else {
           const fbPav = knownPages.find((p) => p.platform === 'Facebook' && (p.id === '239105462619075' || p.name.includes('Pavicon')));
           pageName = fbPav ? fbPav.name : (uploadPageName || rawRowPage || 'Pavicon Hair Clinic คลินิกปลูกผมมาตรฐานสากล');
@@ -1875,7 +1875,7 @@ async function api(req, res, url, session) {
         const id = String(fp.id);
         const name = clean(fp.name, 120);
         // กรองไม่เอาเพจที่ไม่มีชื่อ หรือเป็นเพจตัวเลขขยะ
-        if (!name || name.startsWith('Page ') || id === '111432947713900' || id === '1040829309417229') continue;
+        if (!name || name.startsWith('Page ') || id === '1040829309417229') continue;
         const pageToken = fp.access_token || '';
         const idx = pages.findIndex((p) => p.id === id || String(p.id) === id);
         if (idx >= 0) {
@@ -2156,7 +2156,7 @@ async function api(req, res, url, session) {
         for (const fp of fbPages) {
           const id = String(fp.id);
           const name = clean(fp.name, 120);
-          if (!name || name.startsWith('Page ') || id === '111432947713900' || id === '1040829309417229') continue;
+          if (!name || name.startsWith('Page ') || id === '1040829309417229') continue;
           const pTok = fp.access_token || '';
           const idx = pages.findIndex((p) => p.id === id || String(p.id) === id);
           if (idx >= 0) {

@@ -958,7 +958,7 @@
     if (p.id.includes('เพจหลัก')) return false;
     if (/channel/i.test(name)) return false;
     if (/channel/i.test(String(p.id))) return false;
-    if (p.id === '111432947713900' || p.id === '1040829309417229') return false;
+    if (p.id === '1040829309417229') return false;
     return true;
   }
 
