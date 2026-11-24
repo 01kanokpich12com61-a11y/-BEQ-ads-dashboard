@@ -110,7 +110,29 @@
     const txt = rawTxt.toLowerCase();
 
     // 1. ตรวจสอบและดึงข้อมูล State สำหรับใช้ตอบแบบ Real-time
-    let dData = S.dash.data;
+    // ตรวจหาช่วงวันที่ผู้ใช้ระบุในคำถาม เช่น "90 วัน", "7 วัน", "30 วัน", "ทั้งหมด"
+    // ถ้าไม่ระบุในคำถาม ให้ดึงตามช่วงวันที่ผู้ใช้เลือกเปิดดูอยู่บนหน้าแดชบอร์ด/ระบบ ณ ขณะนั้น (S.dash.range)
+    let targetRange = S.dash.range || '30d';
+    if (txt.includes('90 วัน') || txt.includes('90วัน') || txt.includes('90d') || txt.includes('3 เดือน') || txt.includes('ไตรมาส')) {
+      targetRange = '90d';
+    } else if (txt.includes('7 วัน') || txt.includes('7วัน') || txt.includes('7d') || txt.includes('สัปดาห์') || txt.includes('1 อาทิตย์')) {
+      targetRange = '7d';
+    } else if (txt.includes('30 วัน') || txt.includes('30วัน') || txt.includes('30d') || txt.includes('1 เดือน') || txt.includes('เดือนนี้')) {
+      targetRange = '30d';
+    } else if (txt.includes('ทั้งหมด') || txt.includes('all time') || txt.includes('ภาพรวมทั้งหมด')) {
+      targetRange = 'all';
+    }
+
+    const rangeLabelMap = {
+      '7d': '7 วัน',
+      '30d': '30 วัน',
+      '90d': '90 วัน',
+      'all': 'ทั้งหมด (All-time)',
+      'custom': 'กำหนดเอง'
+    };
+    const currentRangeText = rangeLabelMap[targetRange] || (targetRange === 'custom' && S.dash.from && S.dash.to ? `${S.dash.from} ถึง ${S.dash.to}` : `${targetRange}`);
+
+    let dData = (S.dash.range === targetRange && S.dash.data) ? S.dash.data : null;
     let inboxData = S.inbox.data;
     let slaData = S.sla.data;
     let fuData = S.followup.data;
@@ -119,7 +141,12 @@
     // Helper โหลดข้อมูลล่วงหน้าหากยังไม่เคยโหลด
     const ensureContext = async () => {
       const tasks = [];
-      if (!dData) tasks.push(api('/api/dashboard?range=30d').then(r => { dData = r; S.dash.data = r; }).catch(() => {}));
+      if (!dData) {
+        tasks.push(api(`/api/dashboard?range=${targetRange}`).then(r => {
+          dData = r;
+          if (S.dash.range === targetRange) S.dash.data = r;
+        }).catch(() => {}));
+      }
       if (!inboxData) tasks.push(api('/api/inbox?range=all').then(r => { inboxData = r; S.inbox.data = r; }).catch(() => {}));
       if (!slaData) tasks.push(api('/api/sla?range=all').then(r => { slaData = r; S.sla.data = r; }).catch(() => {}));
       if (!fuData) tasks.push(api('/api/followups').then(r => { fuData = r; S.followup.data = r; }).catch(() => {}));
@@ -197,7 +224,7 @@
       await ensureContext();
       if (dData && dData.kpis) {
         const k = dData.kpis;
-        return `📊 **สรุปผลลัพธ์โฆษณาและ Marketing KPIs ล่าสุด (ช่วง 30 วัน):**\n\n` +
+        return `📊 **สรุปผลลัพธ์โฆษณาและ Marketing KPIs ล่าสุด (ช่วง ${currentRangeText}):**\n\n` +
           `• **งบโฆษณาที่ใช้ (Spend):** **${baht(k.spend?.value || 0)}**\n` +
           `• **จำนวนคนเห็น (Reach):** **${num(k.reach?.value || 0)} คน** (${num(k.impressions?.value || 0)} ครั้ง)\n` +
           `• **จำนวนคลิก (Clicks):** **${num(k.clicks?.value || 0)} คลิก** (CTR: **${pct(k.ctr?.value || 0)}**)\n` +
@@ -205,7 +232,7 @@
           `• **ต้นทุนต่อแชท (Cost/Msg):** **${baht(k.costMessage?.value || 0)}**\n` +
           `• **ยอดซื้อสำเร็จ (Purchases):** **${num(k.purchases?.value || 0)} เคส**\n` +
           `• **รายได้ปิดการขาย (Revenue):** **${baht(k.revenue?.value || 0)}** ${k.roas?.value ? `(ROAS: **${num(k.roas.value, 2)}×**)` : ''}\n\n` +
-          `💡 สามารถปรับเลือกช่วงเวลา (7 วัน, 30 วัน, 90 วัน) หรือเลือกกรองเฉพาะเพจที่แถบด้านบนของหน้าจอได้เลยครับ`;
+          `💡 ข้อมูลนี้คำนวณตามช่วงเวลา **${currentRangeText}** (สามารถเปลี่ยนดู 7 วัน, 30 วัน, หรือ 90 วันได้ทั้งบนแถบหน้าจอหรือพิมพ์บอกน้องได้เลยครับผม!)`;
       }
     }
 
@@ -465,8 +492,8 @@
 
     return `👦🏻 **น้อง AI รับทราบคำถามแล้วครับผม:** *"${esc(rawTxt)}"\n\n` +
       `น้องไปเช็กข้อมูลล่าสุดทั้งคลินิกมาให้พี่ๆ เรียบร้อยแล้วครับผม:\n\n` +
-      `📌 **สรุปสถานะปัจจุบันของคลินิกเราครับ (Live Snapshot):**\n` +
-      `• 📊 **ยอดแอดรวม (30 วัน):** ใช้อยู่ที่ **${spendVal}** | ผลตอบแทน ROAS: **${roasVal}** ครับ\n` +
+      `📌 **สรุปสถานะปัจจุบันของคลินิกเราครับ (ช่วง ${currentRangeText}):**\n` +
+      `• 📊 **ยอดแอดรวม (${currentRangeText}):** ใช้อยู่ที่ **${spendVal}** | ผลตอบแทน ROAS: **${roasVal}** ครับ\n` +
       `• 💬 **แชทที่ได้รับทั้งหมด:** ทักมาแล้ว **${msgCount} ข้อความ** (กำลังดูแลใน Inbox **${num(inboxCount)} เคส** ครับ)\n` +
       `• 📅 **คิวคนไข้ที่ต้องติดตาม:** รอติดตามผล **${num(fuCount)} เคส** ครับ\n` +
       `• 🏥 **สาขาคลินิก:** **BEQ Hair Clinic สาขาสีลม (Silom)** สาขาเดียวครับผม\n` +
@@ -1235,6 +1262,8 @@
   function floatingGhostHtml() {
     if (!S.me) return '';
     const unreadPill = !S.ghostOpen ? '<span class="ghost-badge">AI</span>' : '';
+    const activeRangeMap = { '7d': '7 วัน', '30d': '30 วัน', '90d': '90 วัน', 'all': 'ทั้งหมด', 'custom': 'กำหนดเอง' };
+    const curRText = activeRangeMap[S.dash.range] || (S.dash.range || '30 วัน');
     
     let chatModal = '';
     if (S.ghostOpen) {
@@ -1270,7 +1299,7 @@
             `}
           </div>
           <div class="ghost-quick-prompts">
-            <button type="button" class="ghost-prompt-pill" data-act="ghost-prompt" data-q="สรุปยอดค่าแอดและ ROAS ให้หน่อยครับ">📊 สรุปยอดแอด</button>
+            <button type="button" class="ghost-prompt-pill" data-act="ghost-prompt" data-q="สรุปยอดค่าแอดและ ROAS ช่วงนี้ให้หน่อยครับ">📊 สรุปยอดแอด (${curRText})</button>
             <button type="button" class="ghost-prompt-pill" data-act="ghost-prompt" data-q="ตอนนี้มีแชททักเข้ามาเท่าไหร่ครับ">💬 จำนวนแชท</button>
             <button type="button" class="ghost-prompt-pill" data-act="ghost-prompt" data-q="ใครตอบแชทเร็วสุดและช้าสุดครับ">⏱️ เซลล์ตอบช้า/เร็ว</button>
             <button type="button" class="ghost-prompt-pill" data-act="ghost-prompt" data-q="เซลล์แต่ละคนดูแลกี่แชทครับ">👥 สรุปงานเซลส์</button>
