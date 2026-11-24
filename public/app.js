@@ -908,6 +908,9 @@
 
     const [pageTitle, pageSub] = titles[S.route] || [S.route, ''];
 
+    const unrepliedCount = (S.inbox && S.inbox.data && S.inbox.data.rows && S.inbox.data.rows.filter(r => r.status === 'no_reply').length) || 0;
+    const fuCount = (S.followup && S.followup.data && S.followup.data.stats && (S.followup.data.stats.reply + S.followup.data.stats.due)) || 0;
+
     return `<header class="app-header">
       <div class="header-left-group">
         <button type="button" class="header-toggle-btn" data-act="toggle-sidebar" title="${S.sidebarCollapsed ? 'ขยายเมนูด้านซ้าย' : 'ย่อเมนูด้านซ้าย'}" aria-label="Toggle Sidebar">
@@ -924,6 +927,21 @@
       </div>
 
       <div class="header-actions">
+        <!-- Live System Pulse & Quick Tickers -->
+        <div class="header-live-badge" title="ระบบเชื่อมต่อ Meta & ตอบแชทแบบเรียลไทม์">
+          <span class="live-pulse-dot"></span>
+          <span>LIVE SYNC</span>
+        </div>
+
+        <div class="header-quick-kpis">
+          <a href="#/inbox" class="kpi-capsule ${unrepliedCount > 0 ? 'alert' : ''}" title="แชทที่ยังรอตอบกลับ">
+            <span>⚡ รอแชท:</span> <b>${unrepliedCount}</b>
+          </a>
+          <a href="#/followup" class="kpi-capsule" title="เคสที่ต้องตาม / วันนี้">
+            <span>📅 ต้องตาม:</span> <b>${fuCount}</b>
+          </a>
+        </div>
+
         <button type="button" class="btn btn-secondary" data-act="open-cmd" style="height:34px;padding:0 12px;border-radius:10px;font-size:12.5px;gap:6px;background:#f8fafc;border:1px solid #e2e8f0;display:inline-flex;align-items:center;">
           ${icon('search')}
           <span>ค้นหาด่วน (Quick Search)...</span>
