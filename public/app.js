@@ -6263,15 +6263,15 @@ function boardShell() {
       if (S.me) {
         await loadWebNotifications();
         try { S.notificationSchedule = await api('/api/notifications/schedule'); } catch (_) {}
-        // Polling web notifications ทุก 30 วินาที
+        // Polling web notifications ทุก 45 วินาที (เฉพาะเมื่อเปิดแท็บดูอยู่ เพื่อประหยัด CPU & Memory)
         setInterval(async () => {
-          if (S.me) {
+          if (S.me && document.visibilityState === 'visible') {
             await loadWebNotifications();
             const dot = document.querySelector('.header-icon-btn .count-dot');
             const list = notices();
             if (dot) dot.textContent = list.length > 9 ? '9+' : list.length;
           }
-        }, 30000);
+        }, 45000);
       }
     } catch { S.me = null; }
     S.booted = true;
