@@ -266,19 +266,54 @@
     }
 
     // -------------------------------------------------------------------------
-    // หมวด 9: การจัดการผู้ใช้ & สิทธิ์การใช้งาน (User Management & Roles)
+    // หมวด 9: เซลส์ ทีมขาย & สถิติการดูแลแชทแต่ละคน (Sales Reps & Assigned Chats)
     // -------------------------------------------------------------------------
-    if (txt.includes('ผู้ใช้') || txt.includes('user') || txt.includes('แอดมิน') || txt.includes('admin') || txt.includes('staff') || txt.includes('พนักงาน') || txt.includes('รหัสผ่าน') || txt.includes('เปลี่ยนรหัส') || txt.includes('รีเซ็ตรหัส') || txt.includes('สิทธิ์') || txt.includes('เซลล์') || txt.includes('ทีมขาย')) {
+    if (txt.includes('เซลล์') || txt.includes('เซลส์') || txt.includes('แอดมิน') || txt.includes('ทีมขาย') || txt.includes('พนักงาน') || txt.includes('คนตอบ') || txt.includes('ดูแลกี่แชท') || txt.includes('ดูแลกี่คน') || txt.includes('กี่แชท') || txt.includes('สถิติเซลล์') || txt.includes('ใครดูแล') || txt.includes('rep') || txt.includes('sales') || txt.includes('ผู้ใช้') || txt.includes('user') || txt.includes('สิทธิ์') || txt.includes('admin') || txt.includes('staff')) {
       await ensureContext();
-      const reps = ['Narumol Molmol', 'Bodinthong Jeams', 'Thanawin Win', 'Pongsatorn Nack', 'Paul CJ', 'Ja Jah', 'Jatupon James'];
+      const allRows = (inboxData && inboxData.rows) || [];
+      const repCounts = {};
+      let unassignedCount = 0;
 
-      return `👤 **การจัดการผู้ใช้และทีมงานในระบบ (User Management):**\n\n` +
-        `🛡️ **ระดับสิทธิ์ในระบบ:**\n` +
-        `• **Admin (ผู้ดูแลระบบ):** เข้าถึงได้ทุกฟังก์ชัน ตั้งค่าระบบ, เชื่อมต่อ API, จัดการเพจ, เพิ่ม/ลบ/รีเซ็ตรหัสผู้ใช้\n` +
-        `• **Staff (เซลส์/แอดมินตอบแชท):** ดู Dashboard, ตอบแชท Inbox, จัดการบอร์ดลีด, บันทึกนัดตามลูกค้า, ดูรายงาน SLA\n\n` +
-        `👥 **รายชื่อทีมเซลส์ที่ผูกอยู่ในระบบ:**\n` +
-        reps.map(r => `• **${r}**`).join('\n') + `\n\n` +
-        `🔑 **การเปลี่ยนรหัสผ่าน:** ไปที่หน้า **Settings** -> เลื่อนลงล่างสุดในหัวข้อ "เปลี่ยนรหัสผ่าน" กรอกรหัสผ่านเดิมและรหัสผ่านใหม่ (อย่างน้อย 8 ตัวอักษร) แล้วกดบันทึกครับ`;
+      // รายชื่อเซลส์หลักในระบบ
+      const defaultReps = ['Narumol Molmol', 'Bodinthong Jeams', 'Thanawin Win', 'Pongsatorn Nack', 'Paul CJ', 'Ja Jah', 'Jatupon James'];
+      defaultReps.forEach(r => { repCounts[r] = { total: 0, unreplied: 0, converted: 0 }; });
+
+      for (const row of allRows) {
+        const rName = (row.rep || row.repId || '').trim();
+        if (!rName || rName === 'Unassigned' || rName === '—') {
+          unassignedCount++;
+        } else {
+          if (!repCounts[rName]) repCounts[rName] = { total: 0, unreplied: 0, converted: 0 };
+          repCounts[rName].total++;
+          if (row.status === 'no_reply' || !row.last || row.last.from !== 'staff') {
+            repCounts[rName].unreplied++;
+          }
+          if (row.status === 'converted' || row.status === 'booked') {
+            repCounts[rName].converted++;
+          }
+        }
+      }
+
+      // ตรวจหาชื่อเฉพาะที่ผู้ใช้ถาม เช่น "Thanawin ดูแลกี่แชท", "Nack ได้กี่แชท"
+      const matchedRep = Object.keys(repCounts).find(r => txt.includes(r.toLowerCase()) || r.toLowerCase().split(' ').some(part => part.length > 2 && txt.includes(part)));
+      if (matchedRep) {
+        const stat = repCounts[matchedRep];
+        return `👤 **สถิติการดูแลแชทของ ${matchedRep}:**\n\n` +
+          `• 💬 **แชทที่ดูแลทั้งหมด:** **${num(stat.total)} เคส**\n` +
+          `• ⚡ **แชทที่รอยังไม่ตอบ:** **${num(stat.unreplied)} เคส** ${stat.unreplied > 0 ? '⚠️' : '✅'}\n` +
+          `• 🎉 **ปิดการขาย/นัดหมายสำเร็จ:** **${num(stat.converted)} เคส**\n\n` +
+          `💡 สามารถคลิกกรองดูรายชื่อลูกค้าของ **${matchedRep}** ได้โดยตรงที่เมนู **💬 Inbox** หรือ **📋 Leads Board** ครับ`;
+      }
+
+      // แสดงภาพรวมของทีมเซลส์ทุกคน
+      const repList = Object.entries(repCounts).sort((a, b) => b[1].total - a[1].total);
+      return `👥 **สรุปจำนวนแชทที่ทีมเซลส์แต่ละคนกำลังดูแล (Sales Chat Load):**\n\n` +
+        repList.map(([name, s], idx) => {
+          const badge = idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : '👤';
+          return `${badge} **${name}:** ดูแล **${num(s.total)} แชท** ${s.unreplied > 0 ? `(รอตอบ ${s.unreplied} เคส ⚡)` : '(เคลียร์หมด ✓)'} [ปิดสำเร็จ ${s.converted}]`;
+        }).join('\n') + `\n\n` +
+        `• 🤖 **ยังไม่มอบหมาย (BEQ Copilot ดูแล):** **${num(unassignedCount)} แชท**\n\n` +
+        `💡 *เคล็ดลับ:* คุณสามารถพิมพ์ถามเจาะจงรายบุคคลได้ เช่น *"Thanawin ดูแลกี่แชท"* หรือ *"ใครดูแลแชทเยอะสุด"* ได้เลยครับ!`;
     }
 
     // -------------------------------------------------------------------------
@@ -1120,12 +1155,20 @@
             </div>
           </div>
           <div class="ghost-chat-body" id="ghost-scroll">
-            ${S.ghostMsgs.map(m => `
+            ${S.ghostMsgs && S.ghostMsgs.length ? S.ghostMsgs.map(m => `
               <div class="ghost-msg ${m.from}">
                 ${m.from === 'ai' ? ghostSvg(26) : ''}
                 <div class="ghost-msg-bubble" style="line-height:1.6">${formatGhostText(m.text)}</div>
               </div>
-            `).join('')}
+            `).join('') : `
+              <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;text-align:center;padding:24px 16px;color:#64748b">
+                <div style="filter:drop-shadow(0 8px 16px rgba(16,185,129,0.2));margin-bottom:12px;animation:ghostFloat 3s ease-in-out infinite">
+                  ${ghostSvg(72)}
+                </div>
+                <div style="font-weight:700;color:#0f172a;font-size:14px;margin-bottom:4px">ไม่มีข้อความคงค้าง</div>
+                <div style="font-size:12px;color:#64748b;max-width:220px;line-height:1.5">ประวัติแชทว่างเปล่า ถามน้องกุ๊กกู๋ AI หรือกดปุ่มด้านล่างเพื่อเริ่มคุยได้เลยครับ! ✨</div>
+              </div>
+            `}
           </div>
           <div class="ghost-quick-prompts">
             <button type="button" class="ghost-prompt-pill" data-act="ghost-prompt" data-q="สรุปยอดค่าแอดและ ROAS ให้หน่อย">📊 สรุปยอดแอด</button>
@@ -3768,11 +3811,32 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
   function renderInboxChat() {
     const box = $id('mess-chat'); if (!box) return;
     const c = S.chat; const l = currentLead();
-    if (!l) { box.innerHTML = '<div class="empty" style="margin:auto">เลือกบทสนทนาจากรายการด้านซ้าย</div>'; return; }
+    if (!l) {
+      box.innerHTML = `
+        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;text-align:center;padding:40px 20px;color:#64748b">
+          <div style="filter:drop-shadow(0 10px 25px rgba(16,185,129,0.25));margin-bottom:16px;animation:ghostFloat 3s ease-in-out infinite">
+            ${ghostSvg(88)}
+          </div>
+          <div style="font-size:16px;font-weight:700;color:#0f172a;margin-bottom:6px">เลือกบทสนทนาเพื่อเริ่มตอบแชท</div>
+          <div style="font-size:13px;color:#64748b;max-width:320px;line-height:1.6">คลิกเลือกลูกค้าจากรายการด้านซ้าย หรือดูคำแนะนำประเมินกราฟต์ผมและปิดการขายจาก BEQ Copilot ได้ทันทีครับ ✨</div>
+        </div>
+      `;
+      return;
+    }
     const d = c.data; let body;
     if (c.err) body = `<div class="notice err" style="margin:16px">${esc(c.err)}</div>`;
     else if (c.loading || !d) body = '<div class="loading">Loading chat messages…</div>';
-    else if (!d.messages.length) body = '<div class="empty">No messages in this conversation</div>';
+    else if (!d.messages.length) {
+      body = `
+        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 20px;text-align:center;color:#64748b">
+          <div style="filter:drop-shadow(0 8px 20px rgba(16,185,129,0.2));margin-bottom:14px;animation:ghostFloat 3s ease-in-out infinite">
+            ${ghostSvg(72)}
+          </div>
+          <div style="font-size:15px;font-weight:700;color:#0f172a;margin-bottom:4px">ยังไม่มีข้อความในบทสนทนานี้</div>
+          <div style="font-size:12.5px;color:#64748b">พิมพ์ข้อความด้านล่างเพื่อเปิดบทสนทนากับคนไข้ได้เลยครับ</div>
+        </div>
+      `;
+    }
     else {
       const ms = d.messages;
       body = ms.map((m, i) => {
@@ -4911,9 +4975,7 @@ function boardShell() {
         return;
       }
       else if (act === 'ghost-clear') {
-        S.ghostMsgs = [
-          { from: 'ai', text: 'สวัสดีครับ! ผมคือน้องกุ๊กกู๋ AI 👻 ล้างประวัติข้อความเรียบร้อยแล้วครับ อยากสอบถามอะไรเกี่ยวกับตัวเลขแอด แชท หรือระบบคลินิก ถามได้เลยนะครับ!' }
-        ];
+        S.ghostMsgs = [];
         render();
         return;
       }
