@@ -961,11 +961,39 @@
     return true;
   }
 
+  // คำนวณจำนวนแชทที่ยังรอการตอบกลับ (Unreplied) ให้ตรงกันทุกจุดทั้งระบบ 100%
+  function getUnrepliedCount() {
+    if (S.inbox && S.inbox.data && Array.isArray(S.inbox.data.rows)) {
+      return S.inbox.data.rows.filter(r => r.status === 'no_reply' || !r.last || r.last.from !== 'staff').length;
+    }
+    return 0;
+  }
+
+  // อัปเดตตัวเลขแชทที่รอตอบ (Unreplied Badge) บนแถบหัวเว็บและเมนูด้านข้างให้ซิงก์ตรงกันแบบ Real-time เสมอ
+  function updateGlobalUnrepliedBadges() {
+    const count = getUnrepliedCount();
+    // 1. อัปเดตที่แคปซูลหัวเว็บ (⚡ รอแชท: X)
+    const headerCapsule = document.querySelector('.header-quick-kpis a[href="#/inbox"]');
+    if (headerCapsule) {
+      if (count > 0) {
+        headerCapsule.classList.add('alert');
+      } else {
+        headerCapsule.classList.remove('alert');
+      }
+      const bEl = headerCapsule.querySelector('b');
+      if (bEl) bEl.textContent = count;
+    }
+    // 2. อัปเดตที่เมนู Inbox ด้านซ้าย (Sidebar Badge)
+    const sidebarInboxBadge = document.querySelector('.nav-link[data-nav="inbox"] .nav-count-badge.unreplied, a[href="#/inbox"] .nav-count-badge.unreplied');
+    if (sidebarInboxBadge) {
+      sidebarInboxBadge.textContent = count;
+      sidebarInboxBadge.style.display = count > 0 ? '' : 'none';
+    }
+  }
+
   function sidebarHtml() {
     const isCollapsed = S.sidebarCollapsed;
-    const unrepliedCount = (S.inbox && S.inbox.data && S.inbox.data.rows)
-      ? S.inbox.data.rows.filter(r => r.status === 'no_reply' || !r.last || r.last.from !== 'staff').length
-      : 14;
+    const unrepliedCount = getUnrepliedCount();
     const overdueCount = (S.notifications && S.notifications.counts && S.notifications.counts.overdue) || 0;
 
     const navCore = [
@@ -1096,7 +1124,7 @@
 
     const [pageTitle, pageSub] = titles[S.route] || [S.route, ''];
 
-    const unrepliedCount = (S.inbox && S.inbox.data && S.inbox.data.rows && S.inbox.data.rows.filter(r => r.status === 'no_reply').length) || 0;
+    const unrepliedCount = getUnrepliedCount();
     const fuCount = (S.followup && S.followup.data && S.followup.data.stats && (S.followup.data.stats.reply + S.followup.data.stats.due)) || 0;
 
     return `<header class="app-header">
@@ -3753,7 +3781,12 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
     return `${Number(dd)} ${MONTHS[Number(mo) - 1]} ${t} น.`;
   }
 
-  async function loadInbox() { if (await fetchList('inbox', '/api/inbox')) renderInboxBody(); }
+  async function loadInbox() {
+    if (await fetchList('inbox', '/api/inbox')) {
+      renderInboxBody();
+      updateGlobalUnrepliedBadges();
+    }
+  }
 
   function inboxShell() {
     return `
@@ -4736,7 +4769,8 @@ function boardShell() {
       c.msg = { type: 'ok', text: r.delivered === 'demo' ? 'บันทึกข้อความแล้ว (โหมดเดโม ไม่ได้ส่งถึงลูกค้าจริง)' : 'ส่งข้อความแล้ว' };
     } catch (e) { if (e.message === 'กรุณาเข้าสู่ระบบ') return; c.msg = { type: 'err', text: e.message }; }
     c.sending = false; renderChatViews();
-    if (S.route === 'inbox') renderInboxList();
+    if (S.route === 'inbox') { renderInboxTools(); renderInboxList(); }
+    updateGlobalUnrepliedBadges();
     if (S.route === 'followup') loadFollowups();
     const ta = document.querySelector('.reply-form textarea'); if (ta) ta.focus();
   }
@@ -4751,6 +4785,7 @@ function boardShell() {
       S.chat.msg = { type: 'ok', text: 'เปลี่ยนความคืบหน้าแล้ว' };
     } catch (e) { S.chat.msg = { type: 'err', text: e.message }; }
     renderChatViews(); if (S.route === 'inbox') { renderInboxTools(); renderInboxList(); }
+    updateGlobalUnrepliedBadges();
     if (S.route === 'followup') loadFollowups();
   }
 
@@ -6315,6 +6350,14 @@ function boardShell() {
       if (S.me) {
         await loadWebNotifications();
         try { S.notificationSchedule = await api('/api/notifications/schedule'); } catch (_) {}
+        // โหลดข้อมูล Inbox ล่วงหน้าในพื้นหลัง เพื่อให้ตัวเลขแชทที่รอตอบ (⚡ รอแชท / Inbox Badge)
+        // ซิงก์ตรงกัน 100% ตั้งแต่วินาทีแรกที่เปิดเว็บ ไม่ว่าจะอยู่หน้าไหน
+        api('/api/inbox?range=all').then(r => {
+          if (r && r.rows) {
+            S.inbox.data = r;
+            updateGlobalUnrepliedBadges();
+          }
+        }).catch(() => {});
         // Polling web notifications ทุก 45 วินาที (เฉพาะเมื่อเปิดแท็บดูอยู่ เพื่อประหยัด CPU & Memory)
         setInterval(async () => {
           if (S.me && document.visibilityState === 'visible') {
@@ -6322,6 +6365,13 @@ function boardShell() {
             const dot = document.querySelector('.header-icon-btn .count-dot');
             const list = notices();
             if (dot) dot.textContent = list.length > 9 ? '9+' : list.length;
+            // เช็กอัปเดตตัวเลขแชทที่รอตอบไปพร้อมกัน
+            api('/api/inbox?range=all').then(r => {
+              if (r && r.rows) {
+                S.inbox.data = r;
+                updateGlobalUnrepliedBadges();
+              }
+            }).catch(() => {});
           }
         }, 45000);
       }
