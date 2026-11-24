@@ -1144,8 +1144,8 @@
     const mins = sched.intervalMinutes || 60;
     const target = sched.target || 'all';
     return `
-      <div class="modal-backdrop" data-act="fu-close-schedule" style="position:fixed;inset:0;background:rgba(15,23,42,0.45);backdrop-filter:blur(3px);z-index:9998;display:flex;align-items:center;justify-content:center;padding:16px">
-        <div class="modal-card" style="background:#fff;border-radius:18px;max-width:500px;width:100%;box-shadow:0 20px 40px -8px rgba(0,0,0,0.2);overflow:hidden;border:1px solid #e2e8f0;animation:slideUp 0.2s ease-out">
+      <div class="modal-backdrop fu-sched-backdrop" style="position:fixed;inset:0;background:rgba(15,23,42,0.45);backdrop-filter:blur(3px);z-index:9998;display:flex;align-items:center;justify-content:center;padding:16px">
+        <div class="modal-card" style="background:#fff;border-radius:18px;max-width:500px;width:100%;box-shadow:0 20px 40px -8px rgba(0,0,0,0.2);overflow:hidden;border:1px solid #e2e8f0;animation:slideUp 0.2s ease-out;position:relative;z-index:1">
           <div style="padding:18px 22px;border-bottom:1px solid #f1f5f9;display:flex;justify-content:space-between;align-items:center;background:#f8fafc">
             <div style="display:flex;align-items:center;gap:10px">
               <span style="font-size:22px">⏰</span>
@@ -4828,6 +4828,11 @@ function boardShell() {
   function resetFilters() { Object.assign(S.dash, { platform: '', page: '', campaign: '', agency: '', rep: '', status: '', search: '' }); }
 
   document.addEventListener('click', async (ev) => {
+    if (ev.target.classList.contains('fu-sched-backdrop')) {
+      S.scheduleModalOpen = false;
+      render();
+      return;
+    }
     const el = ev.target.closest('[data-act]');
     if (!el) { if (S.menu && !ev.target.closest('.popover')) { S.menu = null; render(); } return; }
     const act = el.dataset.act; const d = S.dash;
@@ -5031,6 +5036,7 @@ function boardShell() {
         render();
       }
       else if (act === 'fu-close-schedule') {
+        if (ev.target.closest('.modal-card') && !ev.target.closest('button[data-act="fu-close-schedule"]')) return;
         S.scheduleModalOpen = false;
         render();
       }
@@ -5683,6 +5689,9 @@ function boardShell() {
         const enabled = Boolean(form.querySelector('[name="enabled"]')?.checked);
         const intervalMinutes = parseInt(fd.intervalMinutes || 60, 10);
         const target = fd.target || 'all';
+        if (enabled && 'Notification' in window && Notification.permission === 'default') {
+          await Notification.requestPermission();
+        }
         const res = await api('/api/notifications/schedule', {
           method: 'POST',
           body: { enabled, intervalMinutes, target }
