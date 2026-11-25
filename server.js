@@ -183,6 +183,13 @@ async function pushToSheets(lead, latestMsg) {
 
 // ระบบ Server-Sent Events (SSE) สำหรับ Real-time Chat ใน Inbox
 const realtimeClients = new Set();
+// ส่งสัญญาณ "ยังเชื่อมต่ออยู่" ทุก 25 วินาที กันพร็อกซีของ Render ตัดการเชื่อมต่อ SSE ที่เงียบนาน
+setInterval(() => {
+  for (const client of realtimeClients) {
+    try { client.res.write(': ping\n\n'); } catch (_) { realtimeClients.delete(client); }
+  }
+}, 25000).unref();
+
 function broadcastRealtime(event, payload) {
   const data = `event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`;
   for (const client of realtimeClients) {
@@ -270,7 +277,50 @@ async function handleWebhook(body) {
         pushToSheets(lead, msg.text || '').catch(() => {});
       }
     }
+    // คอมเมนต์ใหม่บนโพสต์ (Facebook: field "feed", Instagram: field "comments") → อัปเดตหน้า Posts & Comments ทันที
+    for (const change of entry.changes || []) {
+      try { handleCommentChange(String(entry.id || ''), change, isInstagram); } catch (e) { console.error('comment-webhook', e); }
+    }
   }
+}
+
+function handleCommentChange(ownerId, change, isInstagram) {
+  const v = change && change.value;
+  if (!v) return;
+  let postId; let comment; let parentId = null;
+  if (!isInstagram && change.field === 'feed' && v.item === 'comment') {
+    if (v.verb === 'remove') return;
+    postId = String(v.post_id || '');
+    const fromId = v.from && String(v.from.id);
+    comment = { id: String(v.comment_id), text: v.message || '', from: (v.from && v.from.name) || 'ผู้ใช้ Facebook', timestamp: v.created_time ? new Date(Number(v.created_time) * 1000 || v.created_time).toISOString() : new Date().toISOString(), isStaff: fromId === ownerId };
+    if (v.parent_id && v.parent_id !== v.post_id) parentId = String(v.parent_id);
+  } else if (isInstagram && change.field === 'comments') {
+    postId = String((v.media && v.media.id) || '');
+    const fromId = v.from && String(v.from.id);
+    comment = { id: String(v.id), text: v.text || '', from: (v.from && v.from.username) || 'ผู้ใช้ Instagram', timestamp: new Date().toISOString(), isStaff: fromId === ownerId };
+    if (v.parent_id) parentId = String(v.parent_id);
+  } else return;
+  if (!postId || !comment.id) return;
+  const posts = store.read('posts_comments.json', []);
+  let post = posts.find((p) => String(p.id) === postId);
+  if (!post) {
+    const page = store.read('pages.json', []).find((p) => String(p.id) === ownerId);
+    post = { id: postId, platform: isInstagram ? 'Instagram' : 'Facebook', pageId: ownerId, pageName: page ? page.name : '', content: '(โพสต์ที่ยังไม่ได้ดึงรายละเอียด — กดดึงโพสต์เพื่อโหลดรูปและข้อความ)', mediaUrl: null, videoUrl: null, mediaType: 'IMAGE', permalink: '', timestamp: comment.timestamp, comments: [] };
+    posts.unshift(post);
+  }
+  post.comments = post.comments || [];
+  if (parentId) {
+    const parent = post.comments.find((c) => String(c.id) === parentId);
+    if (parent) {
+      parent.replies = parent.replies || [];
+      if (!parent.replies.some((r) => String(r.id) === comment.id)) parent.replies.push(comment);
+      if (comment.isStaff) parent.replied = true;
+    } else if (!post.comments.some((c) => String(c.id) === comment.id)) post.comments.push({ ...comment, replies: [], replied: false });
+  } else if (!post.comments.some((c) => String(c.id) === comment.id)) {
+    post.comments.push({ ...comment, replies: [], replied: Boolean(comment.isStaff) });
+  }
+  store.write('posts_comments.json', posts);
+  broadcastRealtime('post_comment', { postId, platform: post.platform, comment, parentId });
 }
 
 function syncLegacyData() {
@@ -2723,6 +2773,25 @@ function productionWarnings() {
   if (!config.secureCookie) warn('COOKIE_SECURE ปิดอยู่ — ควรเปิดเมื่อใช้งานผ่าน HTTPS');
 }
 
+// ตอนเริ่มเซิร์ฟเวอร์บน Render: ตั้ง webhook ให้ Meta ส่งแชท/คอมเมนต์เข้ามาอัตโนมัติ (ทำซ้ำได้ ไม่มีผลเสีย)
+// ปิดได้ด้วย AUTO_SUBSCRIBE_WEBHOOKS=0
+function autoSubscribeWebhooks() {
+  const base = String(process.env.RENDER_EXTERNAL_URL || process.env.PUBLIC_URL || '').replace(/\/+$/, '');
+  if (!base.startsWith('https://') || process.env.AUTO_SUBSCRIBE_WEBHOOKS === '0') return;
+  const m = meta.getSettings().meta || {};
+  if (!m.accessToken) return;
+  setTimeout(() => {
+    meta.subscribeWebhooks(base + '/webhook', webhookToken())
+      .then((r) => {
+        const okPages = r.pages.filter((x) => x.ok).length;
+        console.log(`  🔔 Webhook ${base}/webhook — แอป: ${r.app.map((a) => `${a.object} ${a.ok ? 'OK' : 'ไม่สำเร็จ'}`).join(', ')} · เพจ ${okPages}/${r.pages.length}`);
+        for (const x of [...r.app, ...r.pages]) if (!x.ok && x.error) console.warn('    ⚠️ ', x.object || x.pageName, x.error);
+        audit.log('system', 'meta_subscribe_webhooks', `อัตโนมัติ: เพจ ${okPages}/${r.pages.length}`, '');
+      })
+      .catch((e) => console.warn('  ⚠️  ตั้ง webhook อัตโนมัติไม่สำเร็จ:', e.message));
+  }, 5000);
+}
+
 // กันเซิร์ฟเวอร์ล่มทั้งตัวจาก error ที่หลุดมาจาก callback / promise
 process.on('unhandledRejection', (err) => { console.error('[unhandledRejection]', err && err.stack ? err.stack : err); });
 process.on('uncaughtException', (err) => { console.error('[uncaughtException]', err && err.stack ? err.stack : err); });
@@ -2753,6 +2822,7 @@ if (require.main === module) {
         else console.log(`  สร้างผู้ใช้ "${config.adminUser}" แล้ว${config.usingDefaultPassword ? ' (รหัสผ่านเริ่มต้น: admin1234 — ระบบจะให้เปลี่ยนหลังล็อกอิน)' : ''}`);
       }
       productionWarnings();
+      autoSubscribeWebhooks();
       console.log(`  โหมดข้อมูล: ${providers.currentMode() === 'meta' ? 'Meta' : 'Demo'}\n`);
       
       // Background Cron: ตรวจสอบและส่งการแจ้งเตือน LINE & Web ตามรอบเวลาที่ผู้ใช้ตั้งค่าไว้ (ตรวจทุก 1 นาที)

@@ -946,6 +946,31 @@
 
   // Real-time Event Stream (Server-Sent Events) เชื่อมต่อรับข้อความแชทและแจ้งเตือนอัตโนมัติ
   let realtimeSource = null;
+  let realtimeEverDropped = false;
+  let liveRefreshTimer = null;
+  // โหลดข้อมูลของหน้าที่เปิดอยู่ใหม่แบบเงียบ ๆ (รวมหลายเหตุการณ์ที่มาติด ๆ กันเป็นครั้งเดียว)
+  function scheduleLiveRefresh(delay = 3000) {
+    clearTimeout(liveRefreshTimer);
+    liveRefreshTimer = setTimeout(refreshCurrentView, delay);
+  }
+  async function refreshCurrentView() {
+    if (!S.me || document.visibilityState !== 'visible') return;
+    if (S.importModal || S.postsModal) return; // ไม่รบกวนตอนเปิดหน้าต่างอยู่
+    try {
+      if (S.route === 'dashboard' && S.dash && S.dash.data && !S.dash.loading) {
+        const seq = ++reqSeq;
+        const data = await api('/api/dashboard?' + dashQuery());
+        if (seq === reqSeq && S.route === 'dashboard') { S.dash.data = data; S.dash.updatedAt = Date.now(); renderDashBody(); }
+      } else if (S.route === 'inbox') await loadInbox();
+      else if (S.route === 'board') await loadBoard();
+      else if (S.route === 'followup') await loadFollowups();
+      else if (S.route === 'review') await loadReview();
+      else if (S.route === 'post-comment') await loadComments();
+    } catch (_) { /* ครั้งหน้าค่อยลองใหม่ */ }
+  }
+  // ตัวเลขโฆษณาจาก Meta: โหลดใหม่ทุก 5 นาทีเมื่อเปิดหน้า Dashboard ค้างไว้
+  setInterval(() => { if (S.route === 'dashboard') refreshCurrentView(); }, 5 * 60 * 1000);
+
   function connectRealtime() {
     if (!S.me) return;
     if (realtimeSource) {
@@ -954,6 +979,18 @@
     }
     try {
       realtimeSource = new EventSource('/api/inbox/events');
+      // ต่อใหม่สำเร็จหลังหลุด → โหลดข้อมูลหน้าปัจจุบันใหม่ เผื่อมีแชท/คอมเมนต์เข้ามาระหว่างหลุด
+      realtimeSource.addEventListener('open', () => {
+        if (realtimeEverDropped) { realtimeEverDropped = false; scheduleLiveRefresh(500); }
+      });
+      // คอมเมนต์ใหม่บนโพสต์ FB/IG
+      realtimeSource.addEventListener('post_comment', (e) => {
+        try {
+          const p = JSON.parse(e.data);
+          if (p && p.comment && !p.comment.isStaff) showToast(`💬 คอมเมนต์ใหม่ (${p.platform}): ${String(p.comment.text || '').slice(0, 60)}`, 'success');
+        } catch (_) {}
+        if (S.route === 'post-comment') scheduleLiveRefresh(1500);
+      });
       realtimeSource.addEventListener('chat_message', (e) => {
         try {
           const payload = JSON.parse(e.data);
@@ -984,11 +1021,14 @@
             }
           }
           updateGlobalUnrepliedBadges();
+          // หน้าอื่นที่ใช้ตัวเลขแชท (Dashboard / Board / Follow-up / SLA) อัปเดตตามแบบหน่วงสั้น ๆ
+          if (['dashboard', 'board', 'followup', 'review'].includes(S.route)) scheduleLiveRefresh(4000);
         } catch (err) {
           console.warn('[Realtime Parse Error]:', err);
         }
       });
       realtimeSource.onerror = () => {
+        realtimeEverDropped = true;
         // ลองเชื่อมต่อใหม่เมื่อหลุด
         if (realtimeSource) {
           try { realtimeSource.close(); } catch (_) {}

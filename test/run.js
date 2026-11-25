@@ -523,6 +523,28 @@ async function main() {
     assert.ok(r2.pages[0].ok && posted.some((u) => u.includes('/999/subscribed_apps')));
     ok('เปิดรับแชทอัตโนมัติ (subscribe webhook ของเพจ)');
 
+    // คอมเมนต์ใหม่ผ่าน webhook (Facebook feed + Instagram comments) และส่งต่อแบบเรียลไทม์
+    meta.saveSettings({ meta: { appSecret: 'rt-secret' } });
+    const signRt = (b) => 'sha256=' + crypto.createHmac('sha256', 'rt-secret').update(b).digest('hex');
+    const sseRes = await fetch(base + '/api/inbox/events', { headers: { cookie } });
+    const reader = sseRes.body.getReader();
+    const fbC = JSON.stringify({ object: 'page', entry: [{ id: '999', time: 1, changes: [{ field: 'feed', value: { item: 'comment', verb: 'add', post_id: '999_1', comment_id: '999_1_c1', message: 'ราคาเท่าไหร่คะ', from: { id: 'U9', name: 'ลูกค้า A' }, created_time: 1795600000 } }] }] });
+    assert.equal((await fetch(base + '/webhook', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Hub-Signature-256': signRt(fbC) }, body: fbC })).status, 200);
+    const igC = JSON.stringify({ object: 'instagram', entry: [{ id: '1784', time: 1, changes: [{ field: 'comments', value: { id: 'igc1', text: 'สนใจค่ะ', from: { id: 'U8', username: 'cust_b' }, media: { id: 'm77' } } }] }] });
+    assert.equal((await fetch(base + '/webhook', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Hub-Signature-256': signRt(igC) }, body: igC })).status, 200);
+    let sseText = '';
+    const until = Date.now() + 3000;
+    while (Date.now() < until && !(sseText.includes('igc1') && sseText.includes('999_1_c1'))) {
+      const { value, done } = await Promise.race([reader.read(), new Promise((r) => setTimeout(() => r({ value: null }), 500))]);
+      if (done) break; if (value) sseText += new TextDecoder().decode(value);
+    }
+    reader.cancel().catch(() => {});
+    assert.ok(sseText.includes('event: post_comment') && sseText.includes('igc1') && sseText.includes('999_1_c1'), sseText);
+    const storedPosts = require('../lib/store').read('posts_comments.json', []);
+    const fbPost = storedPosts.find((p) => p.id === '999_1'); const igPost = storedPosts.find((p) => p.id === 'm77');
+    assert.equal(fbPost.comments[0].text, 'ราคาเท่าไหร่คะ'); assert.equal(igPost.platform, 'Instagram'); assert.equal(igPost.comments[0].from, 'cust_b');
+    ok('คอมเมนต์ใหม่ FB/IG เข้าระบบทันทีผ่าน webhook + ส่งขึ้นหน้าเว็บแบบเรียลไทม์');
+
     global.fetch = realFetch2;
   }
 
