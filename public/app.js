@@ -1751,12 +1751,12 @@
     const quick = 'padding:3px 8px;font-size:11.5px;border-radius:6px;background:#f8fafc;border:1px solid #e2e8f0';
     return `
       <div class="modal-backdrop" data-act="posts-modal-close" style="position:fixed;inset:0;background:rgba(15,23,42,0.5);backdrop-filter:blur(3px);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px">
-        <div class="modal-card" style="background:#fff;border-radius:18px;max-width:520px;width:100%;box-shadow:0 20px 40px -8px rgba(0,0,0,0.25);overflow:hidden;border:1px solid #e2e8f0">
+        <div class="modal-card" style="background:#fff;border-radius:18px;max-width:640px;width:100%;max-height:92vh;overflow:auto;box-shadow:0 20px 40px -8px rgba(0,0,0,0.25);border:1px solid #e2e8f0">
           <div style="padding:18px 22px;border-bottom:1px solid #f1f5f9;display:flex;justify-content:space-between;align-items:center;background:#f0fdf4">
             <div style="display:flex;align-items:center;gap:10px">
               <span style="font-size:22px">💬</span>
               <div>
-                <h3 style="margin:0;font-size:16px;color:#0f172a;font-weight:700">ดึงโพสต์ & คอมเมนต์ ${m.pageId ? `"${esc(m.pageName || '')}"` : 'ทุกเพจ'}</h3>
+                <h3 style="margin:0;font-size:16px;color:#0f172a;font-weight:700;display:flex;align-items:center;gap:8px;flex-wrap:wrap">ดึงโพสต์ & คอมเมนต์ ${m.pageId ? `"${esc(m.pageName || '')}" ${platformBadge(m.platform || 'Facebook', 11.5)}` : 'ทุกเพจ (Facebook + Instagram)'}</h3>
                 <span style="font-size:12px;color:#64748b">เลือกว่าจะดึงทั้งหมด หรือดึงแค่ช่วงที่ต้องการ</span>
               </div>
             </div>
@@ -1807,12 +1807,12 @@
     const defAfter = (() => { const d = new Date(); d.setMonth(d.getMonth() - 3); return d.toISOString().slice(0, 10); })();
     return `
       <div class="modal-backdrop import-modal-backdrop" style="position:fixed;inset:0;background:rgba(15,23,42,0.5);backdrop-filter:blur(3px);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px">
-        <div class="modal-card" style="background:#fff;border-radius:18px;max-width:520px;width:100%;box-shadow:0 20px 40px -8px rgba(0,0,0,0.25);overflow:hidden;border:1px solid #e2e8f0;animation:slideUp 0.2s ease-out;position:relative;z-index:1">
+        <div class="modal-card" style="background:#fff;border-radius:18px;max-width:640px;width:100%;max-height:92vh;overflow:auto;box-shadow:0 20px 40px -8px rgba(0,0,0,0.25);border:1px solid #e2e8f0;animation:slideUp 0.2s ease-out;position:relative;z-index:1">
           <div style="padding:18px 22px;border-bottom:1px solid #f1f5f9;display:flex;justify-content:space-between;align-items:center;background:#f0fdf4">
             <div style="display:flex;align-items:center;gap:10px">
               <span style="font-size:22px">📥</span>
               <div>
-                <h3 style="margin:0;font-size:16px;color:#0f172a;font-weight:700">ดึงข้อมูลแชท ${m.mode === 'all' ? 'ทุกเพจ' : `"${esc(m.pageName || '')}"`}</h3>
+                <h3 style="margin:0;font-size:16px;color:#0f172a;font-weight:700;display:flex;align-items:center;gap:8px;flex-wrap:wrap">ดึงข้อมูลแชท ${m.mode === 'all' ? 'ทุกเพจ (Facebook + Instagram)' : `"${esc(m.pageName || '')}" ${platformBadge(m.platform || 'Facebook', 11.5)}`}</h3>
                 <span style="font-size:12px;color:#64748b">เลือกว่าจะดึงทั้งหมด หรือดึงแค่ช่วงที่ต้องการ</span>
               </div>
             </div>
@@ -1865,7 +1865,26 @@
     `;
   }
 
+  // จำตำแหน่งเลื่อนหน้าไว้ เวลา render ใหม่ในหน้าเดิม (เช่น เปิด/ปิดหน้าต่างดึงข้อมูล) จะได้ไม่เด้งกลับขึ้นบนสุด
+  let lastRenderedRoute = null;
+  let lastFlashShown = null;
   function render() {
+    const prevMain = document.querySelector('main.page');
+    const keepScroll = prevMain && lastRenderedRoute === S.route ? prevMain.scrollTop : null;
+    renderInner();
+    lastRenderedRoute = S.me ? S.route : null;
+    if (keepScroll != null) {
+      const main = document.querySelector('main.page');
+      if (main) main.scrollTop = keepScroll;
+      // ข้อความแจ้งผลอยู่ด้านบนสุดของหน้า ถ้าผู้ใช้เลื่อนลงมาไกล ให้เด้งเป็น toast ด้วยจะได้เห็น
+      if (S.flash && S.flash !== lastFlashShown && keepScroll > 200 && typeof showToast === 'function') {
+        showToast(S.flash.text, S.flash.type === 'err' ? 'error' : 'success');
+      }
+    }
+    lastFlashShown = S.flash || null;
+  }
+
+  function renderInner() {
     if (!S.booted) { $app.innerHTML = '<div class="loading">Loading…</div>'; return; }
     if (!S.me) return renderLogin();
     const views = { dashboard: dashShell, inbox: inboxShell, board: boardShell, 'post-comment': commentsShell, followup: followShell, review: reviewShell, audit: auditShell, setting: settingShell, upload: uploadShell, quality: qualityShell };
@@ -5099,41 +5118,68 @@ function boardShell() {
   }
   const ROLE_TH = { admin: 'ผู้ดูแล (admin)', staff: 'ทีมขาย (staff)' };
   
+  // ป้ายแพลตฟอร์มสีชัด ๆ ใช้ซ้ำในตารางเพจและหน้าต่างดึงข้อมูล
+  const PLATFORM_STYLE = {
+    Facebook: { icon: '📘', label: 'Facebook', bg: '#e7f0ff', fg: '#1d4ed8', bar: '#1877f2' },
+    Instagram: { icon: '📸', label: 'Instagram', bg: 'linear-gradient(90deg,#fdf2f8,#fff7ed)', fg: '#be185d', bar: '#e1306c' },
+    LINE: { icon: '💬', label: 'LINE', bg: '#e8f8ee', fg: '#047857', bar: '#06c755' },
+    WhatsApp: { icon: '🟢', label: 'WhatsApp', bg: '#e7f7f1', fg: '#0f766e', bar: '#25d366' },
+  };
+  function platformBadge(platform, size = 12) {
+    const st = PLATFORM_STYLE[platform] || PLATFORM_STYLE.Facebook;
+    return `<span style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:999px;font-size:${size}px;font-weight:700;background:${st.bg};color:${st.fg};white-space:nowrap">${st.icon} ${st.label}</span>`;
+  }
+
   function pagesPanelHtml() {
     const rawPages = (S.filters && S.filters.pages) || [];
     // กรองไม่แสดงเพจขยะ / เพจที่ไม่มีชื่อจริง / เพจตัวเลข
     const pages = rawPages.filter(isValidPage);
-    const rows = pages.map((p) => {
-      const colorDot = `<span class="page-dot" style="background:${p.color || '#1877f2'};margin-right:6px"></span>`;
-      const platformIcon = p.platform === 'LINE' ? '📱' : p.platform === 'WhatsApp' ? '💚' : p.platform === 'Instagram' ? '📸' : '🔵';
-      return `<tr>
-        <td><b>${colorDot}${esc(p.name)}</b></td>
-        <td><span class="chip" style="font-size:12px">${platformIcon} ${esc(p.platform || 'Facebook')}</span></td>
+    const nameOf = new Map(pages.map((p) => [String(p.id), p.name]));
+    const row = (p) => {
+      const plat = p.platform || 'Facebook';
+      const st = PLATFORM_STYLE[plat] || PLATFORM_STYLE.Facebook;
+      const linked = plat === 'Instagram' && p.fbPageId ? `<div class="rv-hint" style="font-size:12px;margin-top:2px">ผูกกับเพจ FB: ${esc(nameOf.get(String(p.fbPageId)) || p.fbPageId)}</div>` : '';
+      return `<tr style="box-shadow:inset 4px 0 0 ${st.bar}">
+        <td style="padding-left:16px"><b>${esc(p.name)}</b>${linked}</td>
+        <td>${platformBadge(plat)}</td>
         <td><code>${esc(p.id)}</code></td>
         <td>${p.adAccountId ? `<span class="chip good" style="font-size:12px;font-family:monospace">📊 ${esc(p.adAccountId)}</span>` : '<span class="rv-hint">ใช้ Ad กลาง</span>'}</td>
-        <td class="nowrap" style="display:flex;gap:6px">
+        <td><div style="display:flex;gap:6px;flex-wrap:wrap">
           <button class="btn" type="button" data-act="page-edit" data-page='${esc(JSON.stringify(p))}' style="padding:4px 10px;font-size:12px">✏️ แก้ไข</button>
-          ${(p.platform === 'Facebook' || p.platform === 'Instagram') ? `<button class="btn" type="button" data-act="fb-import-conv" data-page-id="${esc(p.id)}" data-page-name="${esc(p.name)}" data-platform="${esc(p.platform || 'Facebook')}" style="padding:4px 10px;font-size:12px">📥 ดึงแชท</button><button class="btn" type="button" data-act="sync-page-posts" data-page-id="${esc(p.id)}" data-page-name="${esc(p.name)}" style="padding:4px 10px;font-size:12px;background:#eaf2e8;color:#244c1d">💬 ดึงโพสต์</button>` : ''}
+          ${(plat === 'Facebook' || plat === 'Instagram') ? `<button class="btn" type="button" data-act="fb-import-conv" data-page-id="${esc(p.id)}" data-page-name="${esc(p.name)}" data-platform="${esc(plat)}" style="padding:4px 10px;font-size:12px">📥 ดึงแชท</button><button class="btn" type="button" data-act="sync-page-posts" data-page-id="${esc(p.id)}" data-page-name="${esc(p.name)}" data-platform="${esc(plat)}" style="padding:4px 10px;font-size:12px;background:#eaf2e8;color:#244c1d">💬 ดึงโพสต์</button>` : ''}
           <button class="btn danger" type="button" data-act="page-delete" data-page-id="${esc(p.id)}" style="padding:4px 10px;font-size:12px">ลบ</button>
-        </td>
+        </div></td>
       </tr>`;
+    };
+    // จัดกลุ่มตามแพลตฟอร์ม: Facebook → Instagram → LINE/WhatsApp
+    const groups = [
+      ['Facebook', pages.filter((p) => !p.platform || p.platform === 'Facebook')],
+      ['Instagram', pages.filter((p) => p.platform === 'Instagram')],
+      ['อื่น ๆ', pages.filter((p) => p.platform && p.platform !== 'Facebook' && p.platform !== 'Instagram')],
+    ].filter(([, list]) => list.length);
+    const rows = groups.map(([g, list]) => {
+      const st = PLATFORM_STYLE[g];
+      const head = st ? `${st.icon} ${st.label}` : '💬 LINE / WhatsApp';
+      return `<tr><td colspan="5" style="background:#f8fafc;font-weight:800;color:${st ? st.fg : '#334155'};padding:8px 16px">${head} <span class="rv-hint" style="font-weight:500">${list.length} บัญชี</span></td></tr>${list.map(row).join('')}`;
     }).join('');
+    const counts = groups.map(([g, list]) => `${PLATFORM_STYLE[g] ? platformBadge(g, 11.5) : '💬 อื่น ๆ'} <b>${list.length}</b>`).join(' &nbsp; ');
 
-    return `<section class="card panel">
+    return `<section class="card panel pages-panel" style="grid-column:1 / -1;width:100%;max-width:none">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
         <div>
           <h3 style="margin:0">🏢 ตารางเพจและช่องทางในระบบ</h3>
           <p class="sub" style="margin:4px 0 0">กด <b>"✏️ แก้ไข"</b> ที่เพจใดเพื่อโหลดขึ้นไปแก้ไขในกล่องด้านบน หรือกด <b>"ลบ"</b> ได้ทันที</p>
         </div>
-        <div style="display:flex;gap:8px">
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
           <button class="btn primary" type="button" data-act="meta-discover" style="font-size:13px">🔄 ดึงเพจทั้งหมดจาก Token</button>
           <button class="btn" type="button" data-act="fb-import-all" style="font-size:13px">📥 ดึงแชทย้อนหลังทุกเพจ</button>
           <button class="btn" type="button" data-act="meta-posts-sync-all" style="font-size:13px;background:#2d5022;color:#fff">💬 ดึง Post & comment ทุกเพจ</button>
         </div>
       </div>
-      <div class="tscroll" style="margin:14px 0 0">
-        <table style="min-width:540px">
-          <thead><tr><th>ชื่อเพจ</th><th>แพลตฟอร์ม</th><th>Page ID (แชท)</th><th>Meta Ad Account ID (โฆษณา)</th><th class="nosort">จัดการ</th></tr></thead>
+      ${counts ? `<div style="margin-top:10px;display:flex;align-items:center;gap:6px;flex-wrap:wrap">${counts}</div>` : ''}
+      <div class="tscroll" style="margin:12px 0 0">
+        <table style="width:100%;min-width:760px">
+          <thead><tr><th style="padding-left:16px;width:30%">ชื่อเพจ / บัญชี</th><th style="width:12%">แพลตฟอร์ม</th><th style="width:16%">Page ID (แชท)</th><th style="width:14%">Ad Account (โฆษณา)</th><th class="nosort">จัดการ</th></tr></thead>
           <tbody>${rows || '<tr><td colspan="5" class="empty">ยังไม่มีเพจในระบบ (กดปุ่ม "ดึงเพจทั้งหมดจาก Token" เพื่อนำเข้าอัตโนมัติ)</td></tr>'}</tbody>
         </table>
       </div>
@@ -6095,7 +6141,7 @@ function boardShell() {
       else if (act === 'upload-cancel' || act === 'upload-reset') { S.upload.rows = []; S.upload.result = null; S.upload.err = null; await loadUpload(); }
       else if (act === 'upload-tab') { S.upload.tab = el.dataset.tab; S.upload.rows = []; S.upload.result = null; S.upload.err = null; renderUploadBody(); }
       else if (act === 'meta-posts-sync-all' || act === 'sync-page-posts') {
-        S.postsModal = { pageId: el.dataset.pageId || null, pageName: el.dataset.pageName || '' };
+        S.postsModal = { pageId: el.dataset.pageId || null, pageName: el.dataset.pageName || '', platform: el.dataset.platform || 'Facebook' };
         render();
         return;
       }
