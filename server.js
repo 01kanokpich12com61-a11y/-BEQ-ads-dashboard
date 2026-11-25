@@ -130,17 +130,30 @@ function readRaw(req, limit = 1_000_000) {
   });
 }
 
-// Verify Token สำหรับ Webhook: ค่าคงที่ถาวร ไม่สุ่มใหม่ เพื่อไม่ให้หลุดเวลา Render รีสตาร์ท
+// Verify Token สำหรับ Webhook: ใช้ WEBHOOK_VERIFY_TOKEN (แนะนำบน Render) หรือค่าที่บันทึกไว้
+// ถ้ายังไม่มีเลย จะสุ่มค่าใหม่แล้วบันทึก (ไม่ใช้ค่าคงที่ในโค้ด เพราะ repo อ่านได้)
+const LEGACY_DEFAULT_TOKEN = 'beq_webhook_verify_token_secure';
 function webhookToken() {
   if (process.env.WEBHOOK_VERIFY_TOKEN && process.env.WEBHOOK_VERIFY_TOKEN.trim()) {
     return process.env.WEBHOOK_VERIFY_TOKEN.trim();
   }
   const m = meta.getSettings().meta || {};
-  if (m.webhookVerifyToken && m.webhookVerifyToken.trim()) return m.webhookVerifyToken.trim();
-  const defaultToken = 'beq_webhook_verify_token_secure';
-  meta.saveSettings({ meta: { webhookVerifyToken: defaultToken } });
-  return defaultToken;
+  const saved = String(m.webhookVerifyToken || '').trim();
+  if (saved && saved !== LEGACY_DEFAULT_TOKEN) return saved;
+  const fresh = crypto.randomBytes(16).toString('hex');
+  meta.saveSettings({ meta: { webhookVerifyToken: fresh } });
+  return fresh;
 }
+
+// ตรวจลายเซ็น X-Hub-Signature-256 ของ Meta (ใช้กับทั้ง Messenger/Instagram และ WhatsApp Cloud API)
+function metaSignatureOk(req, raw) {
+  const secret = (meta.getSettings().meta || {}).appSecret || process.env.META_APP_SECRET || '';
+  if (!secret) return { ok: false, reason: 'ยังไม่ได้บันทึก App Secret' };
+  const sig = String(req.headers['x-hub-signature-256'] || '');
+  const ok = safeEq(sig, 'sha256=' + crypto.createHmac('sha256', secret).update(raw).digest('hex'));
+  return { ok, reason: ok ? '' : 'ลายเซ็นไม่ถูกต้อง' };
+}
+
 const safeEq = (a, b) => { const x = Buffer.from(String(a)); const y = Buffer.from(String(b)); return x.length === y.length && crypto.timingSafeEqual(x, y); };
 
 // ส่งข้อมูล Lead + ข้อความล่าสุดไปยัง Google Sheets ผ่าน Apps Script ทันที (realtime backup)
@@ -2486,10 +2499,8 @@ const server = http.createServer(async (req, res) => {
       }
       if (req.method === 'POST') {
         const raw = await readRaw(req);
-        const secret = (meta.getSettings().meta || {}).appSecret || process.env.META_APP_SECRET || '';
-        const sig = String(req.headers['x-hub-signature-256'] || '');
-        const good = secret && safeEq(sig, 'sha256=' + crypto.createHmac('sha256', secret).update(raw).digest('hex'));
-        if (!good) { audit.log('meta-webhook', 'webhook_rejected', secret ? 'ลายเซ็นไม่ถูกต้อง' : 'ยังไม่ได้บันทึก App Secret', ip); return send(res, 403, 'Forbidden'); }
+        const chk = metaSignatureOk(req, raw);
+        if (!chk.ok) { audit.log('meta-webhook', 'webhook_rejected', chk.reason, ip); return send(res, 403, 'Forbidden'); }
         let body; try { body = JSON.parse(raw.toString('utf8')); } catch { return send(res, 400, 'Bad request'); }
         try { await handleWebhook(body); } catch (e) { console.error('webhook', e); }
         return send(res, 200, 'EVENT_RECEIVED'); // ตอบ 200 เสมอเมื่อลายเซ็นถูก เพื่อไม่ให้ Meta ส่งซ้ำ
@@ -2503,12 +2514,14 @@ const server = http.createServer(async (req, res) => {
         const raw = await readRaw(req);
         const secret = (meta.getSettings().line || {}).channelSecret || process.env.LINE_CHANNEL_SECRET || '';
         const sig = String(req.headers['x-line-signature'] || '');
-        if (secret) {
-          const expectedSig = crypto.createHmac('sha256', secret).update(raw).digest('base64');
-          if (!safeEq(sig, expectedSig)) {
-            audit.log('line-webhook', 'webhook_rejected', 'ลายเซ็น LINE ไม่ถูกต้อง', ip);
-            return send(res, 403, 'Forbidden');
-          }
+        if (!secret) {
+          audit.log('line-webhook', 'webhook_rejected', 'ยังไม่ได้บันทึก LINE Channel Secret', ip);
+          return send(res, 403, 'Forbidden');
+        }
+        const expectedSig = crypto.createHmac('sha256', secret).update(raw).digest('base64');
+        if (!safeEq(sig, expectedSig)) {
+          audit.log('line-webhook', 'webhook_rejected', 'ลายเซ็น LINE ไม่ถูกต้อง', ip);
+          return send(res, 403, 'Forbidden');
         }
         let body; try { body = JSON.parse(raw.toString('utf8')); } catch { return send(res, 400, 'Bad request'); }
         try { await handleLineWebhook(body); } catch (e) { console.error('line-webhook', e); }
@@ -2529,6 +2542,8 @@ const server = http.createServer(async (req, res) => {
       }
       if (req.method === 'POST') {
         const raw = await readRaw(req);
+        const chk = metaSignatureOk(req, raw);
+        if (!chk.ok) { audit.log('wa-webhook', 'webhook_rejected', chk.reason, ip); return send(res, 403, 'Forbidden'); }
         let body; try { body = JSON.parse(raw.toString('utf8')); } catch { return send(res, 400, 'Bad request'); }
         try { await handleWhatsAppWebhook(body); } catch (e) { console.error('wa-webhook', e); }
         return send(res, 200, 'EVENT_RECEIVED');
@@ -2569,6 +2584,32 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
+// เตือนการตั้งค่าที่จะทำให้ระบบบน production ไม่ปลอดภัยหรือข้อมูลหาย (พิมพ์ลง log ตอนเริ่มเซิร์ฟเวอร์)
+function productionWarnings() {
+  if (!config.isProduction) return;
+  const warn = (m) => console.warn('  ⚠️  ' + m);
+  if (!store.hasSupabase) warn('ยังไม่ได้ตั้ง SUPABASE_URL / SUPABASE_KEY — บน Render ข้อมูล (แชท ลีด ผู้ใช้ การตั้งค่า) จะหายทุกครั้งที่ deploy หรือรีสตาร์ท');
+  if (!process.env.ADMIN_PASSWORD) warn('ยังไม่ได้ตั้ง ADMIN_PASSWORD');
+  if (!process.env.WEBHOOK_VERIFY_TOKEN) warn('ยังไม่ได้ตั้ง WEBHOOK_VERIFY_TOKEN — ค่า Verify Token อาจเปลี่ยนหลังรีสตาร์ท');
+  if (!config.secureCookie) warn('COOKIE_SECURE ปิดอยู่ — ควรเปิดเมื่อใช้งานผ่าน HTTPS');
+}
+
+// กันเซิร์ฟเวอร์ล่มทั้งตัวจาก error ที่หลุดมาจาก callback / promise
+process.on('unhandledRejection', (err) => { console.error('[unhandledRejection]', err && err.stack ? err.stack : err); });
+process.on('uncaughtException', (err) => { console.error('[uncaughtException]', err && err.stack ? err.stack : err); });
+
+// ปิดเซิร์ฟเวอร์อย่างนุ่มนวลเมื่อ Render/Docker ส่ง SIGTERM (ตอน deploy ใหม่)
+function shutdown(sig) {
+  console.log(`[${sig}] กำลังปิดเซิร์ฟเวอร์...`);
+  try { for (const c of realtimeClients) { try { c.res.end(); } catch {} } } catch {}
+  server.close(() => process.exit(0));
+  setTimeout(() => process.exit(0), 8000).unref();
+}
+if (require.main === module) {
+  process.once('SIGTERM', () => shutdown('SIGTERM'));
+  process.once('SIGINT', () => shutdown('SIGINT'));
+}
+
 server.timeout = 180000;
 server.keepAliveTimeout = 65000;
 server.headersTimeout = 66000;
@@ -2578,7 +2619,11 @@ if (require.main === module) {
   store.ready.then(() => {
     server.listen(config.port, config.host, () => {
       console.log(`\n  Hair Clinic Ads Dashboard → http://${config.host === '0.0.0.0' ? 'localhost' : config.host}:${config.port}`);
-      if (created) console.log(`  สร้างผู้ใช้ "${config.adminUser}" แล้ว${config.usingDefaultPassword ? ' (รหัสผ่านเริ่มต้น: admin1234 — ระบบจะให้เปลี่ยนหลังล็อกอิน)' : ''}`);
+      if (created) {
+        if (created.generated) console.log(`  สร้างผู้ใช้ "${config.adminUser}" แล้ว — รหัสผ่านชั่วคราว: ${created.password}\n  (ตั้ง ADMIN_PASSWORD ใน Environment เพื่อกำหนดเอง / เปลี่ยนรหัสหลังล็อกอินครั้งแรก)`);
+        else console.log(`  สร้างผู้ใช้ "${config.adminUser}" แล้ว${config.usingDefaultPassword ? ' (รหัสผ่านเริ่มต้น: admin1234 — ระบบจะให้เปลี่ยนหลังล็อกอิน)' : ''}`);
+      }
+      productionWarnings();
       console.log(`  โหมดข้อมูล: ${providers.currentMode() === 'meta' ? 'Meta' : 'Demo'}\n`);
       
       // Background Cron: ตรวจสอบและส่งการแจ้งเตือน LINE & Web ตามรอบเวลาที่ผู้ใช้ตั้งค่าไว้ (ตรวจทุก 1 นาที)

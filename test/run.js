@@ -394,6 +394,28 @@ async function main() {
   assert.equal(adminSession.user.username, 'admin');
   ok('ระบบ Session แข็งแกร่ง ป้องกันหลุดออกจากระบบเมื่อฐานข้อมูลมีภาระงานสูง');
 
+  // ความปลอดภัย: รหัสเริ่มต้นใช้ไม่ได้หลังเปลี่ยนรหัสแล้ว (เคยมีทางลัดให้ admin1234 เข้าได้เสมอ)
+  const raw = (u, p) => fetch(base + '/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: u, password: p }) });
+  assert.equal((await raw('admin', 'admin1234')).status, 401); ok('admin1234 ใช้ไม่ได้หลังเปลี่ยนรหัส');
+
+  // ความปลอดภัย: session ของผู้ใช้ที่ไม่มีอยู่จริงต้องใช้ไม่ได้
+  assert.equal(auth.getSession({ headers: { cookie: 'sid=deadbeef' } }), null); ok('session ปลอมถูกปฏิเสธ');
+
+  // ความปลอดภัย: webhook WhatsApp / LINE ต้องมีลายเซ็นถูกต้อง
+  const waBody = JSON.stringify({ object: 'whatsapp_business_account', entry: [] });
+  const waPost = (sig) => fetch(base + '/webhook/whatsapp', { method: 'POST', headers: { 'Content-Type': 'application/json', ...(sig ? { 'X-Hub-Signature-256': sig } : {}) }, body: waBody });
+  assert.equal((await waPost()).status, 403); ok('WhatsApp webhook ไม่มีลายเซ็นถูกปฏิเสธ');
+  const appSecret = (meta.getSettings().meta || {}).appSecret;
+  if (appSecret) {
+    const good = 'sha256=' + crypto.createHmac('sha256', appSecret).update(waBody).digest('hex');
+    assert.equal((await waPost(good)).status, 200); ok('WhatsApp webhook ลายเซ็นถูกต้องรับได้');
+  }
+  const linePost = await fetch(base + '/webhook/line', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{"events":[]}' });
+  assert.equal(linePost.status, 403); ok('LINE webhook ไม่มีลายเซ็นถูกปฏิเสธ');
+
+  // Verify Token ต้องไม่ใช่ค่าคงที่ในโค้ด
+  assert.notEqual((await call('GET', '/api/settings')).json.webhook.verifyToken, 'beq_webhook_verify_token_secure'); ok('Verify Token ไม่ใช่ค่าคงที่ในโค้ด');
+
   await call('POST', '/api/logout');
   assert.equal((await call('GET', '/api/me')).status, 401); ok('ล็อกเอาต์');
   server.close();
