@@ -947,6 +947,21 @@
   // Real-time Event Stream (Server-Sent Events) เชื่อมต่อรับข้อความแชทและแจ้งเตือนอัตโนมัติ
   let realtimeSource = null;
   let realtimeEverDropped = false;
+  // ย้ายการ์ดในข้อมูล Board ที่โหลดไว้ไปคอลัมน์ใหม่ (ไม่ต้องโหลดทั้งหน้าใหม่)
+  function moveBoardCard(id, status) {
+    const bd = S.board && S.board.data;
+    if (!bd || !Array.isArray(bd.columns)) return;
+    let card = null;
+    for (const col of bd.columns) {
+      const i = (col.cards || []).findIndex((c) => c.id === id);
+      if (i >= 0) { card = col.cards.splice(i, 1)[0]; col.total = Math.max(0, (col.total || 1) - 1); break; }
+    }
+    if (!card) { if (S.route === 'board') scheduleLiveRefresh(300); return; }
+    card.status = status;
+    const target = bd.columns.find((c) => c.status === status);
+    if (target) { target.cards = [card, ...(target.cards || [])]; target.total = (target.total || 0) + 1; }
+    if (S.route === 'board') renderBoardBody();
+  }
   let liveRefreshTimer = null;
   // โหลดข้อมูลของหน้าที่เปิดอยู่ใหม่แบบเงียบ ๆ (รวมหลายเหตุการณ์ที่มาติด ๆ กันเป็นครั้งเดียว)
   function scheduleLiveRefresh(delay = 3000) {
@@ -982,6 +997,28 @@
       // ต่อใหม่สำเร็จหลังหลุด → โหลดข้อมูลหน้าปัจจุบันใหม่ เผื่อมีแชท/คอมเมนต์เข้ามาระหว่างหลุด
       realtimeSource.addEventListener('open', () => {
         if (realtimeEverDropped) { realtimeEverDropped = false; scheduleLiveRefresh(500); }
+      });
+      // มีคนเปลี่ยนสถานะ/เซลล์ของลีด (จากเครื่องไหนก็ได้) → Inbox, แชทที่เปิดอยู่ และ Board อัปเดตตามทันที
+      realtimeSource.addEventListener('lead_status', (e) => {
+        try {
+          const { id, status } = JSON.parse(e.data);
+          const row = S.inbox && S.inbox.data && S.inbox.data.rows.find((x) => x.id === id);
+          if (row) row.status = status;
+          if (S.chat && S.chat.id === id && S.chat.data && S.chat.data.lead) { S.chat.data.lead.status = status; renderChatViews(); }
+          moveBoardCard(id, status);
+          if (S.route === 'inbox') { renderInboxTools(); renderInboxList(); }
+          if (['dashboard', 'followup', 'review'].includes(S.route)) scheduleLiveRefresh(2000);
+        } catch (_) {}
+      });
+      realtimeSource.addEventListener('lead_rep', (e) => {
+        try {
+          const { id, rep } = JSON.parse(e.data);
+          const row = S.inbox && S.inbox.data && S.inbox.data.rows.find((x) => x.id === id);
+          if (row) { row.rep = rep; row.repId = rep; }
+          if (S.chat && S.chat.id === id && S.chat.data && S.chat.data.lead) { S.chat.data.lead.rep = rep; S.chat.data.lead.repId = rep; renderChatViews(); }
+          if (S.route === 'inbox') renderInboxList();
+          if (S.route === 'board') scheduleLiveRefresh(500);
+        } catch (_) {}
       });
       // คอมเมนต์ใหม่บนโพสต์ FB/IG
       realtimeSource.addEventListener('post_comment', (e) => {
@@ -4015,6 +4052,16 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
       <input type="text" name="note" maxlength="300" placeholder="บันทึก เช่น โทรถามเรื่องนัดตรวจ" value="${act ? esc(fu.note) : ''}"></div>
       <div class="row-actions"><button class="btn primary" type="submit">${act ? 'อัปเดตนัด' : 'ตั้งนัดตาม'}</button>${act ? '<button class="btn" type="button" data-act="fu-done">ปิดงานตาม</button>' : ''}</div></form>`;
   }
+  // ตัวเลือกสถานะแบบป้ายสีบนหัวแชท: เลือกแล้วบันทึกทันที และหน้า Board ย้ายการ์ดตาม
+  function statusPillSelectHtml(l) {
+    const c = STATUS_COLOR[l.status] || '#64748b';
+    return `<label title="เปลี่ยนสถานะ (การ์ดในหน้า Leads Board จะย้ายตาม)" style="position:relative;display:inline-flex;align-items:center">
+      <select data-bind="lead-status" aria-label="สถานะลีด" style="appearance:none;-webkit-appearance:none;border:1.5px solid ${c};color:${c};background:${c}14;font-weight:700;font-size:12px;border-radius:999px;padding:3px 24px 3px 10px;cursor:pointer;font-family:inherit">
+        ${STATUS_ORDER.map((k) => `<option value="${k}" ${l.status === k ? 'selected' : ''}>${STATUS_TH[k]}</option>`).join('')}
+      </select>
+      <span style="position:absolute;right:8px;pointer-events:none;color:${c};font-size:10px">▼</span>
+    </label>`;
+  }
   function statusSelectHtml(l) {
     return `<div class="field"><label>ความคืบหน้า</label><div class="sel"><select data-bind="lead-status" aria-label="ความคืบหน้า">${STATUS_ORDER.map((k) => `<option value="${k}" ${l.status === k ? 'selected' : ''}>${STATUS_TH[k]}</option>`).join('')}</select></div></div>`;
   }
@@ -4430,7 +4477,7 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
           <div>
             <div class="cura-thread-title">
               <b>${esc(l.name)}</b>
-              <span>${statusHtml(l.status)}</span>
+              ${statusPillSelectHtml(l)}
             </div>
             <div class="cura-thread-sub">
               <span>${chanHtml(l.channel)}</span>
@@ -5134,6 +5181,8 @@ function boardShell() {
       if (S.chat.data && S.chat.data.lead && S.chat.id === id) S.chat.data.lead.status = status;
       const row = S.inbox.data && S.inbox.data.rows.find((x) => x.id === id); if (row) row.status = status;
       S.chat.msg = { type: 'ok', text: 'เปลี่ยนความคืบหน้าแล้ว' };
+      moveBoardCard(id, status);
+      showToast(`✅ ย้ายไปสถานะ "${STATUS_TH[status] || status}" แล้ว — หน้า Leads Board อัปเดตตาม`, 'success');
     } catch (e) { S.chat.msg = { type: 'err', text: e.message }; }
     renderChatViews(); if (S.route === 'inbox') { renderInboxTools(); renderInboxList(); }
     updateGlobalUnrepliedBadges();

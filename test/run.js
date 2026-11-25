@@ -570,6 +570,27 @@ async function main() {
     assert.equal(reps.pick({ Replied_By: 'Paul CJ' }, reps.REP_KEYS), 'Paul CJ');
     ok('ระบุเซลล์ผู้ตอบแชท (Meta: จากการมอบหมาย / เว็บ: ผู้ใช้ที่ล็อกอิน / import: คอลัมน์เซลล์)');
 
+    // เปลี่ยนสถานะจาก Inbox ได้แม้แชทเก่ากว่า 90 วัน และ Board ย้ายตาม + แจ้งเครื่องอื่นแบบเรียลไทม์
+    const storeT = require('../lib/store');
+    const oldLeads = storeT.read('leads.json', []);
+    oldLeads.push({ id: 'OLD-1', name: 'ลูกค้าเก่า', platform: 'Facebook', channel: 'Messenger', pageId: '999', date: '2025-01-05', status: 'talked' });
+    storeT.write('leads.json', oldLeads);
+    const sse2 = await fetch(base + '/api/inbox/events', { headers: { cookie } });
+    const rd2 = sse2.body.getReader();
+    const st = await call('POST', '/api/lead/status', { id: 'OLD-1', status: 'appointment' });
+    assert.equal(st.status, 200, JSON.stringify(st.json));
+    let txt2 = ''; const until2 = Date.now() + 2000;
+    while (Date.now() < until2 && !txt2.includes('OLD-1')) {
+      const { value, done } = await Promise.race([rd2.read(), new Promise((r) => setTimeout(() => r({ value: null }), 300))]);
+      if (done) break; if (value) txt2 += new TextDecoder().decode(value);
+    }
+    rd2.cancel().catch(() => {});
+    assert.ok(txt2.includes('event: lead_status') && txt2.includes('appointment'), txt2);
+    const boardAll = (await call('GET', '/api/board?range=all')).json;
+    const apptCol = boardAll.columns.find((c) => c.status === 'appointment');
+    assert.ok(apptCol.cards.some((c) => c.id === 'OLD-1'), 'การ์ดต้องย้ายไปคอลัมน์นัดแล้ว');
+    ok('เปลี่ยนสถานะจาก Inbox → Board ย้ายตาม (รวมแชทเก่า) + แจ้งเรียลไทม์');
+
     global.fetch = realFetch2;
   }
 

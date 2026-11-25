@@ -918,12 +918,14 @@ async function api(req, res, url, session) {
   if (route === 'POST /api/lead/status') {
     const b = await readJson(req);
     if (!ops.STATUSES.includes(b.status)) return send(res, 400, { error: 'สถานะไม่ถูกต้อง' });
-    const data = await providers.load(resolveRange({ range: '90d' }));
+    // หาในทุกช่วงเวลา (เดิมหาแค่ 90 วัน ทำให้แชทเก่าเปลี่ยนสถานะไม่ได้)
+    const data = await providers.load(resolveRange({ range: 'all' }));
     const lead = data.leads.find((l) => l.id === b.id);
     if (!lead) return send(res, 404, { error: 'ไม่พบแชทนี้' });
     if (lead.status !== b.status) {
       const oldStatus = lead.status;
       ops.setStatus(lead.id, b.status);
+      broadcastRealtime('lead_status', { id: lead.id, status: b.status, from: oldStatus, by: session.user.username });
       audit.log(session.user.username, 'status_change', `${lead.id} ${lead.name}: ${lead.status} → ${b.status}`, clientIp(req));
       
       // ส่งแจ้งเตือน LINE ทันทีเมื่อเปลี่ยนสถานะ
@@ -942,7 +944,7 @@ async function api(req, res, url, session) {
   if (route === 'POST /api/lead/rep') {
     const b = await readJson(req);
     const repName = clean(b.rep, 100);
-    const data = await providers.load(resolveRange({ range: '90d' }));
+    const data = await providers.load(resolveRange({ range: 'all' }));
     const lead = data.leads.find((l) => l.id === b.id);
     if (!lead) return send(res, 404, { error: 'ไม่พบแชทนี้' });
 
@@ -957,6 +959,7 @@ async function api(req, res, url, session) {
       store.write('leads.json', leads);
     }
 
+    broadcastRealtime('lead_rep', { id: b.id, rep: repName, by: session.user.username });
     audit.log(session.user.username, 'rep_assigned', `${lead.id} ${lead.name}: มอบหมายให้ ${repName || 'ยังไม่ระบุ'}`, clientIp(req));
     return send(res, 200, { ok: true, rep: repName });
   }
