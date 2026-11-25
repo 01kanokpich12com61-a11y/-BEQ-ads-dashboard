@@ -545,6 +545,31 @@ async function main() {
     assert.equal(fbPost.comments[0].text, 'ราคาเท่าไหร่คะ'); assert.equal(igPost.platform, 'Instagram'); assert.equal(igPost.comments[0].from, 'cust_b');
     ok('คอมเมนต์ใหม่ FB/IG เข้าระบบทันทีผ่าน webhook + ส่งขึ้นหน้าเว็บแบบเรียลไทม์');
 
+    // เซลล์ผู้ตอบแชท: อนุมานจากข้อความมอบหมายของ Business Suite, ไม่ทับชื่อที่ตั้งเอง, ไม่นับชื่อเพจเป็นคน
+    const reps = require('../lib/reps');
+    const pagesR = [{ id: '1', name: 'BEQ Hair Clinic' }];
+    const msgsR = [
+      { from: 'customer', text: 'สวัสดีค่ะ', at: '2026-11-01 10:00' },
+      { from: 'staff', text: 'สวัสดีค่ะ ยินดีให้บริการ', by: 'BEQ Hair Clinic', at: '2026-11-01 10:01' },
+      { from: 'staff', text: 'Jatupon James assigned this conversation to Narumol Molmol.', by: 'BEQ Hair Clinic', at: '2026-11-01 10:02' },
+      { from: 'staff', text: 'ราคาเริ่มต้น 39,000 ค่ะ', by: 'BEQ Hair Clinic', at: '2026-11-01 10:03' },
+      { from: 'staff', text: 'ส่งจากเว็บ', by: 'somchai', at: '2026-11-01 10:04' },
+      { from: 'staff', text: 'ส่งจากเว็บโดย admin', by: 'admin', at: '2026-11-01 10:05' },
+    ];
+    const leadR = { id: 'L1', repId: 'BEQ Hair Clinic' };
+    reps.resolveAll([leadR], { L1: msgsR }, pagesR);
+    assert.equal(msgsR[1].by, 'BEQ Hair Clinic'); // ก่อนมอบหมาย ไม่เดา
+    assert.equal(msgsR[3].by, 'Narumol Molmol'); assert.equal(msgsR[3].byAssumed, true);
+    assert.equal(msgsR[4].by, 'somchai'); assert.ok(!msgsR[4].byAssumed);
+    assert.equal(msgsR[5].by, 'admin'); assert.ok(!msgsR[5].byAssumed);
+    assert.equal(leadR.repId, 'Narumol Molmol');
+    const keep = { id: 'L2', repId: 'Paul CJ' };
+    reps.resolveAll([keep], { L2: msgsR }, pagesR); assert.equal(keep.repId, 'Paul CJ');
+    assert.equal(reps.isPerson('Pavicon Hair Clinic คลินิกปลูกผม', new Set()), false);
+    assert.equal(reps.pick({ 'ผู้ตอบ': 'Ja Jah' }, reps.REP_KEYS), 'Ja Jah');
+    assert.equal(reps.pick({ Replied_By: 'Paul CJ' }, reps.REP_KEYS), 'Paul CJ');
+    ok('ระบุเซลล์ผู้ตอบแชท (Meta: จากการมอบหมาย / เว็บ: ผู้ใช้ที่ล็อกอิน / import: คอลัมน์เซลล์)');
+
     global.fetch = realFetch2;
   }
 

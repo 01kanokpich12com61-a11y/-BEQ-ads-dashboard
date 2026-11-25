@@ -67,6 +67,7 @@ const ops = require('./lib/ops');
 const line = require('./lib/line');
 const audit = require('./lib/audit');
 const jobs = require('./lib/jobs');
+const reps = require('./lib/reps');
 const { Readable } = require('node:stream');
 const sla = require('./lib/sla');
 const { resolveRange, isDate, today, eachDay, addDays } = require('./lib/dates');
@@ -271,6 +272,22 @@ async function handleWebhook(body) {
         from: echo ? 'staff' : 'customer', text: msg.text || '[ไฟล์แนบ]', mid: msg.mid || undefined,
         at: ops.nowStamp(ev.timestamp || Date.now()), via: 'webhook',
       };
+      // ข้อความที่แอดมินตอบจาก Business Suite: Meta ไม่บอกชื่อคนส่ง → ใช้เซลล์ผู้ดูแลแชทนี้
+      if (echo) {
+        const pn = reps.pageNameSet(store.read('pages.json', []), [lead]);
+        const owner = lead.repId || lead.rep;
+        if (reps.isPerson(owner, pn)) { addedMsg.by = owner; addedMsg.byAssumed = true; } else if (pageName) addedMsg.by = pageName;
+      }
+      // ข้อความระบบ "X assigned this conversation to Y" → อัปเดตเซลล์ผู้ดูแลทันที
+      const asg = reps.parseAssignment(addedMsg.text);
+      if (asg && asg.to) {
+        const pn = reps.pageNameSet(store.read('pages.json', []), [lead]);
+        if (reps.isPerson(asg.to, pn)) {
+          const all = store.read('leads.json', []);
+          const li = all.find((x) => x.id === lead.id);
+          if (li) { li.repId = asg.to; li.rep = asg.to; store.write('leads.json', all); lead.repId = asg.to; lead.rep = asg.to; }
+        }
+      }
       ops.addMessage(lead.id, addedMsg);
       broadcastRealtime('chat_message', { leadId: lead.id, lead, message: addedMsg });
       if (!echo) {
@@ -1210,7 +1227,8 @@ async function api(req, res, url, session) {
       }
       const adId = clean(r.adId || r.form || r.form_name || r.adid || r.ad_id || r.adName || r.ad_name || r.campaign || r.campaign_name || r.source, 80) || 'Direct';
       const date = normalizeDate(r.date || r.created);
-      const rep = clean(r.repId || r.rep || r.sales || r.owner, 30) || '';
+      const rep = clean(reps.pick(r, reps.REP_KEYS), 40) || '';
+      const staffReply = clean(reps.pick(r, reps.REPLY_KEYS), 2000);
       const dropReason = clean(r.dropReason || r.labels || r.reason || r.note, 100) || null;
       const status = normalizeStatus(r.status || r.stage || r.lead_status, dropReason || '');
       const value = Math.max(0, parseFloat(String(r.value || r.amount || r.price || 0).replace(/[^0-9.]/g, '')) || 0);
@@ -1346,6 +1364,17 @@ async function api(req, res, url, session) {
             via: 'upload',
             platform: targetLead.platform,
             pageName: targetLead.pageName,
+          });
+          messagesChanged = true;
+        }
+      }
+      // ข้อความที่เซลล์ตอบ (ถ้าไฟล์มีคอลัมน์คำตอบ) → บันทึกเป็นข้อความฝั่งทีมขาย พร้อมชื่อเซลล์
+      if (staffReply && targetLead) {
+        const msgList = overlay[targetLead.id] || (overlay[targetLead.id] = []);
+        if (!msgList.some((m) => m.from === 'staff' && m.text === staffReply)) {
+          msgList.push({
+            from: 'staff', text: staffReply, at: `${date} 10:05:00`, via: 'upload',
+            ...(rep ? { by: rep } : {}), platform: targetLead.platform, pageName: targetLead.pageName,
           });
           messagesChanged = true;
         }
@@ -2007,7 +2036,6 @@ async function api(req, res, url, session) {
               via: 'import',
               ...(staffName ? { by: staffName } : {}),
             });
-            if (fromPage && staffName && !lead.repId) { lead.repId = staffName; }
             importedMsgs++;
           }
         }
@@ -2017,6 +2045,7 @@ async function api(req, res, url, session) {
           messages[lid].sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0));
         }
       }
+      reps.resolveAll(leads, messages, store.read('pages.json', []));
       store.write('messages.json', messages);
       store.write('leads.json', leads);
       audit.log(session.user.username, 'import_fb', 'นำเข้าบทสนทนาเพจ ' + pageName + ': ' + importedLeads + ' ลีด, ' + importedMsgs + ' ข้อความ', clientIp(req));
@@ -2190,8 +2219,7 @@ async function api(req, res, url, session) {
                 via: 'import',
                 ...(staffName ? { by: staffName } : {}),
               });
-              if (fromPage && staffName && !lead.repId) { lead.repId = staffName; }
-              pMsgs++;
+                pMsgs++;
             }
           }
         }
@@ -2200,6 +2228,7 @@ async function api(req, res, url, session) {
             messages[lid].sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0));
           }
         }
+        reps.resolveAll(leads, messages, store.read('pages.json', []));
         store.write('messages.json', messages);
         store.write('leads.json', leads);
         totalImportedLeads += pLeads;
@@ -2773,6 +2802,18 @@ function productionWarnings() {
   if (!config.secureCookie) warn('COOKIE_SECURE ปิดอยู่ — ควรเปิดเมื่อใช้งานผ่าน HTTPS');
 }
 
+// ไล่ทุกแชทครั้งเดียวตอนเริ่ม: ใส่ชื่อเซลล์ให้ข้อความที่ Meta ส่งมาเป็นชื่อเพจ และแก้ลีดที่เซลล์เป็นชื่อเพจ
+function resolveRepsOnStartup() {
+  try {
+    const leads = store.read('leads.json', []);
+    const messages = store.read('messages.json', {});
+    const r = reps.resolveAll(leads, messages, store.read('pages.json', []));
+    if (r.msgChanged) store.write('messages.json', messages);
+    if (r.leadChanged) store.write('leads.json', leads);
+    if (r.msgChanged || r.leadChanged) console.log('  👤 อัปเดตชื่อเซลล์ผู้ตอบแชทจากประวัติการมอบหมายแล้ว');
+  } catch (e) { console.warn('  ⚠️  อัปเดตชื่อเซลล์ไม่สำเร็จ:', e.message); }
+}
+
 // ตอนเริ่มเซิร์ฟเวอร์บน Render: ตั้ง webhook ให้ Meta ส่งแชท/คอมเมนต์เข้ามาอัตโนมัติ (ทำซ้ำได้ ไม่มีผลเสีย)
 // ปิดได้ด้วย AUTO_SUBSCRIBE_WEBHOOKS=0
 function autoSubscribeWebhooks() {
@@ -2823,6 +2864,7 @@ if (require.main === module) {
       }
       productionWarnings();
       autoSubscribeWebhooks();
+      resolveRepsOnStartup();
       console.log(`  โหมดข้อมูล: ${providers.currentMode() === 'meta' ? 'Meta' : 'Demo'}\n`);
       
       // Background Cron: ตรวจสอบและส่งการแจ้งเตือน LINE & Web ตามรอบเวลาที่ผู้ใช้ตั้งค่าไว้ (ตรวจทุก 1 นาที)

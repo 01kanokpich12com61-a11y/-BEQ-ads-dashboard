@@ -1784,6 +1784,15 @@
     </div>`;
   }
 
+  // ป้ายชื่อคนตอบใต้ข้อความฝั่งทีมขาย
+  function staffLabel(m) {
+    if (!m.by) return '👤 ทีมขาย';
+    const pageNames = new Set(((S.filters && S.filters.pages) || []).map((p) => String(p.name || '').trim().toLowerCase()));
+    if (pageNames.has(String(m.by).trim().toLowerCase()) || /clinic|center|centre|hair|transplant|wellness|academy|official|คลินิก|ปลูกผม/i.test(m.by)) return `🏢 ${esc(m.by)} <span style="opacity:.7">(ไม่ทราบชื่อเซลล์)</span>`;
+    if (m.byAssumed) return `<span title="Meta ไม่บอกชื่อคนกดส่ง ระบบจึงใช้เซลล์ที่ได้รับมอบหมายแชทนี้ในช่วงเวลานั้น">👤 ${esc(m.by)}*</span>`;
+    return `👤 ${esc(m.by)}`;
+  }
+
   function postsModalHtml() {
     if (!S.postsModal) return '';
     const m = S.postsModal;
@@ -4036,7 +4045,7 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
         const [day, time] = m.at.split(' ');
         const sep = day !== lastDay ? `<div class="day-sep"><span>${esc(day)}</span></div>` : '';
         lastDay = day;
-        return `${sep}<div class="msg ${m.from === 'staff' ? 'out' : 'in'}"><div class="bubble">${esc(m.text)}</div><small>${m.from === 'staff' ? (m.by ? esc(m.by) : 'ทีมขาย') + ' · ' : ''}${esc(time)}</small></div>`;
+        return `${sep}<div class="msg ${m.from === 'staff' ? 'out' : 'in'}"><div class="bubble">${esc(m.text)}</div><small>${m.from === 'staff' ? staffLabel(m) + ' · ' : ''}${esc(time)}</small></div>`;
       }).join('');
     }
     const ready = d && !c.err && !c.loading;
@@ -4374,7 +4383,7 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
               <div>${esc(m.text)}</div>
               <div class="cura-bubble-time">
                 <span>${ago(m.at)}</span>
-                ${isStaff ? '<span>· AI / Staff ✓</span>' : ''}
+                ${isStaff ? `<span style="white-space:nowrap">· ${staffLabel(m)}</span>` : ''}
               </div>
             </div>
           </div>
