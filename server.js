@@ -88,13 +88,23 @@ const SECURITY_HEADERS = {
 
 function send(res, status, body, headers = {}) {
   const isJson = typeof body === 'object' && !Buffer.isBuffer(body);
+  let payload = isJson ? JSON.stringify(body) : body;
+  const extra = {};
+  // บีบอัดข้อมูลก้อนใหญ่ (เช่น Dashboard/Inbox หลายร้อย KB) ให้โหลดเร็วขึ้นมากบนมือถือ
+  const acceptsGzip = res.req && /\bgzip\b/.test(String(res.req.headers['accept-encoding'] || ''));
+  if (acceptsGzip && typeof payload === 'string' && payload.length > 8192 && !headers['Content-Encoding']) {
+    payload = require('node:zlib').gzipSync(payload, { level: 5 });
+    extra['Content-Encoding'] = 'gzip';
+    extra.Vary = 'Accept-Encoding';
+  }
   res.writeHead(status, {
     ...SECURITY_HEADERS,
     'Content-Type': isJson ? 'application/json; charset=utf-8' : 'text/plain; charset=utf-8',
     'Cache-Control': 'no-store',
+    ...extra,
     ...headers,
   });
-  res.end(isJson ? JSON.stringify(body) : body);
+  res.end(payload);
 }
 
 function readJson(req, maxBytes = 5_000_000) {
@@ -2844,8 +2854,10 @@ process.on('uncaughtException', (err) => { console.error('[uncaughtException]', 
 function shutdown(sig) {
   console.log(`[${sig}] กำลังปิดเซิร์ฟเวอร์...`);
   try { for (const c of realtimeClients) { try { c.res.end(); } catch {} } } catch {}
-  server.close(() => process.exit(0));
-  setTimeout(() => process.exit(0), 8000).unref();
+  // ส่งข้อมูลที่ยังค้างขึ้น Supabase ให้เสร็จก่อนปิด (กันแชทล่าสุดหายตอน deploy ใหม่)
+  const done = () => process.exit(0);
+  setTimeout(done, 9000).unref();
+  server.close(() => { store.flushSupabase(7000).finally(done); });
 }
 if (require.main === module) {
   process.once('SIGTERM', () => shutdown('SIGTERM'));

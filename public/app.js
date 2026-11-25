@@ -1129,7 +1129,7 @@
     const r = location.hash.replace(/^#\/?/, '');
     return ROUTES.includes(r) ? r : 'dashboard';
   }
-  window.addEventListener('hashchange', () => { S.route = routeFromHash(); S.menu = null; S.flash = null; S.chat.id = null; enterRoute(); });
+  window.addEventListener('hashchange', () => { S.route = routeFromHash(); S.menu = null; S.flash = null; S.chat.id = null; S.mobileNav = false; document.body.classList.remove('m-chat-open'); enterRoute(); });
 
   function enterRoute() {
     render();
@@ -1227,7 +1227,7 @@
   }
 
   function sidebarHtml() {
-    const isCollapsed = S.sidebarCollapsed;
+    const isCollapsed = S.sidebarCollapsed && !(typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(max-width: 860px)').matches);
     const unrepliedCount = getUnrepliedCount();
     const overdueCount = (S.notifications && S.notifications.counts && S.notifications.counts.overdue) || 0;
 
@@ -1975,8 +1975,9 @@
     if (!S.me) return renderLogin();
     const views = { dashboard: dashShell, inbox: inboxShell, board: boardShell, 'post-comment': commentsShell, followup: followShell, review: reviewShell, audit: auditShell, setting: settingShell, upload: uploadShell, quality: qualityShell };
     const body = (views[S.route] || soonShell)();
-    $app.innerHTML = `<div class="app-shell ${S.sidebarCollapsed ? 'sidebar-collapsed' : ''}">
+    $app.innerHTML = `<div class="app-shell ${S.sidebarCollapsed ? 'sidebar-collapsed' : ''} ${S.mobileNav ? 'mobile-nav-open' : ''}">
       ${sidebarHtml()}
+      <div class="mobile-nav-backdrop" data-act="close-mobile-nav"></div>
       <div class="app-main">
         ${appHeaderHtml()}
         <main class="page page-${S.route}">
@@ -4470,6 +4471,7 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
     box.innerHTML = `
       <div class="cura-thread-header">
         <div class="cura-thread-user-info">
+          <button type="button" class="m-back-btn" data-act="m-chat-back" aria-label="กลับไปรายการแชท">←</button>
           <div class="cura-avatar-shell">
             ${curaSlaRingHtml(l, 38)}
             ${curaAvatarHtml(l.name, l.id, 38)}
@@ -5642,6 +5644,18 @@ function boardShell() {
       }
       else if (act === 'menu') { S.menu = S.menu === el.dataset.menu ? null : el.dataset.menu; render(); }
       else if (act === 'goto') { S.menu = null; location.hash = '#/' + el.dataset.to; }
+      else if (act === 'close-mobile-nav') {
+        S.mobileNav = false;
+        const sh = document.querySelector('.app-shell'); if (sh) sh.classList.remove('mobile-nav-open');
+      }
+      else if (act === 'm-chat-back') {
+        document.body.classList.remove('m-chat-open');
+      }
+      else if (act === 'toggle-sidebar' && window.matchMedia('(max-width: 860px)').matches) {
+        // มือถือ: เมนูเลื่อนออกมาทับหน้า แทนการย่อ/ขยาย
+        S.mobileNav = !S.mobileNav;
+        const sh = document.querySelector('.app-shell'); if (sh) sh.classList.toggle('mobile-nav-open', S.mobileNav);
+      }
       else if (act === 'toggle-sidebar') {
         S.sidebarCollapsed = !S.sidebarCollapsed;
         try { localStorage.setItem('beq_sidebar_collapsed', S.sidebarCollapsed ? '1' : '0'); } catch (_) {}
@@ -5698,7 +5712,10 @@ function boardShell() {
       else if (act === 'table-level') { d.tableLevel = el.dataset.level; d.pageNo = 1; renderTable(); }
       else if (act === 'sort') { const k = el.dataset.key; if (k === 'creative') return; d.dir = d.sort === k && d.dir === 'desc' ? 'asc' : 'desc'; d.sort = k; renderTable(); }
       else if (act === 'page') { d.pageNo += Number(el.dataset.dir); renderTable(); }
-      else if (act === 'select-chat') { if (S.chat.id !== el.dataset.id) openChat(el.dataset.id); }
+      else if (act === 'select-chat') {
+        if (S.route === 'inbox') document.body.classList.add('m-chat-open'); // มือถือ: แตะแชทแล้วสลับไปหน้าแชทเต็มจอ
+        if (S.chat.id !== el.dataset.id) openChat(el.dataset.id);
+      }
       else if (act === 'istatus') { S.inbox.status = el.dataset.status; renderInboxTools(); renderInboxList(); }
       else if (act === 'inbox-folder') { S.inbox.folder = el.dataset.folder; if (el.dataset.folder === 'all') S.inbox.channel = ''; renderInboxTools(); renderInboxList(); }
       else if (act === 'inbox-channel') {
