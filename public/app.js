@@ -244,7 +244,7 @@
       await ensureContext();
       const allRows = (inboxData && inboxData.rows) || [];
       const total = allRows.length || (dData?.kpis?.messages?.value) || 0;
-      const unreplied = allRows.filter(r => r.status === 'no_reply' || !r.last || r.last.from !== 'staff').length;
+      const unreplied = allRows.filter(needsReply).length;
       const starred = allRows.filter(r => r.starred || r.status === 'converted' || r.status === 'booked').length;
 
       return `💬 **สรุปข้อมูล Unified Omnichannel Inbox ของคลินิก:**\n\n` +
@@ -346,7 +346,7 @@
         } else {
           if (!repCounts[rName]) repCounts[rName] = { total: 0, unreplied: 0, converted: 0 };
           repCounts[rName].total++;
-          if (row.status === 'no_reply' || !row.last || row.last.from !== 'staff') {
+          if (needsReply(row)) {
             repCounts[rName].unreplied++;
           }
           if (row.status === 'converted' || row.status === 'booked') {
@@ -1045,7 +1045,6 @@
             const row = S.inbox.data.rows.find(r => r.id === leadId);
             if (row) {
               row.last = message;
-              if (message.from === 'customer') row.status = 'no_reply';
               S.inbox.data.rows.sort((a, b) => {
                 const x = a.last ? a.last.at : a.date;
                 const y = b.last ? b.last.at : b.date;
@@ -1197,9 +1196,15 @@
   }
 
   // คำนวณจำนวนแชทที่ยังรอการตอบกลับ (Unreplied) ให้ตรงกันทุกจุดทั้งระบบ 100%
+  // แชทที่ "รอเราตอบ" = ข้อความล่าสุดมาจากลูกค้า (ไม่นับลีดที่ไม่มีข้อความ และไม่นับสถานะ "ไม่ตอบ"
+  // ซึ่งหมายถึงลูกค้าเงียบไป ไม่ใช่เรายังไม่ตอบ)
+  function needsReply(r) {
+    return Boolean(r && r.last && r.last.from === 'customer');
+  }
+
   function getUnrepliedCount() {
     if (S.inbox && S.inbox.data && Array.isArray(S.inbox.data.rows)) {
-      return S.inbox.data.rows.filter(r => r.status === 'no_reply' || !r.last || r.last.from !== 'staff').length;
+      return S.inbox.data.rows.filter(needsReply).length;
     }
     return 0;
   }
@@ -1219,7 +1224,12 @@
       if (bEl) bEl.textContent = count;
     }
     // 2. อัปเดตที่เมนู Inbox ด้านซ้าย (Sidebar Badge)
-    const sidebarInboxBadge = document.querySelector('.nav-link[data-nav="inbox"] .nav-count-badge.unreplied, a[href="#/inbox"] .nav-count-badge.unreplied');
+    let sidebarInboxBadge = document.querySelector('.nav-link[data-nav="inbox"] .nav-count-badge.unreplied, a[href="#/inbox"] .nav-count-badge.unreplied');
+    if (!sidebarInboxBadge && count > 0) {
+      // ตอนวาดเมนูครั้งแรกยังไม่มีข้อมูล Inbox → สร้างป้ายตัวเลขเพิ่มเมื่อโหลดเสร็จ
+      const holder = document.querySelector('.app-sidebar a[href="#/inbox"] .nav-label') || document.querySelector('.app-sidebar a[href="#/inbox"]');
+      if (holder) { sidebarInboxBadge = document.createElement('span'); sidebarInboxBadge.className = 'nav-count-badge unreplied'; holder.appendChild(document.createTextNode(' ')); holder.appendChild(sidebarInboxBadge); }
+    }
     if (sidebarInboxBadge) {
       sidebarInboxBadge.textContent = count;
       sidebarInboxBadge.style.display = count > 0 ? '' : 'none';
@@ -4231,8 +4241,7 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
       }
       if (s.status && r.status !== s.status) return false;
       if (folder === 'unreplied') {
-        const isUnreplied = r.status === 'no_reply' || !r.last || r.last.from !== 'staff';
-        if (!isUnreplied) return false;
+        if (!needsReply(r)) return false;
       } else if (folder === 'starred') {
         if (!r.starred && r.status !== 'converted' && r.status !== 'booked') return false;
       }
@@ -4274,7 +4283,7 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
     const el = $id('mess-tools'); const s = S.inbox; if (!el || !s.data) return;
     const allRows = s.data.rows;
     const totalCount = allRows.length;
-    const unrepliedCount = allRows.filter((r) => r.status === 'no_reply' || !r.last || r.last.from !== 'staff').length;
+    const unrepliedCount = allRows.filter(needsReply).length;
     const starredCount = allRows.filter((r) => r.starred || r.status === 'converted' || r.status === 'booked').length;
     const activeFolder = s.folder || 'all';
 
