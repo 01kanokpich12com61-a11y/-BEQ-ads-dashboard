@@ -5566,6 +5566,19 @@ function boardShell() {
     buildSettingQuickNav(box);
   }
 
+  // ชื่อสั้นสำหรับปุ่มทางลัด (หัวข้อจริงยาวเกินจนโดนตัด)
+  function shortSettingLabel(text) {
+    const s = String(text || '').replace(/\s+/g, ' ').trim();
+    const rules = [
+      [/supabase/i, '⚡ ฐานข้อมูล'], [/แหล่งข้อมูล/, '🗂️ แหล่งข้อมูล'], [/meta api/i, '🔗 Meta'],
+      [/เพิ่มหรือแก้ไข/, '✏️ แก้ไขเพจ'], [/แจ้งเตือน/, '🔔 แจ้งเตือน'], [/google sheets/i, '📊 Google Sheets'],
+      [/webhook/i, '📨 Webhook'], [/line/i, '💬 LINE OA'], [/whatsapp/i, '🟢 WhatsApp'],
+      [/ตารางเพจ/, '🏢 ตารางเพจ'], [/ผู้ใช้/, '👥 ผู้ใช้งาน'], [/รหัสผ่าน/, '🔑 รหัสผ่าน'],
+    ];
+    for (const [re, label] of rules) if (re.test(s)) return label;
+    return s.replace(/\(.*?\)/g, '').trim().slice(0, 18);
+  }
+
   // หน้า Setting ยาวมาก → แถบทางลัดด้านบน กดแล้วเลื่อนไปหัวข้อนั้น (สร้างจากหัวข้อจริงในหน้า)
   function buildSettingQuickNav(box) {
     try {
@@ -5576,7 +5589,7 @@ function boardShell() {
       heads.forEach((h, i) => {
         const sec = h.closest('section'); if (!sec) return;
         sec.id = sec.id || `setting-sec-${i}`;
-        const label = h.textContent.replace(/\s+/g, ' ').replace(/\(.*?\)/g, '').trim().slice(0, 28);
+        const label = shortSettingLabel(h.textContent);
         const b = document.createElement('button');
         b.type = 'button'; b.textContent = label;
         b.addEventListener('click', () => sec.scrollIntoView({ behavior: 'smooth', block: 'start' }));
