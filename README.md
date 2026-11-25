@@ -23,6 +23,7 @@ npm test                 # ชุดทดสอบ
    | ตัวแปร | ทำไมต้องมี |
    |---|---|
    | `ADMIN_PASSWORD` | รหัส admin ครั้งแรก (ถ้าไม่ตั้ง ระบบจะสุ่มรหัสและพิมพ์ใน Logs) |
+   | `ADMIN_RESET_PASSWORD` | ใช้ตอนลืมรหัส admin เท่านั้น: ตั้งแล้วรีสตาร์ท → เข้าด้วยรหัสนี้ → ลบตัวแปรออก |
    | `SUPABASE_URL`, `SUPABASE_KEY` | **สำคัญมาก** — ดิสก์ของ Render ถูกล้างทุกครั้งที่ deploy/รีสตาร์ท ถ้าไม่มี Supabase แชท ลีด ผู้ใช้ และการตั้งค่าจะหาย |
    | `META_APP_ID`, `META_APP_SECRET`, `META_ACCESS_TOKEN`, `META_AD_ACCOUNT_ID` | เชื่อม Meta โดยไม่ต้องเก็บ token ไว้ในไฟล์ |
    | `WEBHOOK_VERIFY_TOKEN` | ค่าเดียวกับที่ใส่ใน Meta Webhooks (ให้คงที่ข้ามการรีสตาร์ท) |
