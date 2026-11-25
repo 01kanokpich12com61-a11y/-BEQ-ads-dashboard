@@ -166,6 +166,19 @@ async function pushToSheets(lead, latestMsg) {
   } catch (_) { /* ไม่ให้บล็อก webhook */ }
 }
 
+// ระบบ Server-Sent Events (SSE) สำหรับ Real-time Chat ใน Inbox
+const realtimeClients = new Set();
+function broadcastRealtime(event, payload) {
+  const data = `event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`;
+  for (const client of realtimeClients) {
+    try {
+      client.res.write(data);
+    } catch (_) {
+      realtimeClients.delete(client);
+    }
+  }
+}
+
 // รับข้อความจาก Meta Webhook (Messenger) แล้วบันทึกเป็นแชท
 async function handleWebhook(body) {
   if (body.object !== 'page' && body.object !== 'instagram') return;
@@ -232,10 +245,12 @@ async function handleWebhook(body) {
           if (idx !== -1) { leads[idx] = lead; store.write('leads.json', leads); }
         }
       }
-      ops.addMessage(lead.id, {
+      const addedMsg = {
         from: echo ? 'staff' : 'customer', text: msg.text || '[ไฟล์แนบ]', mid: msg.mid || undefined,
         at: ops.nowStamp(ev.timestamp || Date.now()), via: 'webhook',
-      });
+      };
+      ops.addMessage(lead.id, addedMsg);
+      broadcastRealtime('chat_message', { leadId: lead.id, lead, message: addedMsg });
       if (!echo) {
         pushToSheets(lead, msg.text || '').catch(() => {});
       }
@@ -408,10 +423,12 @@ async function handleLineWebhook(body) {
       }
       lead = ops.findOrCreateLead({ psid: userId, pageId, name, adId: 'Direct', channel: 'LINE', platform: 'LINE', pageName }).lead;
     }
-    ops.addMessage(lead.id, {
+    const lineMsg = {
       from: 'customer', text, mid: ev.message.id || undefined,
       at: ops.nowStamp(ev.timestamp || Date.now()), via: 'line',
-    });
+    };
+    ops.addMessage(lead.id, lineMsg);
+    broadcastRealtime('chat_message', { leadId: lead.id, lead, message: lineMsg });
     pushToSheets(lead, text).catch(() => {});
     try {
       const lineConf = line.getLineConfig();
@@ -447,10 +464,12 @@ async function handleWhatsAppWebhook(body) {
           lead.phone = waId;
         }
         const ts = msg.timestamp ? parseInt(msg.timestamp, 10) * 1000 : Date.now();
-        ops.addMessage(lead.id, {
+        const waMsg = {
           from: 'customer', text, mid: msg.id || undefined,
           at: ops.nowStamp(ts), via: 'whatsapp',
-        });
+        };
+        ops.addMessage(lead.id, waMsg);
+        broadcastRealtime('chat_message', { leadId: lead.id, lead, message: waMsg });
         pushToSheets(lead, text).catch(() => {});
         try {
           const lineConf = line.getLineConfig();
@@ -692,8 +711,25 @@ async function api(req, res, url, session) {
     return send(res, 200, { mode: providers.currentMode(), ...out });
   }
 
+  // Real-time Event Stream (Server-Sent Events) สำหรับส่งข้อความแชทใหม่เข้าหน้าเว็บทันที
+  if (route === 'GET /api/inbox/events') {
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache, no-transform',
+      'Connection': 'keep-alive',
+      'X-Accel-Buffering': 'no',
+    });
+    res.write('retry: 5000\n\n');
+    const client = { res, userId: session.user.username };
+    realtimeClients.add(client);
+    req.on('close', () => {
+      realtimeClients.delete(client);
+    });
+    return;
+  }
+
   if (route === 'GET /api/inbox/chat') {
-    const data = await providers.load(resolveRange({ range: '90d' }));
+    const data = await providers.load(resolveRange({ range: 'all' }));
     const lead = data.leads.find((l) => l.id === q.id);
     if (!lead) return send(res, 404, { error: 'ไม่พบแชทนี้' });
     const isDemo = providers.currentMode() === 'demo';
@@ -709,7 +745,7 @@ async function api(req, res, url, session) {
     const b = await readJson(req);
     const text = clean(b.text, 2000);
     if (!text) return send(res, 400, { error: 'กรุณาพิมพ์ข้อความ' });
-    const data = await providers.load(resolveRange({ range: '90d' }));
+    const data = await providers.load(resolveRange({ range: 'all' }));
     const lead = data.leads.find((l) => l.id === b.id);
     if (!lead) return send(res, 404, { error: 'ไม่พบแชทนี้' });
     const isDemo = providers.currentMode() === 'demo';
@@ -728,6 +764,7 @@ async function api(req, res, url, session) {
     const now = ops.nowStamp();
     const message = { from: 'staff', text, at: now < lastAt ? lastAt : now, by: session.user.username, ...(mid ? { mid } : {}) };
     ops.addMessage(lead.id, message);
+    broadcastRealtime('chat_message', { leadId: lead.id, lead, message });
     audit.log(session.user.username, 'reply_sent', `${lead.id} ${lead.name} (${isDemo ? 'เดโม ไม่ได้ส่งจริง' : 'ส่งผ่าน Meta'}) ${text.length} ตัวอักษร`, clientIp(req));
     return send(res, 200, { ok: true, delivered: isDemo ? 'demo' : 'meta', message });
   }

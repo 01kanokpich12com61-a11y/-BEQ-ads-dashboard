@@ -827,6 +827,9 @@
         if (path.startsWith('/api/notifications') || path === '/api/ping') {
           throw new Error('Unauthorized');
         }
+        if (path.includes('/api/import/')) {
+          throw new Error('การนำเข้าใช้เวลานานเกินกำหนด หรือสิทธิ์การเข้าถึงมีปัญหา กรุณาลองใหม่อีกครั้ง');
+        }
         let stillValid = false;
         if (path !== '/api/me') {
           try {
@@ -865,6 +868,61 @@
       }
       throw err;
     }
+  }
+
+  // Real-time Event Stream (Server-Sent Events) เชื่อมต่อรับข้อความแชทและแจ้งเตือนอัตโนมัติ
+  let realtimeSource = null;
+  function connectRealtime() {
+    if (!S.me) return;
+    if (realtimeSource) {
+      try { realtimeSource.close(); } catch (_) {}
+      realtimeSource = null;
+    }
+    try {
+      realtimeSource = new EventSource('/api/inbox/events');
+      realtimeSource.addEventListener('chat_message', (e) => {
+        try {
+          const payload = JSON.parse(e.data);
+          const { leadId, message } = payload;
+          // ถ้ากำลังเปิดห้องแชทนี้อยู่ ให้เพิ่มข้อความลงในห้องแชททันที
+          if (S.chat && S.chat.id === leadId && S.chat.data && Array.isArray(S.chat.data.messages)) {
+            const alreadyHas = S.chat.data.messages.some(m => (m.mid && m.mid === message.mid) || (m.at === message.at && m.text === message.text));
+            if (!alreadyHas) {
+              S.chat.data.messages.push(message);
+              renderChatViews();
+            }
+          }
+          // อัปเดตรายการใน Inbox
+          if (S.inbox && S.inbox.data && Array.isArray(S.inbox.data.rows)) {
+            const row = S.inbox.data.rows.find(r => r.id === leadId);
+            if (row) {
+              row.last = message;
+              if (message.from === 'customer') row.status = 'no_reply';
+              S.inbox.data.rows.sort((a, b) => {
+                const x = a.last ? a.last.at : a.date;
+                const y = b.last ? b.last.at : b.date;
+                return x === y ? 0 : x < y ? 1 : -1;
+              });
+              if (S.route === 'inbox') renderInboxList();
+            } else {
+              // เป็นลูกค้าใหม่ที่เพิ่งทักมา ให้รีเฟรช Inbox ทันที
+              loadInbox();
+            }
+          }
+          updateGlobalUnrepliedBadges();
+        } catch (err) {
+          console.warn('[Realtime Parse Error]:', err);
+        }
+      });
+      realtimeSource.onerror = () => {
+        // ลองเชื่อมต่อใหม่เมื่อหลุด
+        if (realtimeSource) {
+          try { realtimeSource.close(); } catch (_) {}
+          realtimeSource = null;
+        }
+        setTimeout(connectRealtime, 8000);
+      };
+    } catch (_) {}
   }
 
   // Keep-alive heartbeat: ป้องกันเซิร์ฟเวอร์ Sleep และรักษาสถานะเชื่อมต่อทุกๆ 2.5 นาที (150,000ms)
@@ -925,6 +983,7 @@
   function enterRoute() {
     render();
     if (!S.me) return;
+    connectRealtime();
     if (S.route === 'dashboard') loadDash();
     if (S.route === 'inbox') loadInbox();
     if (S.route === 'board') loadBoard();
