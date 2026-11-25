@@ -59,3 +59,24 @@
   .modal-card { max-height: 94vh; }
   .grid-2, .grid-4 { grid-template-columns: 1fr !important; }
 }
+
+/* ตัวการ์ตูนผู้ช่วย: บนมือถือเล็กลงและหลบมุม ไม่ทับปุ่มส่งข้อความ/เนื้อหา */
+@media (max-width: 860px) {
+  html body .floating-ghost-btn { width: 46px; height: 46px; right: 10px; bottom: 84px; opacity: .92; animation: none; }
+  html body .floating-ghost-btn svg { width: 30px; height: 30px; }
+  html body.m-chat-open .floating-ghost-btn { display: none; }
+  html body .ghost-chat-modal { right: 8px !important; left: 8px !important; width: auto !important; max-width: none !important; bottom: 140px !important; }
+}
+
+/* แถบทางลัดหน้า Setting */
+.setting-quicknav { position: sticky; top: -24px; z-index: 30; display: flex; gap: 6px; overflow-x: auto; padding: 10px 2px; margin: -6px 0 12px; background: linear-gradient(180deg, rgba(240,253,244,.97), rgba(240,253,244,.88)); backdrop-filter: blur(6px); scrollbar-width: none; }
+.setting-quicknav::-webkit-scrollbar { display: none; }
+.setting-quicknav button { white-space: nowrap; border: 1px solid #d1fae5; background: #fff; color: #065f46; font-weight: 600; font-size: 12.5px; border-radius: 999px; padding: 5px 12px; cursor: pointer; font-family: inherit; }
+.setting-quicknav button:hover { background: #ecfdf5; }
+@media (max-width: 860px) { .setting-quicknav { top: -14px; } }
+
+/* หัวเว็บบนจอโน้ตบุ๊ก: ไม่ให้ปุ่มด้านขวาทับชื่อหน้า */
+html body .header-left-group { flex-shrink: 0; }
+html body .header-actions { min-width: 0; }
+@media (max-width: 1600px) { html body .header-live-badge { display: none; } }
+@media (max-width: 1440px) { html body [data-act="open-cmd"] .cmd-label, html body [data-act="open-cmd"] kbd { display: none; } }

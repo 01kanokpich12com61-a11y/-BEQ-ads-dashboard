@@ -336,7 +336,7 @@
       let unassignedCount = 0;
 
       // รายชื่อเซลส์หลักในระบบ
-      const defaultReps = ['Narumol Molmol', 'Bodinthong Jeams', 'Thanawin Win', 'Pongsatorn Nack', 'Paul CJ', 'Ja Jah', 'Jatupon James'];
+      const defaultReps = repNameList();
       defaultReps.forEach(r => { repCounts[r] = { total: 0, unreplied: 0, converted: 0 }; });
 
       for (const row of allRows) {
@@ -559,33 +559,32 @@
   const PAGE_SIZE = 25;
   const INBOX_PAGE = 15;
   // ความคืบหน้าของแชท เรียงตามคอลัมน์ใน Board ตามลำดับที่ผู้ใช้กำหนด (12 คอลัมน์)
+  // ลำดับสถานะในช่องเลือก (เรียงตามเส้นทางลูกค้า) — 9 สถานะ หลังรวมสถานะที่ซ้ำกัน
   const STATUS_ORDER = [
-    'new',          // 1. มาใหม่ (New Leads)
-    'intake',       // 2. In-take (รับเรื่อง/คัดกรอง)
-    'talked',       // 3. พอได้คุย (Contacted)
-    'in_progress',  // 4. กำลังดำเนินการ (In Progress)
-    'inprogress',   // 5. In-progress (สำรอง)
-    'qualified',    // 6. มีคุณสมบัติ (Qualified)
-    'qualifile',    // 7. Qualifile (สำรอง)
-    'appointment',  // 8. นัดแล้ว (Appointment Booked)
-    'conv_created', // 9. สร้างคอนเวอร์ชั่นแล้ว
-    'converted',    // 10. สำเร็จ/ปิดการขาย (Won / Converted)
-    'no_reply',     // 11. ไม่ตอบ (Unresponsive)
-    'very_poor',    // 12. แย่มาก/หลุด (Lost / Unqualified)
+    'new',          // มาใหม่
+    'intake',       // คัดกรอง
+    'talked',       // พอได้คุย
+    'in_progress',  // กำลังดำเนินการ (รวม In-progress เดิม)
+    'qualified',    // มีคุณสมบัติ (รวม Qualifile เดิม)
+    'appointment',  // นัดแล้ว
+    'converted',    // ปิดการขาย (รวม "สร้างคอนเวอร์ชั่นแล้ว" เดิม)
+    'no_reply',     // ไม่ตอบ (ลูกค้าเงียบ)
+    'very_poor',    // แย่มาก / หลุด
   ];
   const STATUS_TH = {
-    no_reply: 'ไม่ตอบ',
-    very_poor: 'แย่มาก',
+    new: 'มาใหม่',
+    intake: 'คัดกรอง',
     talked: 'พอได้คุย',
     in_progress: 'กำลังดำเนินการ',
     qualified: 'มีคุณสมบัติ',
     appointment: 'นัดแล้ว',
-    conv_created: 'สร้างคอนเวอร์ชั่นแล้ว',
-    new: 'มาใหม่',
-    inprogress: 'In-progress',
-    intake: 'In-take',
-    qualifile: 'Qualifile',
-    converted: 'Converted',
+    converted: 'ปิดการขาย',
+    no_reply: 'ไม่ตอบ (ลูกค้าเงียบ)',
+    very_poor: 'แย่มาก / หลุด',
+    // ชื่อเก่าที่ถูกรวมแล้ว (เผื่อข้อมูลเก่าค้างในเครื่อง)
+    inprogress: 'กำลังดำเนินการ',
+    qualifile: 'มีคุณสมบัติ',
+    conv_created: 'ปิดการขาย',
   };
   let reqSeq = 0;
   const CHARTS = {};
@@ -716,6 +715,9 @@
       ...cleanCustomerMsgs,
       ...staffMsgs
     ].join(' ').toLowerCase();
+
+    // ไม่มีข้อความจากลูกค้าจริงเลย → ไม่สรุป (กันการ "เดา" ข้อมูลคนไข้ขึ้นมาเองจากชื่อเพจ)
+    if (!cleanCustomerMsgs.some((x) => x.trim().length >= 2)) return null;
 
     const customerText = cleanCustomerMsgs.join(' ').toLowerCase();
     const staffText = staffMsgs.join(' ').toLowerCase();
@@ -1198,6 +1200,22 @@
   // คำนวณจำนวนแชทที่ยังรอการตอบกลับ (Unreplied) ให้ตรงกันทุกจุดทั้งระบบ 100%
   // แชทที่ "รอเราตอบ" = ข้อความล่าสุดมาจากลูกค้า (ไม่นับลีดที่ไม่มีข้อความ และไม่นับสถานะ "ไม่ตอบ"
   // ซึ่งหมายถึงลูกค้าเงียบไป ไม่ใช่เรายังไม่ตอบ)
+  // รายชื่อเซลล์จากข้อมูลจริงในระบบ (ผู้ใช้ + เซลล์ในลีด + ชื่อในแชท) — เซิร์ฟเวอร์รวมมาให้ใน /api/filters
+  function repNameList(extra) {
+    const names = new Set(((S.filters && S.filters.reps) || []).map((r) => (r && (r.name || r.id)) || r).filter(Boolean));
+    if (extra) names.add(extra);
+    return [...names].sort((a, b) => String(a).localeCompare(String(b), 'th'));
+  }
+
+  // ชื่อนี้เป็นชื่อคนจริงไหม (ไม่ใช่ชื่อเพจ/ธุรกิจ) — ใช้ซ่อนค่าเซลล์ที่เป็นชื่อเพจ
+  function isPersonName(n) {
+    const s = String(n || '').trim();
+    if (!s || /^(unassigned|—|-|admin|staff)$/i.test(s)) return false;
+    if (/clinic|center|centre|hair|transplant|wellness|academy|official|คลินิก|ปลูกผม/i.test(s)) return false;
+    const pages = ((S.filters && S.filters.pages) || []).map((p) => String(p.name || '').toLowerCase());
+    return !pages.includes(s.toLowerCase());
+  }
+
   function needsReply(r) {
     return Boolean(r && r.last && r.last.from === 'customer');
   }
@@ -1244,7 +1262,7 @@
     const navCore = [
       ['dashboard', 'Dashboard', 'grid', 'ภาพรวมผลลัพธ์โฆษณา & KPIs', '#059669'],
       ['inbox', `Inbox${unrepliedCount ? ` <span class="nav-count-badge unreplied">${unrepliedCount}</span>` : ''}`, 'chat', 'Unified Omnichannel Inbox', '#10b981'],
-      ['board', 'Leads Board', 'bars', '12-Stage Pipeline Kanban', '#0d9488'],
+      ['board', 'Leads Board', 'bars', 'กระดานสถานะลูกค้า 9 ขั้น', '#0d9488'],
       ['review', 'SLA & Review', 'check', 'SLA 15m & Quality Scorecard', '#059669'],
       ['followup', `Follow-up${overdueCount ? ` <span class="nav-count-badge overdue">${overdueCount}</span>` : ''}`, 'clock', 'Customer Follow-ups', '#16a34a'],
     ];
@@ -1286,7 +1304,7 @@
       </div>
 
       <div class="sidebar-scroll">
-        <div class="sidebar-section-title">MAIN WORKSPACE</div>
+        <div class="sidebar-section-title">งานหลัก</div>
         <nav class="sidebar-nav">
           ${navCore.map(([id, label, ic, title, color]) => `
             <a href="#/${id}" class="sidebar-nav-item ${S.route === id ? 'active' : ''}" title="${esc(title)}" style="--item-color:${color}">
@@ -1296,7 +1314,7 @@
           `).join('')}
         </nav>
 
-        <div class="sidebar-section-title" style="margin-top:16px">ANALYTICS & OPS</div>
+        <div class="sidebar-section-title" style="margin-top:16px">วิเคราะห์ & จัดการ</div>
         <nav class="sidebar-nav">
           ${navOps.map(([id, label, ic, title, color]) => `
             <a href="#/${id}" class="sidebar-nav-item ${S.route === id ? 'active' : ''}" title="${esc(title)}" style="--item-color:${color}">
@@ -1403,7 +1421,7 @@
 
         <button type="button" class="btn btn-secondary" data-act="open-cmd" style="height:34px;padding:0 12px;border-radius:10px;font-size:12.5px;gap:6px;background:#f8fafc;border:1px solid #e2e8f0;display:inline-flex;align-items:center;">
           ${icon('search')}
-          <span>ค้นหาด่วน (Quick Search)...</span>
+          <span class="cmd-label">ค้นหา...</span>
           <kbd style="background:#e2e8f0;color:#64748b;padding:2px 5px;border-radius:4px;font-size:10px;font-weight:700">Ctrl K</kbd>
         </button>
         <div class="header-selectors">
@@ -1470,7 +1488,7 @@
     const navItems = [
       { type: 'nav', title: '📊 Dashboard', sub: 'ภาพรวมผลลัพธ์โฆษณา & ROAS', to: 'dashboard' },
       { type: 'nav', title: '💬 Unified Inbox', sub: 'แชท Facebook, Instagram, LINE, WhatsApp', to: 'inbox' },
-      { type: 'nav', title: '📋 Leads Board', sub: '12-Stage Pipeline Kanban', to: 'board' },
+      { type: 'nav', title: '📋 Leads Board', sub: 'กระดานสถานะลูกค้า 9 ขั้น', to: 'board' },
       { type: 'nav', title: '⏱️ SLA & Chat Quality', sub: 'คะแนนการตอบกลับ & SLA 15 นาที', to: 'review' },
       { type: 'nav', title: '📅 Follow-up Leads', sub: 'ระบบนัดหมายและเตือนติดตามผล', to: 'followup' },
       { type: 'nav', title: '💬 Posts & Comments', sub: 'คอมเมนต์ใต้โพสต์โฆษณา', to: 'post-comment' },
@@ -3343,23 +3361,23 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
     return `<div class="page-head"><div>
         <h1>Dashboard ${live ? '<span class="badge-demo" style="background:var(--mint);color:var(--brand-deep)">Live · ข้อมูลจริง</span>' : `<span class="badge-demo">${icon('spark')}Demo data</span>`}</h1>
         <div class="meta-line" id="dash-meta"></div></div>
-      <button class="btn" data-act="refresh">${icon('refresh')}Refresh</button></div>
+      <button class="btn" data-act="refresh">${icon('refresh')}โหลดใหม่</button></div>
 
       <section class="card filters">
-        <div class="seg">${[['all', 'ทั้งหมด'], ['7d', '7D'], ['30d', '30D'], ['90d', '90D'], ['custom', 'Custom']].map(([k, l]) => `<button data-act="range" data-range="${k}" class="${d.range === k ? 'active' : ''}">${l}</button>`).join('')}</div>
+        <div class="seg">${[['all', 'ทั้งหมด'], ['7d', '7 วัน'], ['30d', '30 วัน'], ['90d', '90 วัน'], ['custom', 'กำหนดเอง']].map(([k, l]) => `<button data-act="range" data-range="${k}" class="${d.range === k ? 'active' : ''}">${l}</button>`).join('')}</div>
         ${d.range === 'custom' ? `<input class="date-in" type="date" data-bind="from" value="${esc(d.from)}" aria-label="From"><input class="date-in" type="date" data-bind="to" value="${esc(d.to)}" aria-label="To">` : ''}
         <span class="vs">${icon('cal')}ช่วงเวลา: ${days === 'All time' ? 'ข้อมูลทั้งหมด' : `vs ก่อนหน้า ${days} วัน`}</span>
-        <span class="label">${icon('filter')}Filters</span>
-        ${selectHtml('platform', 'All platforms', f.platforms || ['Facebook', 'LINE', 'WhatsApp', 'Instagram'], d.platform)}
-        ${selectHtml('page', 'All pages', validPages, d.page)}
-        ${selectHtml('campaign', 'All campaigns', f.campaigns, d.campaign)}
-        ${selectHtml('agency', 'All agencies', f.agencies, d.agency)}
-        ${selectHtml('rep', 'All sales reps', f.reps, d.rep)}
-        ${selectHtml('status', 'Any status', f.statuses, d.status)}
+        <span class="label">${icon('filter')}ตัวกรอง</span>
+        ${selectHtml('platform', 'ทุกแพลตฟอร์ม', f.platforms || ['Facebook', 'LINE', 'WhatsApp', 'Instagram'], d.platform)}
+        ${selectHtml('page', 'ทุกเพจ', validPages, d.page)}
+        ${selectHtml('campaign', 'ทุกแคมเปญ', f.campaigns, d.campaign)}
+        ${selectHtml('agency', 'ทุกบัญชีโฆษณา', f.agencies, d.agency)}
+        ${selectHtml('rep', 'ทุกเซลล์', f.reps, d.rep)}
+        ${selectHtml('status', 'ทุกสถานะ', f.statuses, d.status)}
         <button class="icon-btn" data-act="reset-filters" aria-label="Reset filters">${icon('reset')}</button>
       </section>
 
-      <nav class="card tabs">${[['ads', 'Ads Performance'], ['chat', 'Ads & Chat'], ['sales', 'Sales Performance'], ['trend', 'Trend'], ['dropped', 'Dropped']]
+      <nav class="card tabs">${[['ads', 'ผลโฆษณา'], ['chat', 'โฆษณา & แชท'], ['sales', 'ผลงานเซลล์'], ['trend', 'แนวโน้ม'], ['dropped', 'ลีดที่หลุด']]
         .map(([k, l]) => `<button data-act="tab" data-tab="${k}" class="${d.tab === k ? 'active' : ''}">${l}</button>`).join('')}</nav>
       <div id="dash-body"></div>`;
   }
@@ -3369,7 +3387,7 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
     const d = S.dash; const box = document.getElementById('dash-body'); if (!box) return;
     const meta = document.getElementById('dash-meta');
     if (meta && d.data) {
-      meta.innerHTML = `<span>${icon('cal')}${d.data.range.from} → ${d.data.range.to}</span><span>${icon('bars')}${d.data.scope.ads} ads in scope</span><span>${d.data.scope.leads} leads · ${d.data.scope.records} daily records</span>`;
+      meta.innerHTML = `<span>${icon('cal')}${d.data.range.from} → ${d.data.range.to}</span><span>${icon('bars')}โฆษณา ${d.data.scope.ads} ตัว</span><span>ลีด ${d.data.scope.leads} ราย · ข้อมูลรายวัน ${d.data.scope.records} แถว</span>`;
     }
     if (d.err) { box.innerHTML = `<div class="notice err">${esc(d.err)}</div>`; return; }
     if (!d.data) { box.innerHTML = '<div class="loading">Loading…</div>'; return; }
@@ -3417,13 +3435,13 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
     const anim = S.dash.animKey !== S.dash.lastAnimKey ? 'anim' : '';
     const rate = (a, b) => (b ? `${num((a / b) * 100, 1)}%` : '—');
     const steps = [
-      ['Impressions', k.impressions.value, 'คนที่เห็นโฆษณา'],
-      ['Clicks', k.clicks.value, `CTR ${pct(k.ctr.value)}`],
-      ['Messages', k.messages.value, `จากคลิก ${rate(k.messages.value, k.clicks.value)}`],
-      ['Purchases', k.purchases.value, `จากแชท ${rate(k.purchases.value, k.messages.value)}`],
+      ['การแสดงผล', k.impressions.value, 'ครั้งที่โฆษณาแสดง'],
+      ['คลิก', k.clicks.value, `CTR ${pct(k.ctr.value)}`],
+      ['ทักแชท', k.messages.value, `จากคลิก ${rate(k.messages.value, k.clicks.value)}`],
+      ['ซื้อ/ปิดการขาย', k.purchases.value, `จากแชท ${rate(k.purchases.value, k.messages.value)}`],
     ];
     return `<section class="hero">${strandsSvg(22, 0.07)}
-      <div><div class="h-label">Amount spent ${chip(k.spend)}</div>
+      <div><div class="h-label">ค่าโฆษณา ${chip(k.spend)}</div>
         <div class="h-num" data-count="${k.spend.value ?? 0}" data-fmt="baht">${baht(k.spend.value)}</div>
         <div class="h-sub">${esc(data.range.from)} → ${esc(data.range.to)} · เทียบ ${data.range.days} วันก่อนหน้า</div>
         <svg class="trend-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="Daily spend trend">
@@ -3493,9 +3511,9 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
 
   function tabAds(data) {
     const groups = [
-      ['1', 'Cost & Visibility', 'What you paid to be seen', [['spend', 'Amount Spent', baht], ['reach', 'Reach', num], ['impressions', 'Impressions', num], ['cpm', 'CPM', baht]]],
-      ['2', 'Acquisition', 'How people respond to ads', [['clicks', 'Clicks', num], ['ctr', 'CTR', pct], ['cpc', 'CPC', baht]]],
-      ['3', 'Conversion', 'Messages and purchases', [['messages', 'Total Messages', num], ['costMessage', 'Cost / Message', baht], ['purchases', 'Total Purchases', num], ['conversionRate', 'Conversion Rate', pct], ['costPurchase', 'Cost / Purchase', baht]]],
+      ['1', 'ค่าใช้จ่าย & การมองเห็น', 'จ่ายไปเท่าไหร่ และมีคนเห็นแค่ไหน', [['spend', 'ค่าโฆษณา', baht], ['reach', 'คนที่เห็น (Reach)', num], ['impressions', 'การแสดงผล', num], ['cpm', 'ต้นทุนต่อ 1,000 การแสดงผล (CPM)', baht]]],
+      ['2', 'การตอบสนอง', 'คนสนใจโฆษณาแค่ไหน', [['clicks', 'คลิก', num], ['ctr', 'อัตราคลิก (CTR)', pct], ['cpc', 'ต้นทุนต่อคลิก (CPC)', baht]]],
+      ['3', 'ผลลัพธ์', 'ทักแชทและปิดการขาย', [['messages', 'ทักแชททั้งหมด', num], ['costMessage', 'ต้นทุนต่อแชท', baht], ['purchases', 'ปิดการขาย', num], ['conversionRate', 'อัตราปิดการขาย', pct], ['costPurchase', 'ต้นทุนต่อการขาย', baht]]],
     ];
     return heroHtml(data) + aiAdAdvisorCard(data) + `<div class="kpi-groups">${groups.map(([n, t, s, items]) => `<section class="card kpi-group">
       <header><span class="step">${n}</span><div><b>${t}</b><small>${s}</small></div></header>
@@ -3879,10 +3897,10 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
   function tabTrend(data) {
     const t = data.trend;
     return `<div class="grid-2">
-      ${chartHtml('spend', 'Spend per day (฿)', t.dates, t.spend, '#44602f', 'bar', baht)}
-      ${chartHtml('messages', 'Messages per day', t.dates, t.messages, '#2457c5', 'line', num)}
-      ${chartHtml('purchases', 'Purchases per day', t.dates, t.purchases, '#b86e00', 'line', num)}
-      ${chartHtml('leads', 'Chat leads per day', t.dates, t.leads, '#7a3fc4', 'line', num)}</div>`;
+      ${chartHtml('spend', 'ค่าโฆษณาต่อวัน (฿)', t.dates, t.spend, '#44602f', 'bar', baht)}
+      ${chartHtml('messages', 'ทักแชทต่อวัน', t.dates, t.messages, '#2457c5', 'line', num)}
+      ${chartHtml('purchases', 'ปิดการขายต่อวัน', t.dates, t.purchases, '#b86e00', 'line', num)}
+      ${chartHtml('leads', 'ลีดจากแชทต่อวัน', t.dates, t.leads, '#7a3fc4', 'line', num)}</div>`;
   }
 
   /* --- tab: dropped --- */
@@ -3890,7 +3908,7 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
     const p = data.dropped;
     if (!p.total) return '<div class="card empty">ไม่มีลีดที่หลุดในช่วงที่เลือก 🎉</div>';
     return `<div class="grid-2">
-      <section class="card panel"><h3>Dropped leads</h3><p class="sub">${num(p.total)} ลีด · ${p.rate}% ของลีดทั้งหมด</p>${barRows(p.reasons.map((r) => ({ key: r.reason, count: r.count })), (i) => i.key)}</section>
+      <section class="card panel"><h3>ลีดที่หลุด</h3><p class="sub">${num(p.total)} ลีด · ${p.rate}% ของลีดทั้งหมด</p>${barRows(p.reasons.map((r) => ({ key: r.reason, count: r.count })), (i) => i.key)}</section>
       <section class="card panel"><h3>ล่าสุด</h3><p class="sub">25 รายการล่าสุดที่หลุด</p>
       <div class="tscroll"><table style="min-width:480px"><tbody>${p.list.map((l) => `<tr><td><div class="ad-name">${esc(l.name)}</div><div class="ad-sub">${esc(l.ad)}</div></td><td>${esc(l.reason || '—')}<div class="ad-sub">${esc(l.date)} · ${esc(l.rep)}</div></td></tr>`).join('')}</tbody></table></div></section></div>`;
   }
@@ -4036,7 +4054,7 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
       <div class="cura-copilot-suggestions">
         <div class="cura-suggestions-label">
           <span class="beq-iridescent-orb sm"></span>
-          <span>Copilot Suggested Replies</span>
+          <span>ข้อความแนะนำ</span>
         </div>
         <div class="cura-suggestions-row copilot-chips">
           ${suggestions.map(sg => `
@@ -4202,7 +4220,7 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
       <div class="cura-inbox-header">
         <div class="cura-inbox-title-wrap">
           <h1>Inbox</h1>
-          <span class="cura-copilot-pill"><span class="pulse-dot"></span> BEQ Copilot Active</span>
+          <span class="cura-copilot-pill"><span class="pulse-dot"></span> แชทเข้าแบบเรียลไทม์</span>
         </div>
         <div class="inline-range">${rangeBar('inbox')}</div>
       </div>
@@ -4339,17 +4357,17 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
     }
     list.innerHTML = rows.slice(0, MAX).map((r) => {
       const isSelected = r.id === S.chat.id;
-      const snippet = r.last ? esc(r.last.text) : 'ไม่มีข้อความ';
+      const snippet = r.last ? `${r.last.from === 'staff' ? '<span style="color:#94a3b8">คุณ: </span>' : ''}${esc(r.last.text)}` : '<span style="color:#94a3b8;font-style:italic">ยังไม่มีข้อความ</span>';
       const timeStr = r.last ? ago(r.last.at) : esc(r.date);
       const ch = r.platform || (r.channel === 'Instagram' ? 'Instagram' : r.channel === 'LINE' ? 'LINE' : r.channel === 'WhatsApp' ? 'WhatsApp' : 'Facebook');
       const miniLogo = getBrandLogo(ch, 12);
-      let slaState = 'ontime';
-      let slaLabel = 'SLA OK';
-      if (r.status === 'no_reply' || (r.last && r.last.from !== 'staff')) {
-        const waitMin = r.last ? Math.floor((Date.now() - atMs(r.last.at)) / 60000) : 20;
-        if (waitMin > 15) { slaState = 'late'; slaLabel = 'SLA หลุด'; }
-        else if (waitMin >= 10) { slaState = 'warning'; slaLabel = 'ใกล้หลุด SLA'; }
-        else { slaState = 'ontime'; slaLabel = `${waitMin}m SLA`; }
+      // ป้ายเวลารอ: แสดงเฉพาะแชทที่ลูกค้ารอเราตอบ (เป้าหมายตอบภายใน 15 นาที)
+      let waitBadge = '';
+      if (needsReply(r)) {
+        const waitMin = Math.max(0, Math.floor((Date.now() - atMs(r.last.at)) / 60000));
+        const waitTxt = waitMin < 60 ? `${waitMin} นาที` : waitMin < 1440 ? `${Math.floor(waitMin / 60)} ชม.` : `${Math.floor(waitMin / 1440)} วัน`;
+        const st = waitMin > 15 ? 'late' : waitMin >= 10 ? 'warning' : 'ontime';
+        waitBadge = `<span class="cura-sla-badge ${st}" title="ลูกค้ารอคำตอบ (เป้าหมาย 15 นาที)">⏱ รอตอบ ${waitTxt}</span>`;
       }
 
       // ป้ายแพลตฟอร์ม (Platform Badge)
@@ -4380,16 +4398,15 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
             </div>
             <div class="cura-card-snippet">${snippet}</div>
             <div class="cura-card-footer">
-              <span class="cura-ai-pill">✨ Copilot</span>
-              <span class="cura-sla-badge ${slaState}">${slaLabel}</span>
-              ${platBadge}
-              ${pageBadge}
-              ${r.rep ? `<span class="cura-tag-pill" style="background:#e0f2fe;color:#0369a1;font-weight:600">👤 ${esc(r.rep)}</span>` : ''}
+              ${waitBadge}
+              <span class="cura-tag-pill" style="background:${(STATUS_COLOR[r.status] || '#64748b')}14;color:${STATUS_COLOR[r.status] || '#64748b'};border:1px solid ${(STATUS_COLOR[r.status] || '#64748b')}33;font-weight:700">${esc(STATUS_TH[r.status] || 'มาใหม่')}</span>
+              ${isPersonName(r.rep) ? `<span class="cura-tag-pill" style="background:#f8fafc;color:#0369a1;font-weight:600">👤 ${esc(r.rep)}</span>` : ''}
             </div>
+            ${r.pageName ? `<div style="font-size:11px;color:#94a3b8;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${esc(r.pageName)}">${ch === 'Instagram' ? '📸' : ch === 'LINE' ? '💬' : ch === 'WhatsApp' ? '🟢' : '📘'} ${esc(r.pageName)}</div>` : ''}
           </div>
         </div>
       `;
-    }).join('') + (rows.length > MAX ? `<div class="ad-sub" style="text-align:center;padding:10px">Showing ${MAX} of ${num(rows.length)}</div>` : '');
+    }).join('') + (rows.length > MAX ? `<div class="ad-sub" style="text-align:center;padding:10px">แสดง ${MAX} จาก ${num(rows.length)} แชท (ใช้ช่องค้นหาเพื่อหาแชทที่เหลือ)</div>` : '');
   }
 
   function currentLead() {
@@ -4451,30 +4468,26 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
     const aiSummaryCard = aiAnalysis ? `
       <div class="cura-ai-summary-box">
         <div class="cura-ai-summary-header">
-          <span class="cura-ai-summary-badge">✨ AI Co-pilot Summary</span>
+          <span class="cura-ai-summary-badge" title="AI อ่านจากข้อความของลูกค้าในแชทนี้ ควรตรวจสอบก่อนใช้">✨ สรุปจากแชท (AI)</span>
           <span class="sentiment-pill sentiment-${aiAnalysis.sentiment.cls}">${aiAnalysis.sentiment.icon} ${esc(aiAnalysis.sentiment.label)}</span>
         </div>
-        <div><b>🩺 Problem:</b> ${esc(aiAnalysis.hairIssue)}</div>
-        <div><b>💡 Strategy:</b> ${esc(aiAnalysis.sentiment.tip)}</div>
+        <div><b>🩺 ลูกค้าพูดถึง:</b> ${esc(aiAnalysis.hairIssue)}</div>
+        <div><b>💡 แนะนำ:</b> ${esc(aiAnalysis.sentiment.tip)}</div>
       </div>
     ` : '';
 
     // Calculate SLA 15m target countdown
     let slaUrgent = false;
-    let timeLeftStr = '08:35 left';
-    if (l.last && l.last.from !== 'staff') {
-      const elapsedMin = Math.floor((Date.now() - atMs(l.last.at)) / 60000);
+    let timeLeftStr = 'ตอบแล้ว ✓';
+    const lastMsg = (d && Array.isArray(d.messages) && d.messages.length) ? d.messages[d.messages.length - 1] : l.last;
+    if (needsReply({ last: lastMsg })) {
+      const elapsedMin = Math.floor((Date.now() - atMs(lastMsg.at)) / 60000);
       const remain = 15 - elapsedMin;
-      if (remain <= 0) {
-        slaUrgent = true;
-        timeLeftStr = `${Math.abs(remain)}m overdue!`;
-      } else {
-        slaUrgent = remain <= 5;
-        const mm = String(remain).padStart(2, '0');
-        timeLeftStr = `${mm}:00 left`;
-      }
-    } else {
-      timeLeftStr = '15m Met ✓';
+      const fmt = (m) => (m < 60 ? `${m} นาที` : m < 1440 ? `${Math.floor(m / 60)} ชม.` : `${Math.floor(m / 1440)} วัน`);
+      if (remain <= 0) { slaUrgent = true; timeLeftStr = `เกินมา ${fmt(Math.abs(remain))}`; }
+      else { slaUrgent = remain <= 5; timeLeftStr = `เหลือ ${remain} นาที`; }
+    } else if (!lastMsg) {
+      timeLeftStr = 'ยังไม่มีข้อความ';
     }
 
     box.innerHTML = `
@@ -4493,17 +4506,17 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
             <div class="cura-thread-sub">
               <span>${chanHtml(l.channel)}</span>
               ${l.pageName ? `<span>· 📄 <b>${esc(l.pageName)}</b></span>` : ''}
-              <span>· เซลล์ผู้ดูแล: <b style="color:var(--brand-deep)">${esc(l.rep || '✨ BEQ Copilot (ยังไม่มอบหมาย)')}</b></span>
+              <span>· เซลล์ผู้ดูแล: <b style="color:var(--brand-deep)">${esc(isPersonName(l.rep) ? l.rep : 'ยังไม่มอบหมาย')}</b></span>
             </div>
           </div>
         </div>
         <div class="cura-thread-actions">
           <div class="sla-target-pill ${slaUrgent ? 'urgent' : ''}">
             <span class="sla-pulse"></span>
-            <span>15m Target: ⏱️ <b>${timeLeftStr}</b></span>
+            <span>ตอบภายใน 15 นาที: ⏱️ <b>${timeLeftStr}</b></span>
           </div>
           <button type="button" class="cura-takeover-btn ${c.takenOver ? 'ai-active' : ''}" data-act="takeover-chat">
-            ${c.takenOver ? '⚡ Take Over Active' : 'Take Over Chat'}
+            ${c.takenOver ? '⚡ คุณกำลังดูแลแชทนี้' : 'รับดูแลแชทนี้'}
           </button>
         </div>
       </div>
@@ -4519,7 +4532,7 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
   function renderInboxInfo() {
     const box = $id('mess-info'); if (!box) return;
     const l = currentLead();
-    if (!l) { box.innerHTML = '<div class="empty">No contact selected</div>'; return; }
+    if (!l) { box.innerHTML = '<div class="empty">เลือกแชทเพื่อดูข้อมูลลูกค้า</div>'; return; }
     const aiAnalysis = analyzeLeadConversation(l, S.chat.data && S.chat.data.messages);
     const curTab = S.chat.tab || 'overview';
 
@@ -4529,41 +4542,29 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
         <!-- Warm Tinted Notes Card -->
         <div class="cura-notes-card">
           <div class="cura-notes-head">
-            <span>📝 Medical Consultant Notes</span>
-            <span style="font-size:10px;color:#b45309">Auto-synced</span>
+            <span>📝 บันทึกลูกค้า</span>
+            <span style="font-size:10px;color:#b45309">${l.notes ? 'บันทึกโดยทีม' : aiAnalysis ? 'AI ประเมินจากแชท · โปรดตรวจสอบ' : ''}</span>
           </div>
           <div class="cura-notes-body">
-            ${esc(l.notes || (aiAnalysis ? (aiAnalysis.stageNote ? `${aiAnalysis.stageNote} · ปัญหาหลัก: ${aiAnalysis.hairIssue} · แพ็กเกจที่เหมาะสม: ${aiAnalysis.procType} (${aiAnalysis.grafts}) · แนะนำ: ${aiAnalysis.sentiment.tip}` : `ลูกค้ามีภาวะ${aiAnalysis.hairIssue} แนะนำโปรแกรม ${aiAnalysis.procType} (${aiAnalysis.grafts}) ${aiAnalysis.sentiment.tip}`) : 'คนไข้ทักปรึกษาปัญหาผม นัดตรวจประเมินกับแพทย์ผู้เชี่ยวชาญที่สาขาสีลม'))}
+            ${l.notes ? esc(l.notes)
+              : aiAnalysis ? esc(aiAnalysis.stageNote ? `${aiAnalysis.stageNote} · ปัญหาหลัก: ${aiAnalysis.hairIssue} · แพ็กเกจที่น่าจะเหมาะ: ${aiAnalysis.procType} (${aiAnalysis.grafts})` : `ปัญหาที่ลูกค้าพูดถึง: ${aiAnalysis.hairIssue} · แพ็กเกจที่น่าจะเหมาะ: ${aiAnalysis.procType} (${aiAnalysis.grafts})`)
+              : '<span style="color:#94a3b8">ยังไม่มีข้อความจากลูกค้าให้สรุป</span>'}
           </div>
         </div>
 
         <!-- Conversation Actions Card -->
         <div class="cura-section-card">
-          <div class="cura-section-card-title">⚡ Conversation Actions</div>
+          <div class="cura-section-card-title">⚡ จัดการแชท</div>
           <div class="cura-section-card-body" style="padding:12px 14px;display:flex;flex-direction:column;gap:10px">
             <div class="cura-field-group">
-              <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase">Branch / Clinic</label>
-              <select data-bind="branch-select" style="width:100%;padding:6px 10px;border-radius:8px;border:1px solid #e2e8f0;font-size:12.5px;font-weight:600">
-                <option value="BEQ Hair Clinic Silom" selected>BEQ Hair Clinic · สาขาสีลม (Silom)</option>
-              </select>
-            </div>
-            <div class="cura-field-group">
-              <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase">ผู้ดูแลแชท / เซลล์ที่รับผิดชอบ (Assigned Agent)</label>
+              <label style="font-size:11px;font-weight:700;color:#64748b">เซลล์ที่ดูแลแชทนี้</label>
               <select data-bind="rep-select" data-id="${esc(l.id)}" style="width:100%;padding:6px 10px;border-radius:8px;border:1px solid #e2e8f0;font-size:12.5px;font-weight:600">
-                <option value="">✨ BEQ Copilot (ยังไม่มอบหมาย)</option>
-                ${[
-                  'Narumol Molmol',
-                  'Bodinthong Jeams',
-                  'Thanawin Win',
-                  'Pongsatorn Nack',
-                  'Paul CJ',
-                  'Ja Jah',
-                  'Jatupon James'
-                ].map((repName) => `<option value="${esc(repName)}" ${l.rep === repName || l.repId === repName ? 'selected' : ''}>👤 ${esc(repName)}</option>`).join('')}
+                <option value="">— ยังไม่มอบหมาย —</option>
+                ${repNameList(l.rep || l.repId).map((repName) => `<option value="${esc(repName)}" ${l.rep === repName || l.repId === repName ? 'selected' : ''}>👤 ${esc(repName)}</option>`).join('')}
               </select>
             </div>
             <div class="cura-field-group">
-              <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase">Lead Stage / Status (12 Stages)</label>
+              <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase">สถานะลูกค้า</label>
               ${statusSelectHtml(l)}
             </div>
             ${S.chat.data && S.chat.data.lead && S.chat.data.lead.id === l.id ? followFormHtml() : ''}
@@ -4573,7 +4574,7 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
         <!-- AI Lead Analysis Card -->
         <div class="cura-section-card" style="border:1.5px solid #a7f3d0;background:#f0fdf4">
           <div class="cura-section-card-title" style="color:#065f46">
-            <span>✨ BEQ Copilot Intelligence</span>
+            <span>✨ ผู้ช่วย AI วิเคราะห์แชท</span>
             <button type="button" class="cura-regen-btn" data-act="regenerate-summary" style="background:#dcfce7;color:#059669">🔄 วิเคราะห์ใหม่</button>
           </div>
           <div class="cura-section-card-body" style="padding:12px 14px;font-size:12.5px;line-height:1.5;display:flex;flex-direction:column;gap:6px">
@@ -4586,7 +4587,7 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
 
         <!-- Contact Details Card -->
         <div class="cura-section-card">
-          <div class="cura-section-card-title">👤 Contact Details</div>
+          <div class="cura-section-card-title">👤 ข้อมูลติดต่อ</div>
           <div class="cura-section-card-body" style="padding:12px 14px;display:flex;flex-direction:column;gap:6px">
             <div class="cura-detail-row" style="display:flex;justify-content:space-between;font-size:12px"><span>Platform:</span> <b>${esc(l.platform || (l.channel === 'Instagram' ? 'Instagram' : 'Facebook'))}</b></div>
             <div class="cura-detail-row" style="display:flex;justify-content:space-between;font-size:12px"><span>Page / Account:</span> <b>${esc(l.pageName || '—')}</b></div>
@@ -4676,9 +4677,9 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
 
       <!-- Segmented Tabs -->
       <div class="cura-profile-pill-tabs">
-        <button type="button" class="cura-pill-tab ${curTab === 'overview' ? 'active' : ''}" data-act="info-tab" data-tab="overview">Overview</button>
-        <button type="button" class="cura-pill-tab ${curTab === 'activity' ? 'active' : ''}" data-act="info-tab" data-tab="activity">Activity Log</button>
-        <button type="button" class="cura-pill-tab ${curTab === 'gallery' ? 'active' : ''}" data-act="info-tab" data-tab="gallery">Gallery</button>
+        <button type="button" class="cura-pill-tab ${curTab === 'overview' ? 'active' : ''}" data-act="info-tab" data-tab="overview">ภาพรวม</button>
+        <button type="button" class="cura-pill-tab ${curTab === 'activity' ? 'active' : ''}" data-act="info-tab" data-tab="activity">ประวัติ</button>
+        <button type="button" class="cura-pill-tab ${curTab === 'gallery' ? 'active' : ''}" data-act="info-tab" data-tab="gallery">รูปภาพ</button>
       </div>
 
       ${tabContent}
@@ -5057,7 +5058,7 @@ function boardShell() {
         <button class="btn btn-secondary" data-act="fu-open-schedule" style="background:${sched.enabled ? '#ecfdf5' : '#f8fafc'};color:${sched.enabled ? '#065f46' : '#334155'};border:1px solid ${sched.enabled ? '#a7f3d0' : '#cbd5e1'};border-radius:10px;font-weight:600;display:inline-flex;align-items:center;gap:6px;white-space:nowrap">
           ${sched.enabled ? `⏰ ตั้งรอบอัตโนมัติ: ทุก ${sched.intervalMinutes >= 60 ? (sched.intervalMinutes / 60) + ' ชม.' : sched.intervalMinutes + ' นาที'} (เปิดอยู่)` : '⏱️ ตั้งรอบเวลาแจ้งเตือน (นาที/ชม.)'}
         </button>
-        <button class="btn" data-act="fu-refresh" style="white-space:nowrap">${icon('refresh')}Refresh</button>
+        <button class="btn" data-act="fu-refresh" style="white-space:nowrap">${icon('refresh')}โหลดใหม่</button>
       </div>
     </div><div id="follow-body"><div class="loading">Loading…</div></div>`;
   }
@@ -5562,6 +5563,27 @@ function boardShell() {
           <div class="field"><label>รหัสผ่านปัจจุบัน</label><input type="password" name="current" autocomplete="current-password" required></div>
           <div class="field"><label>รหัสผ่านใหม่</label><input type="password" name="next" autocomplete="new-password" minlength="8" required><small>อย่างน้อย 8 ตัวอักษร</small></div>
           <div class="row-actions"><button class="btn primary" type="submit">เปลี่ยนรหัสผ่าน</button></div></form></section></div>`;
+    buildSettingQuickNav(box);
+  }
+
+  // หน้า Setting ยาวมาก → แถบทางลัดด้านบน กดแล้วเลื่อนไปหัวข้อนั้น (สร้างจากหัวข้อจริงในหน้า)
+  function buildSettingQuickNav(box) {
+    try {
+      const heads = [...box.querySelectorAll('section.card h3')].filter((h) => h.offsetParent !== null || true);
+      if (heads.length < 3) return;
+      const nav = document.createElement('div');
+      nav.className = 'setting-quicknav';
+      heads.forEach((h, i) => {
+        const sec = h.closest('section'); if (!sec) return;
+        sec.id = sec.id || `setting-sec-${i}`;
+        const label = h.textContent.replace(/\s+/g, ' ').replace(/\(.*?\)/g, '').trim().slice(0, 28);
+        const b = document.createElement('button');
+        b.type = 'button'; b.textContent = label;
+        b.addEventListener('click', () => sec.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+        nav.appendChild(b);
+      });
+      box.insertBefore(nav, box.firstChild);
+    } catch (_) {}
   }
 
   /* ---------------- events ---------------- */

@@ -927,6 +927,7 @@ async function api(req, res, url, session) {
 
   if (route === 'POST /api/lead/status') {
     const b = await readJson(req);
+    if (ops.LEGACY_STATUS[b.status]) b.status = ops.LEGACY_STATUS[b.status];
     if (!ops.STATUSES.includes(b.status)) return send(res, 400, { error: 'สถานะไม่ถูกต้อง' });
     // หาในทุกช่วงเวลา (เดิมหาแค่ 90 วัน ทำให้แชทเก่าเปลี่ยนสถานะไม่ได้)
     const data = await providers.load(resolveRange({ range: 'all' }));
@@ -2880,6 +2881,7 @@ if (require.main === module) {
       productionWarnings();
       autoSubscribeWebhooks();
       resolveRepsOnStartup();
+      try { const n = ops.migrateLegacyStatuses(); if (n) console.log(`  🔁 ย้ายลีด ${n} รายการจากสถานะที่ซ้ำไปสถานะใหม่แล้ว`); } catch (e) { console.warn('migrate status', e.message); }
       console.log(`  โหมดข้อมูล: ${providers.currentMode() === 'meta' ? 'Meta' : 'Demo'}\n`);
       
       // Background Cron: ตรวจสอบและส่งการแจ้งเตือน LINE & Web ตามรอบเวลาที่ผู้ใช้ตั้งค่าไว้ (ตรวจทุก 1 นาที)
