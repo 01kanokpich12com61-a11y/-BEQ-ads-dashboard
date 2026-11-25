@@ -2516,6 +2516,20 @@ async function api(req, res, url, session) {
 // In-memory cache สำหรับ static files พร้อม pre-compressed gzip เพิ่มความเร็วในการโหลด 4-5 เท่า
 const staticFileCache = new Map();
 
+// เลขเวอร์ชันของไฟล์ js/css = hash ของเนื้อหา (คำนวณใหม่เมื่อไฟล์เปลี่ยน)
+const assetVersionCache = new Map();
+function assetVersion(name) {
+  const file = path.join(config.publicDir, name);
+  try {
+    const st = fs.statSync(file);
+    const hit = assetVersionCache.get(file);
+    if (hit && hit.mtimeMs === st.mtimeMs && hit.size === st.size) return hit.v;
+    const v = crypto.createHash('sha1').update(fs.readFileSync(file)).digest('hex').slice(0, 10);
+    assetVersionCache.set(file, { v, mtimeMs: st.mtimeMs, size: st.size });
+    return v;
+  } catch { return '0'; }
+}
+
 function serveStatic(req, res, url) {
   let rel = decodeURIComponent(url.pathname);
   if (rel === '/') rel = '/index.html';
@@ -2527,6 +2541,27 @@ function serveStatic(req, res, url) {
 
     const ext = path.extname(file);
     const contentType = MIME[ext] || 'application/octet-stream';
+
+    // หน้า HTML: ใส่เลขเวอร์ชันของ js/css ตามเนื้อหาไฟล์จริง (?v=<hash>) ทุกครั้ง
+    // deploy ใหม่ → hash เปลี่ยน → เบราว์เซอร์โหลดไฟล์ใหม่ทันที ไม่ติดแคชเก่า 1 ปี
+    if (ext === '.html') {
+      let html;
+      try { html = fs.readFileSync(file, 'utf8'); } catch { return send(res, 500, 'Server read error'); }
+      html = html.replace(/((?:href|src)="\/)([\w.-]+\.(?:js|css))(?:\?v=[^"]*)?"/g, (m, pre, name) => `${pre}${name}?v=${assetVersion(name)}"`);
+      const htmlEtag = `W/"${crypto.createHash('sha1').update(html).digest('hex').slice(0, 16)}"`;
+      if (req.headers['if-none-match'] === htmlEtag) {
+        res.writeHead(304, { ...SECURITY_HEADERS, ETag: htmlEtag, 'Cache-Control': 'no-cache' });
+        return res.end();
+      }
+      const buf = Buffer.from(html, 'utf8');
+      const gz = String(req.headers['accept-encoding'] || '').includes('gzip') ? zlib.gzipSync(buf) : null;
+      res.writeHead(200, {
+        ...SECURITY_HEADERS, 'Content-Type': contentType, 'Content-Length': (gz || buf).length,
+        ETag: htmlEtag, 'Cache-Control': 'no-cache', ...(gz ? { 'Content-Encoding': 'gzip' } : {}),
+      });
+      return res.end(gz || buf);
+    }
+
     const etag = `W/"${stats.size}-${stats.mtimeMs.toFixed(0)}"`;
 
     // 1. ตรวจสอบ 304 Not Modified
