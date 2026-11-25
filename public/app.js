@@ -1185,7 +1185,7 @@
   function notices() {
     const list = [];
     if (S.me && S.me.mode === 'demo') list.push({ text: 'กำลังแสดงข้อมูลเดโม — เชื่อม Meta ได้ที่เมนู Setting', type: 'info' });
-    if (S.me && S.me.mustChange) list.push({ text: 'ยังใช้รหัสผ่านเริ่มต้นอยู่ กรุณาเปลี่ยนที่เมนู Setting', type: 'warn' });
+    if (S.me && S.me.mustChange) list.push({ text: 'บัญชีนี้ใช้รหัสผ่านชั่วคราวอยู่ กรุณาตั้งรหัสผ่านใหม่ที่เมนู Setting', type: 'warn' });
     if (S.notifications && S.notifications.list) {
       for (const n of S.notifications.list) {
         list.push({
@@ -2030,7 +2030,7 @@
         ${appHeaderHtml()}
         <main class="page page-${S.route}">
           ${S.me.mustChange && S.route !== 'setting'
-            ? '<div class="notice warn banner">ยังใช้รหัสผ่านเริ่มต้นอยู่ — <a href="#/setting">เปลี่ยนรหัสผ่านที่ Setting</a></div>' : ''}
+            ? '<div class="notice warn banner">บัญชีนี้ใช้รหัสผ่านชั่วคราวอยู่ — <a href="#/setting">ตั้งรหัสผ่านใหม่ที่ Setting</a> (ไม่ต้องกรอกรหัสเดิม)</div>' : ''}
           ${body}
         </main>
       </div>
@@ -5580,7 +5580,9 @@ function boardShell() {
 
       <section class="card panel"><h3>เปลี่ยนรหัสผ่าน</h3><p class="sub">ผู้ใช้: <b>${esc(S.me.username)}</b></p>
         <form class="form" data-form="password">
-          <div class="field"><label>รหัสผ่านปัจจุบัน</label><input type="password" name="current" autocomplete="current-password" required></div>
+          ${S.me.mustChange
+            ? '<div class="notice warn" style="margin-bottom:10px">บัญชีนี้ใช้รหัสผ่านชั่วคราว ตั้งรหัสผ่านใหม่ได้เลย ไม่ต้องกรอกรหัสเดิม</div>'
+            : '<div class="field"><label>รหัสผ่านปัจจุบัน</label><input type="password" name="current" autocomplete="current-password" required><small>คือรหัสที่ใช้ล็อกอินเข้ามาครั้งล่าสุด</small></div>'}
           <div class="field"><label>รหัสผ่านใหม่</label><input type="password" name="next" autocomplete="new-password" minlength="8" required><small>อย่างน้อย 8 ตัวอักษร</small></div>
           <div class="row-actions"><button class="btn primary" type="submit">เปลี่ยนรหัสผ่าน</button></div></form></section></div>`;
     buildSettingQuickNav(box);
