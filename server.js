@@ -66,6 +66,8 @@ const providers = require('./lib/providers');
 const ops = require('./lib/ops');
 const line = require('./lib/line');
 const audit = require('./lib/audit');
+const jobs = require('./lib/jobs');
+const { Readable } = require('node:stream');
 const sla = require('./lib/sla');
 const { resolveRange, isDate, today, eachDay, addDays } = require('./lib/dates');
 const { buildDashboard, buildBoard, buildInbox, leadRow, listFilters } = require('./lib/metrics');
@@ -555,9 +557,60 @@ function publicSettings() {
   };
 }
 
+// คำขอที่ทำเป็นงานเบื้องหลังได้ (เรียกด้วย ?background=1)
+const BACKGROUND_ROUTES = new Set([
+  'POST /api/import/facebook-conversations',
+  'POST /api/import/facebook-conversations-all',
+  'POST /api/posts-comments/sync',
+  'POST /api/meta/sync-all',
+]);
+
 async function api(req, res, url, session) {
   const route = `${req.method} ${url.pathname}`;
   const q = Object.fromEntries(url.searchParams);
+
+  /* ---------- งานเบื้องหลัง: ดึงข้อมูลจาก Meta ที่ใช้เวลานาน ---------- */
+  if (BACKGROUND_ROUTES.has(route) && q.background === '1') {
+    const raw = await readRaw(req, 5_000_000);
+    const existing = jobs.running(route);
+    if (existing) return send(res, 202, { jobId: existing.id, alreadyRunning: true });
+    const innerUrl = new URL(url.toString());
+    innerUrl.searchParams.delete('background');
+    const job = jobs.start(route, session.user.username, () => new Promise((resolve) => {
+      const fakeReq = Object.assign(Readable.from(raw.length ? [raw] : []), {
+        method: req.method, url: innerUrl.pathname + innerUrl.search, headers: { ...req.headers }, socket: { remoteAddress: req.socket.remoteAddress },
+        setTimeout() {},
+      });
+      let status = 200; let done = false;
+      const finish = (body) => {
+        if (done) return; done = true;
+        let parsed = body;
+        if (Buffer.isBuffer(parsed)) parsed = parsed.toString('utf8');
+        if (typeof parsed === 'string') { try { parsed = JSON.parse(parsed); } catch {} }
+        resolve({ status, body: parsed });
+      };
+      const fakeRes = {
+        headersSent: false,
+        writeHead(st) { status = st; this.headersSent = true; return this; },
+        setHeader() {}, getHeader() {}, setTimeout() {}, write() { return true; }, on() {}, once() {},
+        end(body) { finish(body); },
+      };
+      api(fakeReq, fakeRes, innerUrl, session)
+        .then(() => finish({ ok: true }))
+        .catch((e) => { status = e.status || 500; finish({ error: (e && e.message) || 'เกิดข้อผิดพลาด' }); });
+    }));
+    audit.log(session.user.username, 'job_start', route, clientIp(req));
+    return send(res, 202, { jobId: job.id });
+  }
+  {
+    const jm = url.pathname.match(/^\/api\/jobs\/([a-f0-9]{16})(\/cancel)?$/);
+    if (jm) {
+      const job = jobs.get(jm[1]);
+      if (!job || (job.owner !== session.user.username && !auth.isAdmin(session.user))) return send(res, 404, { error: 'ไม่พบงานนี้ (อาจหมดอายุหรือเซิร์ฟเวอร์รีสตาร์ท)' });
+      if (jm[2] && req.method === 'POST') { jobs.cancel(job.id); return send(res, 200, jobs.publicView(job)); }
+      if (req.method === 'GET') return send(res, 200, jobs.publicView(job));
+    }
+  }
 
   if (route === 'GET /api/me') {
     return send(res, 200, {
@@ -1823,7 +1876,7 @@ async function api(req, res, url, session) {
       const fbPageId = matched ? matched.fbPageId : null;
       const afterDate = clean(b.afterDate, 10) || null;
       const beforeDate = clean(b.beforeDate, 10) || null;
-      const convs = await meta.fetchFbConversations(pageId, Number(b.limit) || 400, plat, fbPageId, afterDate, beforeDate);
+      const convs = await meta.fetchFbConversations(pageId, Math.min(Number(b.limit) || 400, 5000), plat, fbPageId, afterDate, beforeDate);
       let leads = store.read('leads.json', []);
       let messages = store.read('messages.json', {});
 
@@ -1984,7 +2037,7 @@ async function api(req, res, url, session) {
   if (route === 'POST /api/import/facebook-conversations-all') {
     if (!auth.isAdmin(session.user)) return send(res, 403, { error: 'เฉพาะผู้ดูแล (admin) เท่านั้น' });
     const b = await readJson(req).catch(() => ({}));
-    const limit = Number(b.limit) || 400;
+    const limit = Math.min(Number(b.limit) || 400, 5000);
     const afterDate = clean(b.afterDate, 10) || null;
     const beforeDate = clean(b.beforeDate, 10) || null;
     const pages = store.read('pages.json', []);
@@ -1997,10 +2050,15 @@ async function api(req, res, url, session) {
     let totalImportedMsgs = 0;
     const results = [];
 
-    for (const page of targetPages) {
+    for (const [pageIdx, page] of targetPages.entries()) {
+      if (jobs.cancelled()) { results.push({ pageId: page.id, pageName: page.name, error: 'ยกเลิกโดยผู้ใช้', success: false }); continue; }
+      jobs.report({ note: `เพจ ${pageIdx + 1}/${targetPages.length}: ${page.name}`, phase: 'conversations', done: 0, total: limit || 400 });
       const pPlat = page.platform || 'Facebook';
       try {
         const convs = await meta.fetchFbConversations(page.id, limit || 400, pPlat, page.fbPageId || null, afterDate, beforeDate);
+        // อ่านข้อมูลล่าสุดหลังดึงเสร็จ เพื่อไม่ทับแชทที่ webhook เพิ่งบันทึกระหว่างรอ
+        leads = store.read('leads.json', []);
+        messages = store.read('messages.json', {});
 
         let pLeads = 0;
         let pMsgs = 0;

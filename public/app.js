@@ -816,7 +816,78 @@
   }
   const icon = (n) => `<svg class="icon" viewBox="0 0 24 24" aria-hidden="true">${ICONS[n] || ''}</svg>`;
 
+  // คำขอดึงข้อมูลจาก Meta ที่ใช้เวลานาน: ให้เซิร์ฟเวอร์ทำเป็นงานเบื้องหลัง แล้วถามความคืบหน้าจนเสร็จ
+  const BACKGROUND_PATHS = new Set([
+    '/api/import/facebook-conversations',
+    '/api/import/facebook-conversations-all',
+    '/api/posts-comments/sync',
+    '/api/meta/sync-all',
+  ]);
+  const JOB_PHASE = { starting: 'กำลังเริ่ม', conversations: 'กำลังดึงรายการแชท', messages: 'กำลังดึงข้อความย้อนหลัง' };
+
+  function jobPanel() {
+    let el = document.getElementById('bg-job-panel');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'bg-job-panel';
+      el.setAttribute('role', 'status');
+      el.style.cssText = 'position:fixed;right:16px;bottom:16px;z-index:9999;max-width:340px;padding:12px 14px;border-radius:12px;background:#fff;color:#1f2937;box-shadow:0 8px 28px rgba(0,0,0,.18);font-size:13px;line-height:1.45;border:1px solid #e5e7eb';
+      document.body.appendChild(el);
+    }
+    return el;
+  }
+
+  async function runBackground(path, opts) {
+    const startRes = await fetch(path + '?background=1', {
+      method: 'POST', credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(opts.body || {}),
+    });
+    const startJson = await startRes.json().catch(() => ({}));
+    if (startRes.status !== 202 || !startJson.jobId) {
+      if (startRes.ok) return startJson; // เซิร์ฟเวอร์รุ่นเก่าที่ไม่รองรับงานเบื้องหลัง
+      throw new Error(startJson.error || 'เริ่มงานไม่สำเร็จ');
+    }
+    const id = startJson.jobId;
+    const panel = jobPanel();
+    let cancelled = false;
+    const render = (j) => {
+      const p = (j && j.progress) || {};
+      const pct = p.total ? Math.min(100, Math.round((p.done / p.total) * 100)) : 0;
+      panel.innerHTML = `<div style="font-weight:600;margin-bottom:4px">⏳ ${startJson.alreadyRunning ? 'มีงานนี้กำลังทำอยู่แล้ว — ' : ''}กำลังดึงข้อมูลจาก Meta</div>
+        <div>${esc(JOB_PHASE[p.phase] || p.phase || '')}${p.total ? ` ${Number(p.done || 0).toLocaleString()} / ${Number(p.total).toLocaleString()}` : ''}</div>
+        ${p.note ? `<div style="color:#6b7280">${esc(p.note)}</div>` : ''}
+        <div style="height:6px;background:#eef2f7;border-radius:4px;margin:8px 0;overflow:hidden"><div style="height:100%;width:${pct}%;background:#22c55e"></div></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;color:#6b7280;font-size:12px"><span>ปิดหน้านี้ได้ งานจะทำต่อบนเซิร์ฟเวอร์</span>
+        <button type="button" id="bg-job-cancel" style="border:1px solid #e5e7eb;background:#fff;border-radius:8px;padding:3px 10px;cursor:pointer">${cancelled ? 'กำลังหยุด…' : 'หยุด'}</button></div>`;
+      const btn = panel.querySelector('#bg-job-cancel');
+      if (btn) btn.onclick = () => { cancelled = true; fetch(`/api/jobs/${id}/cancel`, { method: 'POST', credentials: 'same-origin' }).catch(() => {}); render(j); };
+    };
+    render(null);
+    try {
+      for (;;) {
+        await new Promise((r) => setTimeout(r, 2000));
+        let j;
+        try {
+          const r = await fetch(`/api/jobs/${id}`, { credentials: 'same-origin' });
+          if (r.status === 404) throw new Error('งานหายไป (เซิร์ฟเวอร์อาจรีสตาร์ท) กรุณากดดึงข้อมูลใหม่อีกครั้ง');
+          if (r.status === 401) throw new Error('กรุณาเข้าสู่ระบบ');
+          j = await r.json();
+        } catch (e) {
+          if (/งานหายไป|เข้าสู่ระบบ/.test(e.message)) throw e;
+          continue; // เน็ตสะดุดชั่วคราว ลองถามใหม่รอบหน้า
+        }
+        if (j.status === 'running') { render(j); continue; }
+        if (j.status === 'error' || (j.httpStatus && j.httpStatus >= 400)) throw new Error((j.result && j.result.error) || 'ดึงข้อมูลไม่สำเร็จ');
+        return j.result || {};
+      }
+    } finally {
+      panel.remove();
+    }
+  }
+
   async function api(path, opts = {}) {
+    if (opts.method === 'POST' && BACKGROUND_PATHS.has(path) && !opts.foreground) return runBackground(path, opts);
     try {
       const res = await fetch(path, {
         method: opts.method || 'GET', credentials: 'same-origin',

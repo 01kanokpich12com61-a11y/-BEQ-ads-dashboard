@@ -416,6 +416,60 @@ async function main() {
   // Verify Token ต้องไม่ใช่ค่าคงที่ในโค้ด
   assert.notEqual((await call('GET', '/api/settings')).json.webhook.verifyToken, 'beq_webhook_verify_token_secure'); ok('Verify Token ไม่ใช่ค่าคงที่ในโค้ด');
 
+  // Insights ย้อนหลังได้ไม่เกิน 37 เดือน
+  assert.equal(meta.clampInsightsFrom('2020-01-01', '2026-11-25'), '2023-10-27');
+  assert.equal(meta.clampInsightsFrom('2026-01-01', '2026-11-25'), '2026-01-01'); ok('ตัดช่วง Insights ไม่เกิน 37 เดือน');
+
+  // ดึงแชทหลายหน้า + ข้อความย้อนหลังหลายหน้า + งานเบื้องหลัง (Graph API จำลอง)
+  {
+    const realFetch2 = global.fetch;
+    const G = 'https://graph.facebook.com/v25.0/';
+    const msg = (i, t) => ({ id: 'mm' + i, message: 'ข้อความ ' + i, from: { id: i % 2 ? 'U1' : '999' }, created_time: t });
+    const conv = (id, t) => ({ id, updated_time: t, participants: { data: [{ id: '999', name: 'Page' }, { id: 'U-' + id, name: 'ลูกค้า ' + id }] },
+      messages: { data: [msg(id + '-1', t), msg(id + '-2', t)], paging: { next: G + id + '/messages?after=p2' } } });
+    let insightsSince = null;
+    global.fetch = async (url, opts) => {
+      const u = String(url);
+      if (!u.includes('graph.facebook.com')) return realFetch2(url, opts);
+      const j = (o) => ({ ok: true, status: 200, json: async () => o });
+      if (u.includes('fields=access_token')) return j({ access_token: 'PAGE-TOKEN', id: '999' });
+      if (u.includes('/messages?after=p2')) { const id = u.split('/v25.0/')[1].split('/')[0]; return j({ data: [msg(id + '-3', '2026-11-01T03:00:00+0000')], paging: { next: G + id + '/messages?after=p3' } }); }
+      if (u.includes('/messages?after=p3')) return j({ error: { message: 'deleted', code: 100 } }); // Meta ไม่ให้ข้อความเก่ากว่านี้
+      if (u.includes('/conversations') && u.includes('after=page2')) return j({ data: [conv('c3', '2026-10-01T03:00:00+0000')] });
+      if (u.includes('/conversations')) return j({ data: [conv('c1', '2026-11-20T03:00:00+0000'), conv('c2', '2026-11-10T03:00:00+0000')], paging: { next: G + '999/conversations?after=page2' } });
+      if (u.includes('/insights')) { insightsSince = JSON.parse(new URL(u).searchParams.get('time_range')).since; return j({ data: [] }); }
+      if (u.includes('/ads')) return j({ data: [] });
+      return j({ name: 'Test Page' });
+    };
+    meta.saveSettings({ mode: 'meta', meta: { accessToken: 'TEST-TOKEN', adAccountId: '12345' } });
+
+    const convs = await meta.fetchFbConversations('999', 10, 'Facebook', null, null, null, { maxMessagesPerChat: 50 });
+    assert.equal(convs.length, 3, 'ต้องไล่ดึงแชทหน้าที่ 2 ด้วย');
+    assert.equal(convs[0].messages.data.length, 3, 'ต้องดึงข้อความหน้าถัดไป และหยุดเมื่อ Meta ไม่ให้แล้ว'); ok('ดึงแชทหลายหน้า + ข้อความย้อนหลังหลายหน้า');
+
+    const ranged = await meta.fetchFbConversations('999', 10, 'Facebook', null, '2026-11-05', '2026-11-15', { maxMessagesPerChat: 0 });
+    assert.deepEqual(ranged.map((c) => c.id), ['c2']); ok('กรองแชทตามช่วงวันที่');
+
+    meta.clearCache();
+    await meta.load({ from: '2020-01-01', to: '2026-11-25' }).catch(() => {});
+    assert.equal(insightsSince, '2023-10-27'); ok('ช่วง "ทั้งหมด" ไม่ขอ Insights เกิน 37 เดือน');
+
+    const start = await fetch(base + '/api/import/facebook-conversations?background=1', { method: 'POST', headers: { 'Content-Type': 'application/json', cookie }, body: JSON.stringify({ pageId: '999', limit: 10 }) });
+    assert.equal(start.status, 202);
+    const { jobId } = await start.json();
+    let job;
+    for (let i = 0; i < 50; i++) {
+      job = (await call('GET', '/api/jobs/' + jobId)).json;
+      if (job.status !== 'running') break;
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    assert.equal(job.status, 'done', JSON.stringify(job));
+    assert.equal(job.result.ok, true); assert.equal(job.result.importedLeads, 3);
+    assert.equal((await call('GET', '/api/jobs/0123456789abcdef')).status, 404); ok('นำเข้าแชทเป็นงานเบื้องหลัง + ถามความคืบหน้าได้');
+
+    global.fetch = realFetch2;
+  }
+
   await call('POST', '/api/logout');
   assert.equal((await call('GET', '/api/me')).status, 401); ok('ล็อกเอาต์');
   server.close();
