@@ -1713,6 +1713,37 @@
   }
   const countLabel = (v, unit) => (v === 'all' ? `ทั้งหมด` : `${Number(v).toLocaleString()} ${unit}`);
 
+  // ผลตรวจ Instagram แบบละเอียด: บอกสาเหตุที่ดึงแชท IG ไม่ได้
+  function igDiagHtml() {
+    const d = S.igDiag;
+    if (!d) return '';
+    const li = (ok, text) => `<li style="margin:2px 0">${ok ? '✅' : '⚠️'} ${text}</li>`;
+    const t = d.token || {};
+    const tokenRows = t.checked
+      ? [li(t.isValid, `Token ${t.isValid ? 'ใช้งานได้' : 'ใช้ไม่ได้/หมดอายุ'}${t.expiresAt ? ` (หมดอายุ ${new Date(t.expiresAt * 1000).toLocaleDateString('th-TH')})` : ' (ไม่หมดอายุ)'}`),
+         li(!(t.missingScopes || []).length, (t.missingScopes || []).length ? `Token ขาดสิทธิ์: <b>${(t.missingScopes || []).map(esc).join(', ')}</b> — สร้าง Token ใหม่แล้วติ๊กสิทธิ์เหล่านี้` : 'Token มีสิทธิ์ที่ต้องใช้ครบ')]
+      : [li(false, `ตรวจสิทธิ์ของ Token ไม่ได้${t.error ? ': ' + esc(t.error) : ''}`)];
+    const accRows = (d.igAccounts || []).map((ig) => {
+      const wh = ig.webhook || {};
+      return `<div style="border-top:1px dashed #fbcfe8;padding-top:8px;margin-top:8px">
+        <b>@${esc(ig.username)}</b> <span style="color:#64748b">ผูกกับเพจ ${esc(ig.fbPageName)}</span>
+        <ul style="margin:4px 0 0;padding-left:4px;list-style:none">
+          ${li(ig.mediaOk, `โพสต์/รูป ${ig.mediaOk ? 'อ่านได้' : 'อ่านไม่ได้'}`)}
+          ${li(ig.messagingOk && ig.convCount > 0, ig.messagingOk ? `แชท IG ที่ Meta ส่งให้: <b>${ig.convCount}${ig.convCount >= 25 ? '+' : ''}</b> แชท${ig.latestConvAt ? ` (ล่าสุด ${new Date(ig.latestConvAt).toLocaleString('th-TH')})` : ''}` : `อ่านแชทไม่ได้: ${esc(ig.messagingError || '')}`)}
+          ${wh.checked ? li(wh.subscribed && (wh.fields || []).includes('messages'), wh.subscribed ? `Webhook ของเพจ: ${esc((wh.fields || []).join(', ') || '-')}` : 'เพจยังไม่ได้ subscribe webhook ให้แอปนี้') : ''}
+        </ul>
+        ${(ig.problems || []).length ? `<div style="margin-top:6px;padding:8px 10px;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;color:#9a3412">${ig.problems.map((x) => '• ' + esc(x)).join('<br>')}</div>` : '<div style="margin-top:6px;color:#166534">พร้อมใช้งาน — กด "📥 ดึงแชท" ของบัญชีนี้ได้เลย</div>'}
+      </div>`;
+    }).join('');
+    const unlinked = (d.unlinkedFbPages || []).length ? `<div style="margin-top:8px;color:#64748b">เพจที่ยังไม่ผูก IG: ${(d.unlinkedFbPages || []).map((u) => esc(u.fbPageName)).join(', ')}</div>` : '';
+    return `<div style="margin-top:12px;padding:12px 14px;background:#fdf2f8;border:1px solid #fbcfe8;border-radius:12px;font-size:13px;line-height:1.5">
+      <div style="display:flex;justify-content:space-between;align-items:center"><b>📸 ผลตรวจ Instagram</b><button type="button" class="btn" data-act="ig-diag-close" style="padding:2px 8px;font-size:12px">ปิด</button></div>
+      <ul style="margin:6px 0 0;padding-left:4px;list-style:none">${tokenRows.join('')}</ul>
+      ${accRows || '<div style="margin-top:6px">ยังไม่พบบัญชี Instagram Business ที่ผูกกับเพจ Facebook ของ Token นี้</div>'}
+      ${unlinked}
+    </div>`;
+  }
+
   function postsModalHtml() {
     if (!S.postsModal) return '';
     const m = S.postsModal;
@@ -5194,8 +5225,10 @@ function boardShell() {
               <button class="btn primary" type="button" data-act="meta-sync-all" style="font-size:12px;padding:6px 12px">🚀 ซิงค์ข้อมูล Meta ทั้งหมด</button>
               <button class="btn" type="button" data-act="meta-discover" style="font-size:12px;padding:6px 12px">🔄 ดึงเพจ FB/IG</button>
               <button class="btn" type="button" data-act="ig-test" style="font-size:12px;padding:6px 12px;background:#fdf2f8;border-color:#fbcfe8;color:#be185d;font-weight:700">📸 ตรวจสอบ Instagram</button>
+              <button class="btn" type="button" data-act="meta-subscribe-webhooks" style="font-size:12px;padding:6px 12px" title="ตั้งค่าให้ Meta ส่งแชท Messenger/Instagram ใหม่เข้าระบบทันที">🔔 เปิดรับแชทอัตโนมัติ</button>
             </div>
           </div>
+          ${igDiagHtml()}
           <form class="form" data-form="meta" autocomplete="off" style="margin-top:14px">
             <div class="field"><label>ชื่อคลินิก / องค์กร</label><input type="text" name="clinicName" value="${esc(s.clinicName)}" placeholder="เช่น BEQ GROUP" maxlength="80"></div>
             <div class="field"><label>Meta Ad Account ID หลัก</label><input type="text" name="adAccountId" value="${esc(m.adAccountId)}" placeholder="เช่น 1234567890 หรือเว้นว่างเพื่อค้นหาอัตโนมัติจาก Token" inputmode="numeric"><small>ดูได้ที่ Ads Manager (หากเว้นว่าง ระบบจะค้นหา Ad Account แรกจาก Token ให้อัตโนมัติ)</small></div>
@@ -5714,7 +5747,7 @@ function boardShell() {
                 const r = await api('/api/import/facebook-conversations', { method: 'POST', body: { pageId, limit, messagesPerChat, afterDate, beforeDate } });
                 if (r.ok) {
                   const dateRange = afterDate && beforeDate ? ` ช่วง ${afterDate} ถึง ${beforeDate}` : '';
-                  S.flash = { type: 'ok', text: `นำเข้าบทสนทนาเพจ ${r.pageName} สำเร็จ${dateRange}: เพิ่มลูกค้าใหม่ ${r.importedLeads} ราย, ${r.importedMsgs} ข้อความ` };
+                  S.flash = { type: r.warning ? 'err' : 'ok', text: `นำเข้าบทสนทนาเพจ ${r.pageName} สำเร็จ${dateRange}: เพิ่มลูกค้าใหม่ ${r.importedLeads} ราย, ${r.importedMsgs} ข้อความ${r.warning ? ' — ⚠️ ' + r.warning : ''}` };
                   await refreshAfterImport();
                 }
               }
@@ -5946,6 +5979,20 @@ function boardShell() {
           el.textContent = orig;
         }
       }
+      else if (act === 'ig-diag-close') { S.igDiag = null; render(); }
+      else if (act === 'meta-subscribe-webhooks') {
+        if (!confirm('ตั้งค่าให้ Meta ส่งแชท Messenger และ Instagram ใหม่เข้าระบบอัตโนมัติ?\n\nระบบจะตั้ง Webhook ที่แอป Meta (ต้องบันทึก App ID + App Secret) และเปิดรับข้อความของทุกเพจที่ Token เข้าถึงได้')) return;
+        el.disabled = true; const orig = el.textContent; el.textContent = '⏳ กำลังตั้งค่า...';
+        try {
+          const r = await api('/api/settings/meta/subscribe-webhooks', { method: 'POST' });
+          const appTxt = (r.app || []).map((a) => `${a.object === 'instagram' ? 'Instagram' : a.object === 'page' ? 'Messenger' : 'แอป'} ${a.ok ? '✅' : '❌ ' + (a.error || '')}`).join(' · ');
+          const pageOk = (r.pages || []).filter((p) => p.ok).length;
+          const pageBad = (r.pages || []).filter((p) => !p.ok).map((p) => `${p.pageName}: ${p.error}`);
+          S.flash = { type: pageBad.length || (r.app || []).some((a) => !a.ok) ? 'err' : 'ok', text: `🔔 Webhook ${r.callbackUrl} — ${appTxt} · เพจที่เปิดรับแชทแล้ว ${pageOk}/${(r.pages || []).length}${pageBad.length ? ' (❌ ' + pageBad.join('; ') + ')' : ''}` };
+        } catch (e) {
+          S.flash = { type: 'err', text: '❌ ตั้งค่า Webhook ไม่สำเร็จ: ' + e.message };
+        } finally { el.disabled = false; el.textContent = orig; render(); }
+      }
       else if (act === 'ig-test') {
         el.disabled = true;
         const orig = el.textContent;
@@ -5953,6 +6000,7 @@ function boardShell() {
         try {
           const r = await api('/api/settings/instagram/test', { method: 'POST' });
           if (r && r.ok) {
+            S.igDiag = r;
             S.filters = await api('/api/filters').catch(() => null);
             const igList = r.igAccounts || [];
             const unlinked = r.unlinkedFbPages || [];
@@ -5964,7 +6012,8 @@ function boardShell() {
             } else {
               const details = igList.map((ig) => `@${ig.username} (ผูกเพจ ${ig.fbPageName}: โพสต์/รูป ${ig.mediaOk ? '✅' : '❌'}, แชท IG Direct ${ig.messagingOk ? '✅' : '⚠️ ' + (ig.messagingError || 'ต้องเปิด Allow access to messages ในแอป IG')})`).join(' | ');
               const unlinkedTxt = unlinked.length ? ` · เพจที่ยังไม่ผูก IG: ${unlinked.map((u) => u.fbPageName).join(', ')}` : '';
-              S.flash = { type: 'ok', text: `📸 ตรวจพบ Instagram Business ${igList.length} บัญชี: ${details}${unlinkedTxt}` };
+              const hasProblem = igList.some((ig) => (ig.problems || []).length) || ((r.token || {}).missingScopes || []).length;
+              S.flash = { type: hasProblem ? 'err' : 'ok', text: hasProblem ? `📸 พบ Instagram ${igList.length} บัญชี แต่ยังมีจุดที่ต้องแก้ — ดูรายละเอียดในกล่อง "ผลตรวจ Instagram"` : `📸 ตรวจพบ Instagram Business ${igList.length} บัญชี: ${details}${unlinkedTxt}` };
             }
           } else {
             S.flash = { type: 'err', text: '❌ ตรวจสอบ Instagram ไม่สำเร็จ: ' + ((r && r.error) || 'ตรวจสอบ Access Token') };

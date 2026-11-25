@@ -1901,7 +1901,7 @@ async function api(req, res, url, session) {
         const customerPart = parts.find((p) => !isSelf(p.id)) || parts[0];
         if (!customerPart) continue;
         const psid = String(customerPart.id);
-        const custName = customerPart.name || ('ลูกค้า ' + psid.slice(-4));
+        const custName = customerPart.name || (customerPart.username ? '@' + customerPart.username : ('ลูกค้า ' + psid.slice(-4)));
 
         const actualPlat = detectConvPlatform(c, plat);
         let lead = leads.find((l) => l.psid === psid && (l.platform || 'Facebook') === actualPlat && (!l.pageId || String(l.pageId) === String(pageId)));
@@ -1970,7 +1970,10 @@ async function api(req, res, url, session) {
       store.write('messages.json', messages);
       store.write('leads.json', leads);
       audit.log(session.user.username, 'import_fb', 'นำเข้าบทสนทนาเพจ ' + pageName + ': ' + importedLeads + ' ลีด, ' + importedMsgs + ' ข้อความ', clientIp(req));
-      return send(res, 200, { ok: true, importedLeads, importedMsgs, pageId, pageName });
+      const warning = !convs.length && plat === 'Instagram'
+        ? 'Meta ส่งแชท Instagram กลับมา 0 แชท (ไม่มี error) — กด "📸 ตรวจสอบ Instagram" ในหน้า Setting เพื่อดูสาเหตุ'
+        : (!convs.length ? 'Meta ส่งแชทกลับมา 0 แชทในช่วงที่เลือก' : undefined);
+      return send(res, 200, { ok: true, importedLeads, importedMsgs, pageId, pageName, conversations: convs.length, warning });
     } catch (e) {
       return send(res, 500, { error: e.message || 'ดึงบทสนทนาจาก Facebook ไม่สำเร็จ' });
     }
@@ -2081,7 +2084,7 @@ async function api(req, res, url, session) {
           const customerPart = parts.find((p) => !isSelf(p.id)) || parts[0];
           if (!customerPart) continue;
           const psid = String(customerPart.id);
-          const custName = customerPart.name || ('ลูกค้า ' + psid.slice(-4));
+          const custName = customerPart.name || (customerPart.username ? '@' + customerPart.username : ('ลูกค้า ' + psid.slice(-4)));
 
           const actualPlat = detectConvPlatform(c, pPlat);
           let lead = leads.find((l) => l.psid === psid && (l.platform || 'Facebook') === actualPlat && (!l.pageId || String(l.pageId) === String(page.id)));
@@ -2151,13 +2154,14 @@ async function api(req, res, url, session) {
         store.write('leads.json', leads);
         totalImportedLeads += pLeads;
         totalImportedMsgs += pMsgs;
-        results.push({ pageId: page.id, pageName: page.name, leads: pLeads, msgs: pMsgs, success: true });
+        results.push({ pageId: page.id, pageName: page.name, leads: pLeads, msgs: pMsgs, success: true, conversations: convs.length });
+        if (!convs.length && pPlat === 'Instagram') results[results.length - 1].warning = 'Meta ส่งแชท IG กลับมา 0 แชท';
       } catch (err) {
         results.push({ pageId: page.id, pageName: page.name, error: err.message, success: false });
       }
     }
     audit.log(session.user.username, 'import_fb_all', `นำเข้าบทสนทนาทุกเพจ: ${totalImportedLeads} ลีด, ${totalImportedMsgs} ข้อความ`, clientIp(req));
-    const errors = results.filter((r) => !r.success).map((r) => `${r.pageName}: ${r.error}`);
+    const errors = results.filter((r) => !r.success || r.warning).map((r) => `${r.pageName}: ${r.error || r.warning}`);
     return send(res, 200, { ok: true, totalImportedLeads, totalImportedMsgs, results, errors });
   }
 
@@ -2210,6 +2214,24 @@ async function api(req, res, url, session) {
     }
   }
 
+  // เปิดรับแชท Messenger/Instagram อัตโนมัติ: ตั้ง webhook ที่แอป Meta และ subscribe ทุกเพจ
+  if (route === 'POST /api/settings/meta/subscribe-webhooks') {
+    if (!auth.isAdmin(session.user)) return send(res, 403, { error: 'เฉพาะผู้ดูแล (admin) เท่านั้น' });
+    const proto = config.trustProxy ? String(req.headers['x-forwarded-proto'] || 'https').split(',')[0].trim() : (req.socket.encrypted ? 'https' : 'http');
+    const host = String(req.headers['x-forwarded-host'] || req.headers.host || '').split(',')[0].trim();
+    const callbackUrl = `${proto}://${host}/webhook`;
+    if (!/^https:\/\//.test(callbackUrl) || /localhost|127\.0\.0\.1/.test(host)) {
+      return send(res, 400, { error: `Meta ต้องการ Webhook แบบ https ที่เข้าถึงได้จากอินเทอร์เน็ต (ตอนนี้คือ ${callbackUrl}) — กดปุ่มนี้จากเว็บที่ deploy แล้ว` });
+    }
+    try {
+      const r = await meta.subscribeWebhooks(callbackUrl, webhookToken());
+      audit.log(session.user.username, 'meta_subscribe_webhooks', `${callbackUrl}: แอป ${r.app.filter((x) => x.ok).length}/${r.app.length}, เพจ ${r.pages.filter((x) => x.ok).length}/${r.pages.length}`, clientIp(req));
+      return send(res, 200, { ok: true, callbackUrl, ...r });
+    } catch (e) {
+      return send(res, 500, { error: e.message || 'ตั้งค่า webhook ไม่สำเร็จ' });
+    }
+  }
+
   if (route === 'POST /api/settings/instagram/test') {
     if (!auth.isAdmin(session.user)) return send(res, 403, { error: 'เฉพาะผู้ดูแล (admin) เท่านั้น' });
     const m = meta.getSettings().meta || {};
@@ -2242,6 +2264,7 @@ async function api(req, res, url, session) {
         igAccounts: diag.igAccounts.map(({ pageToken, ...rest }) => rest),
         unlinkedFbPages: diag.unlinkedFbPages,
         totalFbPages: diag.totalFbPages,
+        token: diag.token,
       });
     } catch (e) {
       const msg = String(e.message || '');

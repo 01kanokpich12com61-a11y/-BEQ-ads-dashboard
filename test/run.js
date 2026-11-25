@@ -493,6 +493,36 @@ async function main() {
     const two = await meta.fetchPostsAndComments('999', 'Facebook', null, 2, 100, {});
     assert.equal(two.length, 2); ok('ดึงโพสต์ตามช่วงวันที่ / ทั้งหมด / จำนวนที่เลือก');
 
+    // ตรวจ Instagram: Meta ตอบ 0 แชทโดยไม่มี error + token ขาดสิทธิ์ + เพจยังไม่ subscribe webhook
+    const posted = [];
+    global.fetch = async (url, opts) => {
+      const u = String(url);
+      if (!u.includes('graph.facebook.com')) return realFetch2(url, opts);
+      const j = (o) => ({ ok: true, status: 200, json: async () => o });
+      if (opts && opts.method === 'POST') { posted.push(u); return j({ success: true }); }
+      if (u.includes('debug_token')) return j({ data: { is_valid: true, type: 'USER', app_id: '1', scopes: ['pages_show_list', 'instagram_basic'] } });
+      if (u.includes('/accounts')) return j({ data: [{ id: '999', name: 'Page', access_token: 'PT', instagram_business_account: { id: '1784', username: 'shop' } }] });
+      if (u.includes('/media')) return j({ data: [{ id: 'x' }] });
+      if (u.includes('/conversations')) return j({ data: [] });
+      if (u.includes('/subscribed_apps')) return j({ data: [] });
+      return j({ data: [] });
+    };
+    const diag = (await call('POST', '/api/settings/instagram/test')).json;
+    assert.equal(diag.ok, true, JSON.stringify(diag));
+    assert.ok(diag.token.missingScopes.includes('instagram_manage_messages'));
+    const igd = diag.igAccounts[0];
+    assert.equal(igd.convCount, 0);
+    assert.ok(igd.problems.some((x) => x.includes('0 แชท')) && igd.problems.some((x) => x.includes('webhook')), JSON.stringify(igd.problems));
+    ok('ตรวจ Instagram บอกสาเหตุ: ขาดสิทธิ์ / 0 แชท / ยังไม่เปิด webhook');
+
+    const sub = await fetch(base + '/api/settings/meta/subscribe-webhooks', { method: 'POST', headers: { cookie, 'X-Forwarded-Proto': 'https', Host: 'clinic.example.com' } });
+    const subJ = await sub.json();
+    // ในเทสต์ TRUST_PROXY ปิดอยู่ → เป็น http → ต้องปฏิเสธพร้อมคำอธิบาย
+    assert.equal(sub.status, 400); assert.ok(subJ.error.includes('https'));
+    const r2 = await meta.subscribeWebhooks('https://clinic.example.com/webhook', 'tok');
+    assert.ok(r2.pages[0].ok && posted.some((u) => u.includes('/999/subscribed_apps')));
+    ok('เปิดรับแชทอัตโนมัติ (subscribe webhook ของเพจ)');
+
     global.fetch = realFetch2;
   }
 
