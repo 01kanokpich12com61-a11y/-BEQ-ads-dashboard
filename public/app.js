@@ -1665,11 +1665,11 @@
             <div style="margin-bottom:16px">
               <label style="display:block;font-size:12.5px;font-weight:700;color:#334155;margin-bottom:6px">🔢 จำนวนแชทสูงสุดที่ดึง</label>
               <select name="limit" style="width:100%;padding:10px 14px;border-radius:10px;border:1.5px solid #cbd5e1;font-size:14px;background:#f8fafc">
-                <option value="100">100 แชท (เร็ว)</option>
-                <option value="200">200 แชท</option>
-                <option value="400" selected>400 แชท (แนะนำ)</option>
-                <option value="600">600 แชท</option>
-                <option value="1000">1,000 แชท (ช้า)</option>
+                <option value="200">200 แชท (เร็ว)</option>
+                <option value="500" selected>500 แชท (แนะนำ)</option>
+                <option value="1000">1,000 แชท</option>
+                <option value="2000">2,000 แชท (ดึงเยอะ)</option>
+                <option value="5000">5,000 แชท (ดึงสูงสุดทั้งปี)</option>
               </select>
             </div>
 
@@ -5871,10 +5871,10 @@ function boardShell() {
         }
 
         // ถ้าเป็นเพจ Facebook ให้ดึงเหมือนเดิมแบบเดิมทันทีผ่าน prompt ระบุจำนวนแชท
-        const defaultLimit = pageName.includes('Beq') ? 300 : 400;
-        const customLimit = prompt(`ระบุจำนวนแชทที่ต้องการดึงจากเพจ "${pageName}":`, String(defaultLimit));
+        const defaultLimit = pageName.includes('Beq') ? 500 : 500;
+        const customLimit = prompt(`ระบุจำนวนแชทที่ต้องการดึงจากเพจ "${pageName}" (สูงสุด 5,000 แชท):`, String(defaultLimit));
         if (customLimit === null) return;
-        const limitNum = Math.max(10, Math.min(Number(customLimit) || defaultLimit, 1000));
+        const limitNum = Math.max(10, Math.min(Number(customLimit) || defaultLimit, 5000));
         if (!confirm(`ต้องการดึงข้อมูลแชท ${limitNum} แชทของเพจ "${pageName}" หรือไม่?\n\n✨ ระบบจะนำเข้าและรวมข้อความใหม่จาก Meta ให้โดยอัตโนมัติ`)) return;
         el.disabled = true;
         el.textContent = '⏳ กำลังดึงแชท...';

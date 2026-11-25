@@ -660,10 +660,11 @@ async function api(req, res, url, session) {
     let fetchedCount = 0;
     const errors = [];
 
+    const reqLimit = Math.max(50, Math.min(Number(q.limit) || 300, 1000));
     for (const p of targetPages) {
       try {
         const pPlat = p.platform || 'Facebook';
-        const pPosts = await meta.fetchPostsAndComments(p.id, pPlat, p.fbPageId || null, 100);
+        const pPosts = await meta.fetchPostsAndComments(p.id, pPlat, p.fbPageId || null, reqLimit);
         pPosts.forEach(post => {
           post.pageName = p.name;
           const exIdx = allPosts.findIndex(x => x.id === post.id);
