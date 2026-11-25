@@ -68,6 +68,7 @@ const line = require('./lib/line');
 const audit = require('./lib/audit');
 const jobs = require('./lib/jobs');
 const reps = require('./lib/reps');
+const assistant = require('./lib/assistant');
 const { Readable } = require('node:stream');
 const sla = require('./lib/sla');
 const { resolveRange, isDate, today, eachDay, addDays } = require('./lib/dates');
@@ -642,6 +643,8 @@ function parseLimit(v, def, min = 1) {
   return Math.max(min, Math.min(n, meta.ALL_LIMIT));
 }
 
+const assistantUsage = new Map(); // username -> [timestamps]
+
 // คำขอที่ทำเป็นงานเบื้องหลังได้ (เรียกด้วย ?background=1)
 const BACKGROUND_ROUTES = new Set([
   'POST /api/import/facebook-conversations',
@@ -695,6 +698,23 @@ async function api(req, res, url, session) {
       if (jm[2] && req.method === 'POST') { jobs.cancel(job.id); return send(res, 200, jobs.publicView(job)); }
       if (req.method === 'GET') return send(res, 200, jobs.publicView(job));
     }
+  }
+
+  /* ---------- น้อง AI: ตอบคำถามจากข้อมูลจริงในเว็บ (Claude + เครื่องมืออ่านข้อมูล) ---------- */
+  if (route === 'GET /api/assistant/status') {
+    return send(res, 200, { enabled: assistant.enabled(), model: assistant.enabled() ? assistant.model() : null });
+  }
+  if (route === 'POST /api/assistant') {
+    if (!assistant.enabled()) return send(res, 200, { fallback: true });
+    // จำกัดการใช้ต่อผู้ใช้ กันค่าใช้จ่ายบานปลาย: 40 คำถาม / 10 นาที
+    const key = session.user.username; const now = Date.now();
+    const hist = (assistantUsage.get(key) || []).filter((t) => now - t < 10 * 60 * 1000);
+    if (hist.length >= 40) return send(res, 429, { error: 'ถามถี่เกินไป พักสักครู่แล้วลองใหม่นะครับ' });
+    hist.push(now); assistantUsage.set(key, hist);
+    const b = await readJson(req);
+    const r = await assistant.ask(Array.isArray(b.messages) ? b.messages : [], session.user);
+    audit.log(session.user.username, 'assistant_ask', String((b.messages || []).slice(-1)[0]?.text || '').slice(0, 80), clientIp(req));
+    return send(res, 200, { text: r.text, tools: r.tools });
   }
 
   if (route === 'GET /api/me') {
@@ -2812,6 +2832,7 @@ function productionWarnings() {
   const warn = (m) => console.warn('  ⚠️  ' + m);
   if (!store.hasSupabase) warn('ยังไม่ได้ตั้ง SUPABASE_URL / SUPABASE_KEY — บน Render ข้อมูล (แชท ลีด ผู้ใช้ การตั้งค่า) จะหายทุกครั้งที่ deploy หรือรีสตาร์ท');
   if (!process.env.ADMIN_PASSWORD) warn('ยังไม่ได้ตั้ง ADMIN_PASSWORD');
+  if (!process.env.ANTHROPIC_API_KEY) warn('ยังไม่ได้ตั้ง ANTHROPIC_API_KEY — น้อง AI จะตอบได้แค่คำถามพื้นฐานตามคำสำคัญ');
   if (!process.env.WEBHOOK_VERIFY_TOKEN) warn('ยังไม่ได้ตั้ง WEBHOOK_VERIFY_TOKEN — ค่า Verify Token อาจเปลี่ยนหลังรีสตาร์ท');
   if (!config.secureCookie) warn('COOKIE_SECURE ปิดอยู่ — ควรเปิดเมื่อใช้งานผ่าน HTTPS');
 }

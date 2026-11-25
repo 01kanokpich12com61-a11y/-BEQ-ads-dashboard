@@ -591,6 +591,35 @@ async function main() {
     assert.ok(apptCol.cards.some((c) => c.id === 'OLD-1'), 'การ์ดต้องย้ายไปคอลัมน์นัดแล้ว');
     ok('เปลี่ยนสถานะจาก Inbox → Board ย้ายตาม (รวมแชทเก่า) + แจ้งเรียลไทม์');
 
+    // น้อง AI: ไม่มี key → บอกให้ใช้โหมดพื้นฐาน, มี key → เรียก Claude + เครื่องมืออ่านข้อมูลจริง
+    delete process.env.ANTHROPIC_API_KEY;
+    assert.equal((await call('POST', '/api/assistant', { messages: [{ role: 'user', text: 'สวัสดี' }] })).json.fallback, true);
+    process.env.ANTHROPIC_API_KEY = 'test-key';
+    const claudeCalls = [];
+    const prevFetch = global.fetch;
+    global.fetch = async (url, opts) => {
+      const u = String(url);
+      if (!u.includes('api.anthropic.com')) return prevFetch(url, opts);
+      const body = JSON.parse(opts.body); claudeCalls.push(body);
+      const j = (o) => ({ ok: true, status: 200, json: async () => o });
+      if (claudeCalls.length === 1) return j({ stop_reason: 'tool_use', content: [{ type: 'tool_use', id: 't1', name: 'search_leads', input: { query: 'ลูกค้าเก่า' } }] });
+      const toolResult = JSON.parse(body.messages[body.messages.length - 1].content[0].content);
+      return j({ stop_reason: 'end_turn', content: [{ type: 'text', text: `เจอ ${toolResult.total} คน: ${toolResult.leads.map((l) => l.name + ' (' + l.status + ')').join(', ')}` }] });
+    };
+    const ai = (await call('POST', '/api/assistant', { messages: [{ role: 'user', text: 'ลูกค้าเก่าอยู่สถานะไหน' }] })).json;
+    global.fetch = prevFetch; delete process.env.ANTHROPIC_API_KEY;
+    assert.equal(claudeCalls[0].headers, undefined);
+    assert.ok(claudeCalls[0].tools.some((x) => x.name === 'get_ads_summary') && claudeCalls[0].system.includes('ห้ามเดา'));
+    assert.ok(ai.text.includes('ลูกค้าเก่า') && ai.text.includes('นัดแล้ว'), JSON.stringify(ai));
+    assert.deepEqual(ai.tools, ['search_leads']);
+    const assistantMod = require('../lib/assistant');
+    for (const tname of ['get_ads_summary', 'count_leads', 'get_sla', 'get_followups', 'get_comments', 'get_system_status']) {
+      const out = await assistantMod.runTool(tname, tname === 'count_leads' ? { group_by: 'status' } : {});
+      assert.ok(out && !out.error, tname + ' ' + JSON.stringify(out).slice(0, 200));
+      assert.ok(!JSON.stringify(out).includes('shh-secret') && !JSON.stringify(out).includes('rt-secret'), 'ห้ามมีความลับในข้อมูลที่ส่งให้ AI');
+    }
+    ok('น้อง AI ตอบจากข้อมูลจริงผ่านเครื่องมือ (Claude) + ไม่ส่งความลับออกไป + โหมดพื้นฐานเมื่อไม่มี key');
+
     global.fetch = realFetch2;
   }
 

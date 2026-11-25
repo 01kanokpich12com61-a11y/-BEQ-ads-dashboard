@@ -27,6 +27,7 @@ npm test                 # ชุดทดสอบ
    | `SUPABASE_URL`, `SUPABASE_KEY` | **สำคัญมาก** — ดิสก์ของ Render ถูกล้างทุกครั้งที่ deploy/รีสตาร์ท ถ้าไม่มี Supabase แชท ลีด ผู้ใช้ และการตั้งค่าจะหาย |
    | `META_APP_ID`, `META_APP_SECRET`, `META_ACCESS_TOKEN`, `META_AD_ACCOUNT_ID` | เชื่อม Meta โดยไม่ต้องเก็บ token ไว้ในไฟล์ |
    | `WEBHOOK_VERIFY_TOKEN` | ค่าเดียวกับที่ใส่ใน Meta Webhooks (ให้คงที่ข้ามการรีสตาร์ท) |
+   | `ANTHROPIC_API_KEY` | ให้ "น้อง AI" ตอบทุกคำถามจากข้อมูลจริงในเว็บ (ใช้ Claude; ไม่ตั้ง = ตอบได้แค่คำถามพื้นฐาน) · เปลี่ยนรุ่นได้ด้วย `ASSISTANT_MODEL` |
    | `LINE_CHANNEL_SECRET`, `LINE_CHANNEL_ACCESS_TOKEN` | ถ้าใช้ LINE OA (webhook LINE จะปฏิเสธทุกคำขอถ้าไม่มี Channel Secret) |
 
    Render ถูกนับเป็น production อัตโนมัติ: เปิด Secure cookie และ Trust proxy ให้เอง และพิมพ์คำเตือนใน Logs ถ้ายังตั้งค่าไม่ครบ

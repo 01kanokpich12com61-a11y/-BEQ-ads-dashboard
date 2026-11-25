@@ -106,7 +106,26 @@
     </svg>`;
   }
 
+  // ถามน้อง AI: ใช้ Claude ฝั่งเซิร์ฟเวอร์ (อ่านข้อมูลจริงทั้งเว็บ) ถ้าตั้ง ANTHROPIC_API_KEY ไว้
+  // ถ้ายังไม่ตั้ง/เรียกไม่สำเร็จ จะใช้วิธีเดิม (ตอบตามคำสำคัญจากข้อมูลที่โหลดไว้ในหน้า)
   async function answerGhostQuestion(q) {
+    const history = (S.ghostMsgs || []).filter((m) => !m.pending && m.text).map((m) => ({ role: m.from === 'user' ? 'user' : 'assistant', text: m.text }));
+    const typing = { from: 'ai', text: '🔎 กำลังค้นข้อมูลในระบบให้นะครับ…', pending: true };
+    S.ghostMsgs.push(typing); render();
+    const sc = document.getElementById('ghost-scroll'); if (sc) sc.scrollTop = sc.scrollHeight;
+    try {
+      const r = await api('/api/assistant', { method: 'POST', body: { messages: history } });
+      if (r && !r.fallback && r.text) { S.ghostSmart = true; return r.text; }
+      S.ghostSmart = false;
+    } catch (e) {
+      if (!/ANTHROPIC|503/.test(e.message || '')) { return `ขอโทษครับ ตอนนี้น้องเชื่อมต่อผู้ช่วย AI ไม่ได้ (${e.message}) ลองใหม่อีกครั้งนะครับ`; }
+    } finally {
+      S.ghostMsgs = S.ghostMsgs.filter((m) => m !== typing);
+    }
+    return answerGhostQuestionLocal(q);
+  }
+
+  async function answerGhostQuestionLocal(q) {
     const rawTxt = String(q || '').trim();
     const txt = rawTxt.toLowerCase();
 
@@ -1570,6 +1589,7 @@
               ${ghostSvg(32)}
               <div>
                 <div class="ghost-chat-title">น้อง AI (เด็กน้อยผู้ช่วยประจำคลินิก) 👦🏻</div>
+                <div style="font-size:10.5px;color:${S.ghostSmart === false ? '#b45309' : '#059669'};font-weight:600">${S.ghostSmart === false ? 'โหมดพื้นฐาน (ยังไม่ได้เชื่อม Claude)' : 'ตอบจากข้อมูลจริงในระบบ'}</div>
                 <div class="ghost-chat-subtitle">ผู้ช่วยถาม-ตอบ & สรุปทุกข้อมูลแทนการดูเว็บครับผม ✨</div>
               </div>
             </div>
