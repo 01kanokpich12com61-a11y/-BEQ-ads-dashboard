@@ -467,6 +467,32 @@ async function main() {
     assert.equal(job.result.ok, true); assert.equal(job.result.importedLeads, 3);
     assert.equal((await call('GET', '/api/jobs/0123456789abcdef')).status, 404); ok('นำเข้าแชทเป็นงานเบื้องหลัง + ถามความคืบหน้าได้');
 
+    // "ทั้งหมด" + จำนวนข้อความต่อแชทที่ผู้ใช้เลือก
+    const allStart = await fetch(base + '/api/import/facebook-conversations?background=1', { method: 'POST', headers: { 'Content-Type': 'application/json', cookie }, body: JSON.stringify({ pageId: '999', limit: 'all', messagesPerChat: 2 }) });
+    const allJobId = (await allStart.json()).jobId;
+    let allJob;
+    for (let i = 0; i < 50; i++) { allJob = (await call('GET', '/api/jobs/' + allJobId)).json; if (allJob.status !== 'running') break; await new Promise((r) => setTimeout(r, 100)); }
+    assert.equal(allJob.status, 'done', JSON.stringify(allJob)); ok('ดึงแชทแบบ "ทั้งหมด" ได้');
+
+    // โพสต์: กรองช่วงวันที่ + จำนวนที่เลือก
+    global.fetch = async (url, opts) => {
+      const u = String(url);
+      if (!u.includes('graph.facebook.com')) return realFetch2(url, opts);
+      const j = (o) => ({ ok: true, status: 200, json: async () => o });
+      if (u.includes('fields=access_token')) return j({ access_token: 'PAGE-TOKEN', id: '999' });
+      if (u.includes('/published_posts') || u.includes('/feed')) return j({ data: [
+        { id: 'p1', message: 'ใหม่', created_time: '2026-11-20T03:00:00+0000' },
+        { id: 'p2', message: 'กลาง', created_time: '2026-11-10T03:00:00+0000' },
+        { id: 'p3', message: 'เก่า', created_time: '2026-10-01T03:00:00+0000' }] });
+      return j({ data: [] });
+    };
+    const ranged2 = await meta.fetchPostsAndComments('999', 'Facebook', null, 10, 100, { afterDate: '2026-11-05', beforeDate: '2026-11-15' });
+    assert.deepEqual(ranged2.map((p) => p.id), ['p2']);
+    const all2 = await meta.fetchPostsAndComments('999', 'Facebook', null, meta.ALL_LIMIT, 100, {});
+    assert.equal(all2.length, 3);
+    const two = await meta.fetchPostsAndComments('999', 'Facebook', null, 2, 100, {});
+    assert.equal(two.length, 2); ok('ดึงโพสต์ตามช่วงวันที่ / ทั้งหมด / จำนวนที่เลือก');
+
     global.fetch = realFetch2;
   }
 

@@ -20,6 +20,7 @@
     scheduleModalOpen: false,
     quickEditLead: null,
     importModal: null, // { mode: 'one'|'all', pageId, pageName, afterDate, beforeDate, limit }
+    postsModal: null, // { pageId, pageName } หน้าต่างเลือกช่วง/จำนวนตอนดึงโพสต์
     audit: { data: null, err: null, action: '', q: '', from: '', to: '', limit: 100 },
     chat: { id: null, loading: false, data: null, err: null, sending: false, msg: null },
     users: { data: null, err: null, result: null },
@@ -823,7 +824,8 @@
     '/api/posts-comments/sync',
     '/api/meta/sync-all',
   ]);
-  const JOB_PHASE = { starting: 'กำลังเริ่ม', conversations: 'กำลังดึงรายการแชท', messages: 'กำลังดึงข้อความย้อนหลัง' };
+  const JOB_PHASE = { starting: 'กำลังเริ่ม', conversations: 'กำลังดึงรายการแชท', messages: 'กำลังดึงข้อความย้อนหลัง', posts: 'กำลังดึงโพสต์และคอมเมนต์' };
+  const JOB_ALL = 100000; // ตรงกับ ALL_LIMIT ฝั่งเซิร์ฟเวอร์ = เลือก "ทั้งหมด"
 
   function jobPanel() {
     let el = document.getElementById('bg-job-panel');
@@ -853,11 +855,12 @@
     let cancelled = false;
     const render = (j) => {
       const p = (j && j.progress) || {};
-      const pct = p.total ? Math.min(100, Math.round((p.done / p.total) * 100)) : 0;
+      const isAll = p.total >= JOB_ALL;
+      const pct = p.total && !isAll ? Math.min(100, Math.round((p.done / p.total) * 100)) : 0;
       panel.innerHTML = `<div style="font-weight:600;margin-bottom:4px">⏳ ${startJson.alreadyRunning ? 'มีงานนี้กำลังทำอยู่แล้ว — ' : ''}กำลังดึงข้อมูลจาก Meta</div>
-        <div>${esc(JOB_PHASE[p.phase] || p.phase || '')}${p.total ? ` ${Number(p.done || 0).toLocaleString()} / ${Number(p.total).toLocaleString()}` : ''}</div>
+        <div>${esc(JOB_PHASE[p.phase] || p.phase || '')}${p.total ? ` ${Number(p.done || 0).toLocaleString()}${isAll ? ' รายการ (ดึงทั้งหมด)' : ` / ${Number(p.total).toLocaleString()}`}` : ''}</div>
         ${p.note ? `<div style="color:#6b7280">${esc(p.note)}</div>` : ''}
-        <div style="height:6px;background:#eef2f7;border-radius:4px;margin:8px 0;overflow:hidden"><div style="height:100%;width:${pct}%;background:#22c55e"></div></div>
+        <div style="height:6px;background:#eef2f7;border-radius:4px;margin:8px 0;overflow:hidden"><div style="height:100%;width:${isAll ? 100 : pct}%;background:${isAll ? 'repeating-linear-gradient(45deg,#22c55e 0 10px,#86efac 10px 20px)' : '#22c55e'}"></div></div>
         <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;color:#6b7280;font-size:12px"><span>ปิดหน้านี้ได้ งานจะทำต่อบนเซิร์ฟเวอร์</span>
         <button type="button" id="bg-job-cancel" style="border:1px solid #e5e7eb;background:#fff;border-radius:8px;padding:3px 10px;cursor:pointer">${cancelled ? 'กำลังหยุด…' : 'หยุด'}</button></div>`;
       const btn = panel.querySelector('#bg-job-cancel');
@@ -1691,6 +1694,81 @@
     `;
   }
 
+  // ช่องเลือกจำนวน: ตัวเลือกสำเร็จรูป + "ทั้งหมด" + พิมพ์จำนวนเองได้
+  function fetchCountFieldHtml(name, label, options, def, unit) {
+    const sel = 'width:100%;padding:10px 14px;border-radius:10px;border:1.5px solid #cbd5e1;font-size:14px;background:#f8fafc;box-sizing:border-box';
+    return `<label style="display:block;font-size:12.5px;font-weight:700;color:#334155;margin-bottom:6px">${label}</label>
+      <div style="display:grid;grid-template-columns:1.4fr 1fr;gap:8px">
+        <select name="${name}" style="${sel}">${options.map(([v, t]) => `<option value="${v}"${v === def ? ' selected' : ''}>${t}</option>`).join('')}</select>
+        <input type="number" min="1" step="1" name="${name}Custom" placeholder="หรือพิมพ์จำนวนเอง" title="พิมพ์จำนวน${unit}ที่ต้องการ (ใช้แทนตัวเลือกด้านซ้าย)" style="${sel};background:#fff">
+      </div>`;
+  }
+  // อ่านค่าจากช่องเลือกจำนวน: ถ้าพิมพ์เองให้ใช้ค่าที่พิมพ์ ไม่งั้นใช้ตัวเลือก ('all' = ทั้งหมด)
+  function fetchCountValue(fd, name, def) {
+    const custom = Number(fd[name + 'Custom']);
+    if (Number.isFinite(custom) && custom > 0) return Math.floor(custom);
+    const v = fd[name];
+    if (v === 'all') return 'all';
+    return Number(v) || def;
+  }
+  const countLabel = (v, unit) => (v === 'all' ? `ทั้งหมด` : `${Number(v).toLocaleString()} ${unit}`);
+
+  function postsModalHtml() {
+    if (!S.postsModal) return '';
+    const m = S.postsModal;
+    const inp = 'width:100%;padding:10px 12px;border-radius:10px;border:1.5px solid #cbd5e1;font-size:14px;box-sizing:border-box;background:#fff;cursor:pointer';
+    const quick = 'padding:3px 8px;font-size:11.5px;border-radius:6px;background:#f8fafc;border:1px solid #e2e8f0';
+    return `
+      <div class="modal-backdrop" data-act="posts-modal-close" style="position:fixed;inset:0;background:rgba(15,23,42,0.5);backdrop-filter:blur(3px);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px">
+        <div class="modal-card" style="background:#fff;border-radius:18px;max-width:520px;width:100%;box-shadow:0 20px 40px -8px rgba(0,0,0,0.25);overflow:hidden;border:1px solid #e2e8f0">
+          <div style="padding:18px 22px;border-bottom:1px solid #f1f5f9;display:flex;justify-content:space-between;align-items:center;background:#f0fdf4">
+            <div style="display:flex;align-items:center;gap:10px">
+              <span style="font-size:22px">💬</span>
+              <div>
+                <h3 style="margin:0;font-size:16px;color:#0f172a;font-weight:700">ดึงโพสต์ & คอมเมนต์ ${m.pageId ? `"${esc(m.pageName || '')}"` : 'ทุกเพจ'}</h3>
+                <span style="font-size:12px;color:#64748b">เลือกว่าจะดึงทั้งหมด หรือดึงแค่ช่วงที่ต้องการ</span>
+              </div>
+            </div>
+            <button type="button" data-act="posts-modal-close" style="background:none;border:0;color:#94a3b8;font-size:20px;cursor:pointer;padding:4px;line-height:1">✕</button>
+          </div>
+          <form data-form="do-posts-sync" style="padding:22px">
+            ${m.pageId ? `<input type="hidden" name="pageId" value="${esc(m.pageId)}">` : ''}
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:10px">
+              <div>
+                <label style="display:block;font-size:12.5px;font-weight:700;color:#334155;margin-bottom:6px">📅 ตั้งแต่วันที่</label>
+                <input type="date" name="afterDate" id="pm-after-date" style="${inp}">
+              </div>
+              <div>
+                <label style="display:block;font-size:12.5px;font-weight:700;color:#334155;margin-bottom:6px">📅 ถึงวันที่</label>
+                <input type="date" name="beforeDate" id="pm-before-date" style="${inp}">
+              </div>
+            </div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px">
+              <span style="font-size:11.5px;color:#64748b;align-self:center;margin-right:2px">ช่วงลัด:</span>
+              <button type="button" class="btn" data-act="import-quick-range" data-days="all" style="${quick}">ทั้งหมด</button>
+              <button type="button" class="btn" data-act="posts-quick-range" data-days="30" style="${quick}">30 วัน</button>
+              <button type="button" class="btn" data-act="posts-quick-range" data-days="90" style="${quick}">3 เดือน</button>
+              <button type="button" class="btn" data-act="posts-quick-range" data-days="365" style="${quick}">1 ปี</button>
+            </div>
+            <div style="margin-bottom:16px">
+              ${fetchCountFieldHtml('limit', '📝 จำนวนโพสต์ต่อเพจ', [['100', '100 โพสต์ (เร็ว)'], ['300', '300 โพสต์ (แนะนำ)'], ['1000', '1,000 โพสต์'], ['all', 'ทั้งหมด (ช้า)']], '300', 'โพสต์')}
+            </div>
+            <div style="margin-bottom:16px">
+              ${fetchCountFieldHtml('commentsPerPost', '💬 คอมเมนต์ต่อโพสต์', [['100', '100 คอมเมนต์'], ['500', '500 คอมเมนต์ (แนะนำ)'], ['all', 'ทั้งหมด']], '500', 'คอมเมนต์')}
+            </div>
+            <div style="padding:12px;background:#f0fdf4;border-radius:10px;border:1px solid #bbf7d0;font-size:12.5px;color:#166534;line-height:1.6;margin-bottom:20px">
+              💡 เว้นวันที่ว่างไว้ = ดึงทุกช่วงเวลา · โพสต์ที่มีอยู่แล้วจะถูกอัปเดต ไม่ซ้ำ<br>
+              ⏳ ระบบดึงอยู่เบื้องหลัง ปิดหน้านี้ได้
+            </div>
+            <div style="display:flex;justify-content:flex-end;gap:10px">
+              <button type="button" class="btn btn-secondary" data-act="posts-modal-close">ยกเลิก</button>
+              <button type="button" class="btn btn-primary" data-act="posts-modal-submit" style="background:#059669;color:#fff;padding:9px 22px">💬 เริ่มดึงข้อมูล</button>
+            </div>
+          </form>
+        </div>
+      </div>`;
+  }
+
   function importModalHtml() {
     if (!S.importModal) return '';
     const m = S.importModal;
@@ -1704,7 +1782,7 @@
               <span style="font-size:22px">📥</span>
               <div>
                 <h3 style="margin:0;font-size:16px;color:#0f172a;font-weight:700">ดึงข้อมูลแชท ${m.mode === 'all' ? 'ทุกเพจ' : `"${esc(m.pageName || '')}"`}</h3>
-                <span style="font-size:12px;color:#64748b">เลือกช่วงวันที่ที่ต้องการดึงข้อมูลจาก Meta</span>
+                <span style="font-size:12px;color:#64748b">เลือกว่าจะดึงทั้งหมด หรือดึงแค่ช่วงที่ต้องการ</span>
               </div>
             </div>
             <button type="button" data-act="import-modal-close" style="background:none;border:0;color:#94a3b8;font-size:20px;cursor:pointer;padding:4px;line-height:1">✕</button>
@@ -1727,6 +1805,7 @@
             <!-- ปุ่มลัดเลือกช่วงเวลาเร็ว -->
             <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px">
               <span style="font-size:11.5px;color:#64748b;align-self:center;margin-right:2px">ช่วงลัด:</span>
+              <button type="button" class="btn" data-act="import-quick-range" data-days="all" style="padding:3px 8px;font-size:11.5px;border-radius:6px;background:#f8fafc;border:1px solid #e2e8f0">ทั้งหมด (ไม่จำกัดวันที่)</button>
               <button type="button" class="btn" data-act="import-quick-range" data-days="7" style="padding:3px 8px;font-size:11.5px;border-radius:6px;background:#f8fafc;border:1px solid #e2e8f0">7 วันล่าสุด</button>
               <button type="button" class="btn" data-act="import-quick-range" data-days="30" style="padding:3px 8px;font-size:11.5px;border-radius:6px;background:#f8fafc;border:1px solid #e2e8f0">30 วันล่าสุด</button>
               <button type="button" class="btn" data-act="import-quick-range" data-days="90" style="padding:3px 8px;font-size:11.5px;border-radius:6px;background:#ecfdf5;border:1px solid #a7f3d0;color:#065f46;font-weight:600">3 เดือน (แนะนำ)</button>
@@ -1734,20 +1813,16 @@
             </div>
 
             <div style="margin-bottom:16px">
-              <label style="display:block;font-size:12.5px;font-weight:700;color:#334155;margin-bottom:6px">🔢 จำนวนแชทสูงสุดที่ดึง</label>
-              <select name="limit" style="width:100%;padding:10px 14px;border-radius:10px;border:1.5px solid #cbd5e1;font-size:14px;background:#f8fafc">
-                <option value="200">200 แชท (เร็ว)</option>
-                <option value="500" selected>500 แชท (แนะนำ)</option>
-                <option value="1000">1,000 แชท</option>
-                <option value="2000">2,000 แชท (ดึงเยอะ)</option>
-                <option value="5000">5,000 แชท (ดึงสูงสุดทั้งปี)</option>
-              </select>
+              ${fetchCountFieldHtml('limit', '🔢 จำนวนแชทที่ดึง', [['200', '200 แชท (เร็ว)'], ['500', '500 แชท (แนะนำ)'], ['1000', '1,000 แชท'], ['5000', '5,000 แชท'], ['all', 'ทั้งหมด (ช้า)']], '500', 'แชท')}
+            </div>
+            <div style="margin-bottom:16px">
+              ${fetchCountFieldHtml('messagesPerChat', '💬 ข้อความย้อนหลังต่อแชท', [['50', '50 ข้อความล่าสุด (เร็ว)'], ['300', '300 ข้อความ (แนะนำ)'], ['all', 'ทั้งหมดเท่าที่ Meta ให้']], '300', 'ข้อความ')}
             </div>
 
             <div style="padding:12px;background:#f0fdf4;border-radius:10px;border:1px solid #bbf7d0;font-size:12.5px;color:#166534;line-height:1.6;margin-bottom:20px">
-              💡 ระบบจะดึงเฉพาะแชทที่มีข้อความภายในช่วงวันที่ที่เลือก
-              แชทที่ไม่มีข้อความในช่วงนี้จะถูกข้ามไปอัตโนมัติ<br>
-              ⚠️ ข้อมูลลูกค้าและแชทเดิมของเพจนี้จะถูก<b>แทนที่ด้วยข้อมูลใหม่</b>
+              💡 เว้นวันที่ว่างไว้ = ดึงทุกช่วงเวลา · ระบบรวมข้อมูลใหม่เข้ากับของเดิม ไม่ลบของเดิม<br>
+              ⏳ ยิ่งดึงเยอะยิ่งใช้เวลานาน ระบบดึงอยู่เบื้องหลัง ปิดหน้านี้ได้<br>
+              ℹ️ Meta อาจไม่ส่งข้อความที่เก่ามากในบางแชท ระบบจะดึงเท่าที่ Meta อนุญาต
             </div>
             <div style="display:flex;justify-content:flex-end;gap:10px">
               <button type="button" class="btn btn-secondary" data-act="import-modal-close">ยกเลิก</button>
@@ -1779,6 +1854,7 @@
       ${scheduleModalHtml()}
       ${quickEditModalHtml()}
       ${importModalHtml()}
+      ${postsModalHtml()}
       ${floatingGhostHtml()}
     </div>`;
     afterRender();
@@ -5584,6 +5660,16 @@ function boardShell() {
         S.importModal = null;
         render();
       }
+      else if (act === 'posts-quick-range') {
+        const d = new Date(); const f = new Date(); f.setDate(f.getDate() - parseInt(el.dataset.days || 30, 10));
+        const ymd = (x) => `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`;
+        const a = document.getElementById('pm-after-date'); const b = document.getElementById('pm-before-date');
+        if (a) a.value = ymd(f); if (b) b.value = ymd(d);
+      }
+      else if (act === 'import-quick-range' && el.dataset.days === 'all') {
+        for (const id of ['m-after-date', 'm-before-date', 'pm-after-date', 'pm-before-date']) { const i = document.getElementById(id); if (i) i.value = ''; }
+        if (S.importModal) { S.importModal.afterDate = ''; S.importModal.beforeDate = ''; }
+      }
       else if (act === 'import-quick-range') {
         const days = parseInt(el.dataset.days || 90, 10);
         const toD = new Date();
@@ -5609,12 +5695,15 @@ function boardShell() {
           const mode = fd.mode;
           const afterDate = fd.afterDate || '';
           const beforeDate = fd.beforeDate || '';
-          const limit = Number(fd.limit) || 400;
+          const limit = fetchCountValue(fd, 'limit', 500);
+          const messagesPerChat = fetchCountValue(fd, 'messagesPerChat', 300);
           const pageId = fd.pageId || null;
+          S.importModal = null;
+          render();
           (async () => {
             try {
               if (mode === 'all') {
-                const r = await api('/api/import/facebook-conversations-all', { method: 'POST', body: { limit, afterDate, beforeDate } });
+                const r = await api('/api/import/facebook-conversations-all', { method: 'POST', body: { limit, messagesPerChat, afterDate, beforeDate } });
                 if (r.ok) {
                   const errText = r.errors && r.errors.length ? (' (⚠️ มีข้อผิดพลาด: ' + r.errors.join('; ') + ')') : '';
                   const dateRange = afterDate && beforeDate ? ` ช่วง ${afterDate} ถึง ${beforeDate}` : '';
@@ -5622,7 +5711,7 @@ function boardShell() {
                   await refreshAfterImport();
                 }
               } else {
-                const r = await api('/api/import/facebook-conversations', { method: 'POST', body: { pageId, limit, afterDate, beforeDate } });
+                const r = await api('/api/import/facebook-conversations', { method: 'POST', body: { pageId, limit, messagesPerChat, afterDate, beforeDate } });
                 if (r.ok) {
                   const dateRange = afterDate && beforeDate ? ` ช่วง ${afterDate} ถึง ${beforeDate}` : '';
                   S.flash = { type: 'ok', text: `นำเข้าบทสนทนาเพจ ${r.pageName} สำเร็จ${dateRange}: เพิ่มลูกค้าใหม่ ${r.importedLeads} ราย, ${r.importedMsgs} ข้อความ` };
@@ -5909,59 +5998,13 @@ function boardShell() {
         }
       }
       else if (act === 'fb-import-all') {
-        if (!confirm('ต้องการดึงและซิงค์แชทของทุกเพจล่าสุดหรือไม่?\n\n✨ ระบบจะดึงข้อความใหม่ล่าสุดจาก Meta มารวมเข้ากับระบบ โดยไม่ทำให้ข้อมูลที่มีอยู่เดิมสูญหาย')) return;
-        el.disabled = true;
-        const originalText = el.textContent;
-        el.textContent = '⏳ กำลังดึงแชททุกเพจ...';
-        try {
-          const r = await api('/api/import/facebook-conversations-all', { method: 'POST', body: { limit: 400 } });
-          if (r.ok) {
-            const errText = r.errors && r.errors.length ? (' (⚠️ มีข้อผิดพลาด: ' + r.errors.join('; ') + ')') : '';
-            S.flash = { type: r.errors && r.errors.length && !r.totalImportedLeads ? 'err' : 'ok', text: `ดึงประวัติแชทสำเร็จ! เพิ่มลูกค้าใหม่ ${r.totalImportedLeads} ราย, ${r.totalImportedMsgs} ข้อความ${errText}` };
-            await refreshAfterImport();
-          }
-        } catch (e) {
-          S.flash = { type: 'err', text: e.message || 'ดึงแชทไม่สำเร็จ' };
-          render();
-        } finally {
-          el.disabled = false;
-          el.textContent = originalText;
-        }
+        S.importModal = { mode: 'all', afterDate: '', beforeDate: '' };
+        render();
         return;
       }
       else if (act === 'fb-import-conv') {
-        const pageId = el.dataset.pageId;
-        const pageName = el.dataset.pageName;
-        const platform = el.dataset.platform || 'Facebook';
-
-        // ถ้าเป็น Instagram ให้เปิด Modal เลือกวันที่ตามต้องการ
-        if (platform === 'Instagram') {
-          S.importModal = { mode: 'one', pageId, pageName, platform: 'Instagram', afterDate: '', beforeDate: '' };
-          render();
-          return;
-        }
-
-        // ถ้าเป็นเพจ Facebook ให้ดึงเหมือนเดิมแบบเดิมทันทีผ่าน prompt ระบุจำนวนแชท
-        const defaultLimit = pageName.includes('Beq') ? 500 : 500;
-        const customLimit = prompt(`ระบุจำนวนแชทที่ต้องการดึงจากเพจ "${pageName}" (สูงสุด 5,000 แชท):`, String(defaultLimit));
-        if (customLimit === null) return;
-        const limitNum = Math.max(10, Math.min(Number(customLimit) || defaultLimit, 5000));
-        if (!confirm(`ต้องการดึงข้อมูลแชท ${limitNum} แชทของเพจ "${pageName}" หรือไม่?\n\n✨ ระบบจะนำเข้าและรวมข้อความใหม่จาก Meta ให้โดยอัตโนมัติ`)) return;
-        el.disabled = true;
-        el.textContent = '⏳ กำลังดึงแชท...';
-        try {
-          const r = await api('/api/import/facebook-conversations', { method: 'POST', body: { pageId, limit: limitNum } });
-          if (r.ok) {
-            S.flash = { type: 'ok', text: `นำเข้าบทสนทนาเพจ ${r.pageName} สำเร็จ: เพิ่มลูกค้าใหม่ ${r.importedLeads} ราย, ${r.importedMsgs} ข้อความ` };
-            await refreshAfterImport();
-          }
-        } catch (e) {
-          S.flash = { type: 'err', text: e.message || 'ดึงแชทย้อนหลังไม่สำเร็จ' };
-          render();
-        } finally {
-          el.disabled = false;
-          el.textContent = '📥 ดึงแชท';
-        }
+        S.importModal = { mode: 'one', pageId: el.dataset.pageId, pageName: el.dataset.pageName, platform: el.dataset.platform || 'Facebook', afterDate: '', beforeDate: '' };
+        render();
         return;
       }
       else if (act === 'page-delete') {
@@ -5990,20 +6033,9 @@ function boardShell() {
       }
       /* ── upload page ── */
       else if (act === 'sync-comments-api') {
-        el.disabled = true;
-        const orig = el.textContent;
-        el.textContent = 'กำลังดึง Post & comment…';
-        try {
-          const res = await api('/api/posts-comments/sync', { method: 'POST', body: {} });
-          S.flash = { type: 'ok', text: 'ดึง Post & comment สำเร็จแล้ว (' + (res.count || 0) + ' โพสต์)' };
-          await loadComments();
-        } catch (e) {
-          S.flash = { type: 'err', text: e.message || 'ดึง Post & comment ไม่สำเร็จ' };
-        } finally {
-          el.disabled = false;
-          el.textContent = orig;
-          render();
-        }
+        S.postsModal = { pageId: null, pageName: '' };
+        render();
+        return;
       }
       else if (act === 'c-filter') {
         if (!S.comments) S.comments = { data: null, loading: false, err: null, range: '30d', from: '', to: '', filterStatus: 'all' };
@@ -6014,19 +6046,37 @@ function boardShell() {
       else if (act === 'upload-cancel' || act === 'upload-reset') { S.upload.rows = []; S.upload.result = null; S.upload.err = null; await loadUpload(); }
       else if (act === 'upload-tab') { S.upload.tab = el.dataset.tab; S.upload.rows = []; S.upload.result = null; S.upload.err = null; renderUploadBody(); }
       else if (act === 'meta-posts-sync-all' || act === 'sync-page-posts') {
-        const pageId = el.dataset.pageId;
-        el.disabled = true;
-        const orig = el.textContent;
-        el.textContent = 'กำลังดึง Post & comment…';
+        S.postsModal = { pageId: el.dataset.pageId || null, pageName: el.dataset.pageName || '' };
+        render();
+        return;
+      }
+      else if (act === 'posts-modal-close') {
+        if (ev.target.closest('.modal-card') && !ev.target.closest('button[data-act="posts-modal-close"]')) return;
+        S.postsModal = null;
+        render();
+      }
+      else if (act === 'posts-modal-submit') {
+        const form = document.querySelector('[data-form="do-posts-sync"]');
+        if (!form) return;
+        const fd = Object.fromEntries(new FormData(form));
+        const pageId = fd.pageId || null;
+        const body = {
+          ...(pageId ? { pageId } : {}),
+          limit: fetchCountValue(fd, 'limit', 300),
+          commentsPerPost: fetchCountValue(fd, 'commentsPerPost', 500),
+          afterDate: fd.afterDate || '',
+          beforeDate: fd.beforeDate || '',
+        };
+        S.postsModal = null;
+        render();
         try {
-          const res = await api('/api/posts-comments/sync', { method: 'POST', body: pageId ? { pageId } : {} });
-          S.flash = { type: 'ok', text: 'ดึง Post & comment สำเร็จแล้ว (' + (res.count || 0) + ' โพสต์)' };
+          const res = await api('/api/posts-comments/sync', { method: 'POST', body });
+          const errText = res.errors && res.errors.length ? ' (⚠️ ' + res.errors.join('; ') + ')' : '';
+          S.flash = { type: 'ok', text: 'ดึง Post & comment สำเร็จแล้ว (' + (res.count || 0) + ' โพสต์)' + errText };
           if (S.route === 'post-comment' || S.route === 'comments') await loadComments();
         } catch (e) {
           S.flash = { type: 'err', text: e.message || 'ดึง Post & comment ไม่สำเร็จ' };
         } finally {
-          el.disabled = false;
-          el.textContent = orig;
           render();
         }
       }
@@ -6222,20 +6272,27 @@ function boardShell() {
           showToast('❌ บันทึกไม่สำเร็จ: ' + e.message, 'error');
         }
         return;
+      } else if (type === 'do-posts-sync') {
+        const btn = form.querySelector('[data-act="posts-modal-submit"]');
+        if (btn) btn.click();
+        return;
       } else if (type === 'do-import-conv') {
         // Modal form submit: ดึงแชทพร้อม date range
         const mode = fd.mode; // 'one' | 'all'
         const afterDate = fd.afterDate || '';
         const beforeDate = fd.beforeDate || '';
-        const limit = Number(fd.limit) || 400;
+        const limit = fetchCountValue(fd, 'limit', 500);
+        const messagesPerChat = fetchCountValue(fd, 'messagesPerChat', 300);
         const pageId = fd.pageId || null;
+        S.importModal = null;
+        render();
 
         const submitBtn = form.querySelector('[type="submit"]');
         if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = '⏳ กำลังดึงข้อมูล...'; }
 
         try {
           if (mode === 'all') {
-            const r = await api('/api/import/facebook-conversations-all', { method: 'POST', body: { limit, afterDate, beforeDate } });
+            const r = await api('/api/import/facebook-conversations-all', { method: 'POST', body: { limit, messagesPerChat, afterDate, beforeDate } });
             if (r.ok) {
               const errText = r.errors && r.errors.length ? (' (⚠️ มีข้อผิดพลาด: ' + r.errors.join('; ') + ')') : '';
               const dateRange = afterDate && beforeDate ? ` ช่วง ${afterDate} ถึง ${beforeDate}` : '';
@@ -6243,7 +6300,7 @@ function boardShell() {
               await refreshAfterImport();
             }
           } else {
-            const r = await api('/api/import/facebook-conversations', { method: 'POST', body: { pageId, limit, afterDate, beforeDate } });
+            const r = await api('/api/import/facebook-conversations', { method: 'POST', body: { pageId, limit, messagesPerChat, afterDate, beforeDate } });
             if (r.ok) {
               const dateRange = afterDate && beforeDate ? ` ช่วง ${afterDate} ถึง ${beforeDate}` : '';
               S.flash = { type: 'ok', text: `นำเข้าบทสนทนาเพจ ${r.pageName} สำเร็จ${dateRange}: เพิ่มลูกค้าใหม่ ${r.importedLeads} ราย, ${r.importedMsgs} ข้อความ` };

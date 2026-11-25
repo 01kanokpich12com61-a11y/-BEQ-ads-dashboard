@@ -557,6 +557,14 @@ function publicSettings() {
   };
 }
 
+// จำนวนที่ผู้ใช้เลือก: ตัวเลข หรือ 'all' = ทั้งหมดเท่าที่ Meta ให้
+function parseLimit(v, def, min = 1) {
+  if (String(v || '').toLowerCase() === 'all') return meta.ALL_LIMIT;
+  const n = Math.floor(Number(v));
+  if (!Number.isFinite(n) || n <= 0) return def;
+  return Math.max(min, Math.min(n, meta.ALL_LIMIT));
+}
+
 // คำขอที่ทำเป็นงานเบื้องหลังได้ (เรียกด้วย ?background=1)
 const BACKGROUND_ROUTES = new Set([
   'POST /api/import/facebook-conversations',
@@ -726,11 +734,15 @@ async function api(req, res, url, session) {
     let fetchedCount = 0;
     const errors = [];
 
-    const reqLimit = Math.max(50, Math.min(Number(q.limit) || 300, 1000));
-    for (const p of targetPages) {
+    const reqLimit = parseLimit(b.limit ?? q.limit, 300, 10);
+    const commentLimit = parseLimit(b.commentsPerPost, 500, 10);
+    const postOpts = { afterDate: isDate(b.afterDate) ? b.afterDate : null, beforeDate: isDate(b.beforeDate) ? b.beforeDate : null };
+    for (const [pIdx, p] of targetPages.entries()) {
+      if (jobs.cancelled()) break;
+      jobs.report({ note: `เพจ ${pIdx + 1}/${targetPages.length}: ${p.name}` });
       try {
         const pPlat = p.platform || 'Facebook';
-        const pPosts = await meta.fetchPostsAndComments(p.id, pPlat, p.fbPageId || null, reqLimit);
+        const pPosts = await meta.fetchPostsAndComments(p.id, pPlat, p.fbPageId || null, reqLimit, commentLimit, postOpts);
         pPosts.forEach(post => {
           post.pageName = p.name;
           const exIdx = allPosts.findIndex(x => x.id === post.id);
@@ -1876,7 +1888,7 @@ async function api(req, res, url, session) {
       const fbPageId = matched ? matched.fbPageId : null;
       const afterDate = clean(b.afterDate, 10) || null;
       const beforeDate = clean(b.beforeDate, 10) || null;
-      const convs = await meta.fetchFbConversations(pageId, Math.min(Number(b.limit) || 400, 5000), plat, fbPageId, afterDate, beforeDate);
+      const convs = await meta.fetchFbConversations(pageId, parseLimit(b.limit, 400, 10), plat, fbPageId, afterDate, beforeDate, { maxMessagesPerChat: parseLimit(b.messagesPerChat, plat === 'Instagram' ? 200 : 300) });
       let leads = store.read('leads.json', []);
       let messages = store.read('messages.json', {});
 
@@ -2037,7 +2049,8 @@ async function api(req, res, url, session) {
   if (route === 'POST /api/import/facebook-conversations-all') {
     if (!auth.isAdmin(session.user)) return send(res, 403, { error: 'เฉพาะผู้ดูแล (admin) เท่านั้น' });
     const b = await readJson(req).catch(() => ({}));
-    const limit = Math.min(Number(b.limit) || 400, 5000);
+    const limit = parseLimit(b.limit, 400, 10);
+    const messagesPerChat = b.messagesPerChat;
     const afterDate = clean(b.afterDate, 10) || null;
     const beforeDate = clean(b.beforeDate, 10) || null;
     const pages = store.read('pages.json', []);
@@ -2052,10 +2065,10 @@ async function api(req, res, url, session) {
 
     for (const [pageIdx, page] of targetPages.entries()) {
       if (jobs.cancelled()) { results.push({ pageId: page.id, pageName: page.name, error: 'ยกเลิกโดยผู้ใช้', success: false }); continue; }
-      jobs.report({ note: `เพจ ${pageIdx + 1}/${targetPages.length}: ${page.name}`, phase: 'conversations', done: 0, total: limit || 400 });
+      jobs.report({ note: `เพจ ${pageIdx + 1}/${targetPages.length}: ${page.name}`, phase: 'conversations', done: 0, total: limit });
       const pPlat = page.platform || 'Facebook';
       try {
-        const convs = await meta.fetchFbConversations(page.id, limit || 400, pPlat, page.fbPageId || null, afterDate, beforeDate);
+        const convs = await meta.fetchFbConversations(page.id, limit, pPlat, page.fbPageId || null, afterDate, beforeDate, { maxMessagesPerChat: parseLimit(messagesPerChat, pPlat === 'Instagram' ? 200 : 300) });
         // อ่านข้อมูลล่าสุดหลังดึงเสร็จ เพื่อไม่ทับแชทที่ webhook เพิ่งบันทึกระหว่างรอ
         leads = store.read('leads.json', []);
         messages = store.read('messages.json', {});
