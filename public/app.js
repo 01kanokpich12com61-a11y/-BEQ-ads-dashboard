@@ -5249,11 +5249,13 @@ function boardShell() {
   /* ---------------- settings ---------------- */
   async function loadSettings() {
     try {
-      const [settings, lineNotify] = await Promise.all([
+      const [settings, lineNotify, fbn] = await Promise.all([
         api('/api/settings'),
-        api('/api/settings/line-notify').catch(() => null)
+        api('/api/settings/line-notify').catch(() => null),
+        api('/api/fbnames').catch(() => null),
       ]);
       S.settings = { ...settings, lineNotify: lineNotify || {} };
+      S.fbNames = (fbn && fbn.names) || [];
     } catch (e) { S.flash = { type: 'err', text: e.message }; }
     renderSettingBody();
     if (S.me && S.me.role === 'admin') await loadUsers();
@@ -5344,6 +5346,9 @@ function boardShell() {
   function usersPanelHtml() {
     const u = S.users; const r = u.result;
     const rows = (u.data || []).map((x) => `<tr><td><b>${esc(x.username)}</b>${x.username === S.me.username ? ' <small class="rv-hint">(คุณ)</small>' : ''}</td>
+      <td><div style="display:flex;gap:6px;align-items:center;min-width:240px">
+        <input type="text" list="fbname-options" data-fbname-for="${esc(x.username)}" value="${esc(x.fbName || '')}" placeholder="เช่น Narumol Molmol" style="flex:1;min-width:150px;padding:6px 10px;border-radius:8px;border:1px solid #e2e8f0;font-size:13px">
+        <button class="btn" type="button" data-act="user-fbname" data-user="${esc(x.username)}" style="padding:5px 10px;font-size:12px">บันทึก</button></div></td>
       <td><span class="q-badge ${x.role === 'admin' ? 'q-average' : 'q-none'}">${esc(ROLE_TH[x.role])}</span></td>
       <td>${x.mustChange ? '<span class="q-badge q-poor">ยังไม่ได้เปลี่ยนรหัส</span>' : '<span class="q-badge q-excellent">ใช้งานแล้ว</span>'}</td>
       <td class="nowrap">${x.createdAt ? esc(fmtTs(x.createdAt).slice(0, 10)) : '—'}</td>
@@ -5357,8 +5362,10 @@ function boardShell() {
     return `<section class="card panel"><h3>ผู้ใช้งาน</h3>
       <p class="sub">เฉพาะผู้ดูแลเห็นส่วนนี้ · ทุกคนใช้ข้อมูลชุดเดียวกัน ส่วนการเพิ่ม/ลบผู้ใช้และรีเซ็ตรหัสทำได้เฉพาะ admin</p>
       ${u.err ? `<div class="notice err" style="margin-bottom:12px">${esc(u.err)}</div>` : ''}
-      <div class="tscroll"><table style="min-width:640px"><thead><tr><th class="nosort">ชื่อผู้ใช้</th><th class="nosort">สิทธิ์</th><th class="nosort">สถานะรหัสผ่าน</th><th class="nosort">สร้างเมื่อ</th><th class="nosort"></th></tr></thead>
-        <tbody>${rows || '<tr><td colspan="5"><div class="empty">กำลังโหลด…</div></td></tr>'}</tbody></table></div>
+      <div class="tscroll"><table style="min-width:900px"><thead><tr><th class="nosort">ชื่อผู้ใช้</th><th class="nosort">ชื่อใน Facebook (แสดงเป็นคนตอบแชท)</th><th class="nosort">สิทธิ์</th><th class="nosort">สถานะรหัสผ่าน</th><th class="nosort">สร้างเมื่อ</th><th class="nosort"></th></tr></thead>
+        <tbody>${rows || '<tr><td colspan="6"><div class="empty">กำลังโหลด…</div></td></tr>'}</tbody></table></div>
+      <datalist id="fbname-options">${(S.fbNames || []).map((n) => `<option value="${esc(n)}"></option>`).join('')}</datalist>
+      <p class="rv-hint" style="margin:8px 0 0;font-size:12px">💡 Meta ไม่บอกว่าแอดมินคนไหนกดตอบ ระบบจึงใช้ "ชื่อใน Facebook" นี้เป็นชื่อคนตอบ เมื่อตอบจากเว็บนี้ และจับคู่กับชื่อที่ถูกมอบหมายแชทใน Business Suite — ตั้งให้ตรงกับชื่อบัญชี Facebook ของแต่ละคน</p>
       <form class="form users-form" data-form="users-add" autocomplete="off" style="margin-top:18px">
         <h4 style="margin:0">เพิ่มผู้ใช้ (ทีละหลายคนได้)</h4>
         <div class="field"><label>รายชื่อ — บรรทัดละ 1 คน</label>
@@ -5604,6 +5611,13 @@ function boardShell() {
       ${S.me.role === 'admin' ? usersPanelHtml() : ''}
 
       <section class="card panel"><h3>เปลี่ยนรหัสผ่าน</h3><p class="sub">ผู้ใช้: <b>${esc(S.me.username)}</b></p>
+        <form class="form" data-form="my-fbname" style="margin-bottom:18px">
+          <div class="field"><label>ชื่อของฉันใน Facebook</label>
+            <input type="text" name="fbName" list="fbname-options-me" value="${esc(S.me.fbName || '')}" placeholder="เช่น Narumol Molmol">
+            <datalist id="fbname-options-me">${(S.fbNames || []).map((n) => `<option value="${esc(n)}"></option>`).join('')}</datalist>
+            <small>ใช้แสดงเป็นชื่อคนตอบแชทเมื่อตอบจากเว็บนี้ และให้ตรงกับชื่อที่ถูกมอบหมายแชทใน Business Suite</small></div>
+          <div class="row-actions"><button class="btn" type="submit">บันทึกชื่อ</button></div>
+        </form>
         <form class="form" data-form="password">
           ${S.me.mustChange
             ? '<div class="notice warn" style="margin-bottom:10px">บัญชีนี้ใช้รหัสผ่านชั่วคราว ตั้งรหัสผ่านใหม่ได้เลย ไม่ต้องกรอกรหัสเดิม</div>'
@@ -6104,6 +6118,17 @@ function boardShell() {
       }
       else if (act === 'sla-rep') { const id = el.dataset.rep; S.sla.open = S.sla.open === id ? '' : id; S.sla.kind = ''; renderSlaBody(); }
       else if (act === 'sla-kind') { S.sla.kind = el.dataset.kind; renderSlaBody(); }
+      else if (act === 'user-fbname') {
+        const user = el.dataset.user;
+        const inp = document.querySelector(`[data-fbname-for="${CSS.escape(user)}"]`);
+        try {
+          const r = await api('/api/users/fbname', { method: 'POST', body: { username: user, fbName: inp ? inp.value : '' } });
+          if (r.users) S.users.data = r.users;
+          if (user === S.me.username) S.me = await api('/api/me');
+          showToast(`บันทึกชื่อ Facebook ของ ${user} แล้ว${r.moved ? ` · อัปเดตแชทเดิม ${r.moved} ข้อความ` : ''}`, 'success');
+        } catch (e) { showToast(e.message, 'error'); }
+        return;
+      }
       else if (act === 'sla-page') { S.sla.page = el.dataset.page || ''; S.sla.open = ''; renderSlaBody(); }
       else if (act === 'sla-open') {
         // ไปหน้า Inbox แล้วเปิดแชทนั้น: ใช้ช่วงวันเดียวกับ Board ถ้าลีดเริ่มคุยก่อนช่วงนั้นให้ขยายช่วงให้ครอบคลุม
@@ -6758,6 +6783,10 @@ function boardShell() {
           S.filters = await api('/api/filters').catch(() => null);
           render();
         }
+      } else if (type === 'my-fbname') {
+        const r = await api('/api/me/fbname', { method: 'POST', body: { fbName: fd.fbName || '' } });
+        S.me = await api('/api/me');
+        S.flash = { type: 'ok', text: `บันทึกชื่อ Facebook แล้ว${r.moved ? ` · อัปเดตชื่อคนตอบในแชทเดิม ${r.moved} ข้อความ` : ''}` }; render();
       } else if (type === 'password') {
         await api('/api/password', { method: 'POST', body: fd });
         S.me = await api('/api/me'); S.flash = { type: 'ok', text: 'เปลี่ยนรหัสผ่านเรียบร้อย' }; render();

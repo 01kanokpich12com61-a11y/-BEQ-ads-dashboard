@@ -720,9 +720,25 @@ async function api(req, res, url, session) {
   if (route === 'GET /api/me') {
     return send(res, 200, {
       username: session.user.username, mustChange: Boolean(session.user.mustChange),
-      role: auth.isAdmin(session.user) ? 'admin' : 'staff',
+      role: auth.isAdmin(session.user) ? 'admin' : 'staff', fbName: session.user.fbName || '',
       mode: providers.currentMode(), clinicName: publicSettings().clinicName,
     });
+  }
+
+  // ตั้ง "ชื่อใน Facebook" ของตัวเอง (หรือของคนอื่นถ้าเป็น admin) — ใช้แสดงเป็นชื่อคนตอบแชท
+  if (route === 'POST /api/me/fbname' || route === 'POST /api/users/fbname') {
+    const b = await readJson(req);
+    const target = route === 'POST /api/users/fbname' ? clean(b.username, 60) : session.user.username;
+    if (target !== session.user.username && !auth.isAdmin(session.user)) return send(res, 403, { error: 'เฉพาะผู้ดูแล (admin) เท่านั้น' });
+    const r = auth.setFbName(target, b.fbName);
+    if (r.error) return send(res, 400, { error: r.error });
+    audit.log(session.user.username, 'user_fbname', `${target} → ${r.fbName || '(ล้าง)'}`, clientIp(req));
+    return send(res, 200, { ...r, users: auth.isAdmin(session.user) ? auth.listUsers() : undefined });
+  }
+  // ชื่อที่พบในแชท (จากการมอบหมายใน Business Suite ฯลฯ) ใช้เป็นตัวเลือกตอนตั้งชื่อ Facebook
+  if (route === 'GET /api/fbnames') {
+    const names = reps.collectRepNames(store.read('leads.json', []), store.read('messages.json', {}), store.read('pages.json', []), []);
+    return send(res, 200, { names });
   }
 
   /* ---------- จัดการผู้ใช้ (เฉพาะ admin) ---------- */
@@ -940,7 +956,7 @@ async function api(req, res, url, session) {
     // ไม่ให้ข้อความใหม่มีเวลาก่อนข้อความล่าสุด (เช่นข้อมูลเดโมที่สร้างล่วงหน้า)
     const lastAt = msgs.length ? msgs[msgs.length - 1].at : '';
     const now = ops.nowStamp();
-    const message = { from: 'staff', text, at: now < lastAt ? lastAt : now, by: session.user.username, ...(mid ? { mid } : {}) };
+    const message = { from: 'staff', text, at: now < lastAt ? lastAt : now, by: auth.displayName(session.user.username), ...(mid ? { mid } : {}) };
     ops.addMessage(lead.id, message);
     broadcastRealtime('chat_message', { leadId: lead.id, lead, message });
     audit.log(session.user.username, 'reply_sent', `${lead.id} ${lead.name} (${isDemo ? 'เดโม ไม่ได้ส่งจริง' : 'ส่งผ่าน Meta'}) ${text.length} ตัวอักษร`, clientIp(req));
