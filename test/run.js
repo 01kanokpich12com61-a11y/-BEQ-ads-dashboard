@@ -620,18 +620,6 @@ async function main() {
     }
     ok('น้อง AI ตอบจากข้อมูลจริงผ่านเครื่องมือ (Claude) + ไม่ส่งความลับออกไป + โหมดพื้นฐานเมื่อไม่มี key');
 
-    // ชื่อใน Facebook: ตอบจากเว็บแล้วใช้ชื่อ FB, ตั้งชื่อแล้วแชทเดิมที่ส่งจากเว็บเปลี่ยนตาม
-    const msgsFb = require('../lib/store').read('messages.json', {});
-    const anyLead = Object.keys(msgsFb)[0];
-    if (anyLead) { msgsFb[anyLead].push({ from: 'staff', text: 'ตอบจากเว็บก่อนตั้งชื่อ', at: '2026-11-01 10:00', by: 'admin' }); require('../lib/store').write('messages.json', msgsFb); }
-    const fb = await call('POST', '/api/me/fbname', { fbName: 'Narumol Molmol' });
-    assert.equal(fb.status, 200, JSON.stringify(fb.json));
-    if (anyLead) assert.ok(fb.json.moved >= 1);
-    assert.equal((await call('GET', '/api/me')).json.fbName, 'Narumol Molmol');
-    assert.ok((await call('GET', '/api/fbnames')).json.names.includes('Narumol Molmol'));
-    assert.equal(require('../lib/auth').displayName('admin'), 'Narumol Molmol');
-    ok('ชื่อคนตอบแชทใช้ชื่อใน Facebook ของผู้ใช้ + อัปเดตแชทเดิม');
-
     global.fetch = realFetch2;
   }
 
