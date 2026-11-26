@@ -760,7 +760,9 @@ async function api(req, res, url, session) {
 
   if (route === 'GET /api/filters') {
     const range = resolveRange({ range: '30d' });
-    return send(res, 200, listFilters(await providers.load(range)));
+    // ตัวกรองใช้แค่รายชื่อแคมเปญ/เพจ → ใช้ข้อมูลโฆษณาชุดล่าสุดได้ ไม่ต้องดึง Meta ใหม่ตามช่วงเวลา
+    const fData = meta.lastSnapshot() ? await providers.load(range, { ads: false }) : await providers.load(resolveRange({ range: '30d' }));
+    return send(res, 200, listFilters(fData));
   }
 
   if (route === 'GET /api/dashboard') {
@@ -772,7 +774,7 @@ async function api(req, res, url, session) {
 
   if (route === 'GET /api/board') {
     const range = resolveRange(q);
-    const data = await providers.load(range);
+    const data = await providers.load(range, { ads: false });
     const isDemo = providers.currentMode() === 'demo';
     const overlay = store.read('messages.json', {});
     const messagesMap = {};
@@ -862,13 +864,13 @@ async function api(req, res, url, session) {
 
   if (route === 'GET /api/sla') {
     const range = resolveRange(q);
-    const data = await providers.load(range);
+    const data = await providers.load(range, { ads: false });
     return send(res, 200, { mode: providers.currentMode(), ...sla.buildSla(data, providers.currentMode() === 'demo', range, Date.now(), { platform: q.platform, page: q.page }) });
   }
 
   if (route === 'GET /api/inbox') {
     const range = resolveRange(q);
-    const data = await providers.load(range);
+    const data = await providers.load(range, { ads: false });
     const isDemo = providers.currentMode() === 'demo';
     const overlay = store.read('messages.json', {});
     const messagesMap = {};
@@ -905,7 +907,7 @@ async function api(req, res, url, session) {
   }
 
   if (route === 'GET /api/inbox/chat') {
-    const data = await providers.load(resolveRange({ range: 'all' }));
+    const data = await providers.load(resolveRange({ range: 'all' }), { ads: false });
     const lead = data.leads.find((l) => l.id === q.id);
     if (!lead) return send(res, 404, { error: 'ไม่พบแชทนี้' });
     const isDemo = providers.currentMode() === 'demo';
@@ -921,7 +923,7 @@ async function api(req, res, url, session) {
     const b = await readJson(req);
     const text = clean(b.text, 2000);
     if (!text) return send(res, 400, { error: 'กรุณาพิมพ์ข้อความ' });
-    const data = await providers.load(resolveRange({ range: 'all' }));
+    const data = await providers.load(resolveRange({ range: 'all' }), { ads: false });
     const lead = data.leads.find((l) => l.id === b.id);
     if (!lead) return send(res, 404, { error: 'ไม่พบแชทนี้' });
     const isDemo = providers.currentMode() === 'demo';
@@ -950,7 +952,7 @@ async function api(req, res, url, session) {
     if (ops.LEGACY_STATUS[b.status]) b.status = ops.LEGACY_STATUS[b.status];
     if (!ops.STATUSES.includes(b.status)) return send(res, 400, { error: 'สถานะไม่ถูกต้อง' });
     // หาในทุกช่วงเวลา (เดิมหาแค่ 90 วัน ทำให้แชทเก่าเปลี่ยนสถานะไม่ได้)
-    const data = await providers.load(resolveRange({ range: 'all' }));
+    const data = await providers.load(resolveRange({ range: 'all' }), { ads: false });
     const lead = data.leads.find((l) => l.id === b.id);
     if (!lead) return send(res, 404, { error: 'ไม่พบแชทนี้' });
     if (lead.status !== b.status) {
@@ -975,7 +977,7 @@ async function api(req, res, url, session) {
   if (route === 'POST /api/lead/rep') {
     const b = await readJson(req);
     const repName = clean(b.rep, 100);
-    const data = await providers.load(resolveRange({ range: 'all' }));
+    const data = await providers.load(resolveRange({ range: 'all' }), { ads: false });
     const lead = data.leads.find((l) => l.id === b.id);
     if (!lead) return send(res, 404, { error: 'ไม่พบแชทนี้' });
 
@@ -996,7 +998,7 @@ async function api(req, res, url, session) {
   }
 
   if (route === 'GET /api/notifications') {
-    const data = await providers.load(resolveRange({ range: '90d' }));
+    const data = await providers.load(resolveRange({ range: '90d' }), { ads: false });
     const fuData = ops.buildFollowups(data, providers.currentMode() === 'demo', q);
     const rows = fuData.rows || [];
     const overdueList = rows.filter(r => r.overdue);
@@ -1154,14 +1156,14 @@ async function api(req, res, url, session) {
   }
 
   if (route === 'GET /api/followups') {
-    const data = await providers.load(resolveRange({ range: '90d' }));
+    const data = await providers.load(resolveRange({ range: '90d' }), { ads: false });
     return send(res, 200, { mode: providers.currentMode(), ...ops.buildFollowups(data, providers.currentMode() === 'demo', q) });
   }
 
   if (route === 'POST /api/followups') {
     const b = await readJson(req);
     if (!isDate(b.dueDate)) return send(res, 400, { error: 'วันที่นัดไม่ถูกต้อง' });
-    const data = await providers.load(resolveRange({ range: '90d' }));
+    const data = await providers.load(resolveRange({ range: '90d' }), { ads: false });
     const lead = data.leads.find((l) => String(l.id) === String(b.id));
     if (!lead) return send(res, 404, { error: 'ไม่พบแชทนี้' });
     const fu = ops.setFollowup(lead.id, { dueDate: b.dueDate, note: clean(b.note, 300) }, session.user.username);
@@ -1188,12 +1190,12 @@ async function api(req, res, url, session) {
 
   if (route === 'GET /api/review') {
     const range = resolveRange(q);
-    return send(res, 200, { mode: providers.currentMode(), ...ops.buildReview(await providers.load(range), range, q) });
+    return send(res, 200, { mode: providers.currentMode(), ...ops.buildReview(await providers.load(range, { ads: false }), range, q) });
   }
 
   if (route === 'POST /api/review') {
     const b = await readJson(req);
-    const data = await providers.load(resolveRange({ range: '90d' }));
+    const data = await providers.load(resolveRange({ range: '90d' }), { ads: false });
     const lead = data.leads.find((l) => l.id === b.id);
     if (!lead) return send(res, 404, { error: 'ไม่พบแชทนี้' });
     const r = ops.saveReview(lead.id, b.scores, b.note, session.user.username);
@@ -2914,7 +2916,7 @@ if (require.main === module) {
           const lastRunMs = sched.lastRun ? Date.parse(sched.lastRun) : 0;
           const intervalMs = (sched.intervalMinutes || 60) * 60 * 1000;
           if (nowMs - lastRunMs >= intervalMs) {
-            const data = await providers.load(resolveRange({ range: '90d' })).catch(() => null);
+            const data = await providers.load(resolveRange({ range: '90d' }), { ads: false }).catch(() => null);
             if (!data) return;
             const fuData = ops.buildFollowups(data, providers.currentMode() === 'demo', {});
             const rows = fuData.rows || [];
@@ -2956,7 +2958,7 @@ if (require.main === module) {
         try {
           const lineConf = line.getLineConfig();
           if (!lineConf.enabled || !lineConf.notifyOnOverdue) return;
-          const data = await providers.load(resolveRange({ range: '90d' })).catch(() => null);
+          const data = await providers.load(resolveRange({ range: '90d' }), { ads: false }).catch(() => null);
           if (!data) return;
           const fuData = ops.buildFollowups(data, providers.currentMode() === 'demo', {});
           const notifiedStore = store.read('notified_alerts.json', {});

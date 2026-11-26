@@ -14,7 +14,15 @@
   <link rel="stylesheet" href="/responsive.css?v=1">
 </head>
 <body>
-  <div id="app"></div>
+  <div id="app">
+    <!-- แสดงทันทีระหว่างรอโหลด (เช่น เซิร์ฟเวอร์ Render กำลังตื่น) แทนหน้าขาวโล่ง -->
+    <div style="min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;font-family:'IBM Plex Sans Thai','Noto Sans Thai',system-ui,sans-serif;color:#065f46">
+      <div style="width:46px;height:46px;border-radius:50%;border:4px solid #a7f3d0;border-top-color:#059669;animation:bootspin .9s linear infinite"></div>
+      <div style="font-weight:700;font-size:16px">กำลังเปิดระบบ BEQ…</div>
+      <div style="font-size:13px;color:#64748b;max-width:320px;text-align:center;line-height:1.6;opacity:0;animation:boothint .3s ease 4s forwards">เซิร์ฟเวอร์กำลังตื่นจากโหมดพัก ครั้งแรกอาจใช้เวลาประมาณ 30–60 วินาที</div>
+    </div>
+    <style>@keyframes bootspin{to{transform:rotate(360deg)}}@keyframes boothint{to{opacity:1}}</style>
+  </div>
   <script src="/app.js?v=25"></script>
 </body>
 </html>
