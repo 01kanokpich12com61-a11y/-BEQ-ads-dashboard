@@ -3371,6 +3371,17 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
   const cap = (s) => String(s).charAt(0).toUpperCase() + String(s).slice(1);
 
   // ป้ายบอกว่าตัวเลขโฆษณามาจากฐานข้อมูลที่บันทึกไว้ (ตอน Meta ช้า/ล่ม หรือระหว่างดึงใหม่เบื้องหลัง)
+  // แปลข้อผิดพลาดจาก Meta ที่เจอบ่อยเป็นภาษาคน
+  function metaErrorTh(msg) {
+    const m = String(msg || '');
+    if (/temporarily unavailable|unknown error|unexpected error|please retry|timeout|ตอบสนองช้า/i.test(m)) return 'Meta ขัดข้องชั่วคราว (ฝั่ง Meta ไม่ใช่เว็บเรา)';
+    if (/reduce the amount of data/i.test(m)) return 'ข้อมูลที่ขอจาก Meta มากเกินไป ลองเลือกช่วงเวลาสั้นลง';
+    if (/session has expired|access token|Error validating|OAuthException|#190/i.test(m)) return 'Token ของ Meta หมดอายุหรือใช้ไม่ได้ — ไปที่ Setting เพื่อเชื่อมต่อใหม่';
+    if (/too many calls|rate.?limit|request limit/i.test(m)) return 'เรียก Meta ถี่เกินไป Meta ให้รอสักครู่';
+    if (/permission|#10\b|#200\b/i.test(m)) return 'Token ไม่มีสิทธิ์อ่านข้อมูลโฆษณานี้';
+    return 'ดึงข้อมูลจาก Meta ไม่สำเร็จ';
+  }
+
   function storedBadgeHtml(data) {
     if (!data || !data.stored) return '';
     const st = data.stored;
@@ -3426,7 +3437,7 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
     const tabs = { ads: tabAds, chat: tabChat, sales: tabSales, trend: tabTrend, dropped: tabDropped };
     // เล่นแอนิเมชันเฉพาะตอนข้อมูลชุดใหม่เข้ามาครั้งแรก ไม่เล่นซ้ำเวลาสลับแท็บ
     d.animKey = `${d.data.range.from}|${d.data.range.to}|${d.page}|${d.campaign}|${d.agency}|${d.rep}|${d.status}|${S.me.mode}`;
-    const errNotice = d.data && d.data.metaError ? `<div class="notice err" style="margin-bottom:12px">⚠️ Meta API: ${esc(d.data.metaError)}</div>` : '';
+    const errNotice = d.data && d.data.metaError ? `<div class="notice err" style="margin-bottom:12px">⚠️ ${esc(metaErrorTh(d.data.metaError))}${d.data.stored ? ' — ตอนนี้แสดง<b>ข้อมูลที่บันทึกไว้</b>แทน ระบบจะลองดึงใหม่เองใน 1 นาที' : ''}<div style="font-size:11.5px;opacity:.7;margin-top:2px">ข้อความจาก Meta: ${esc(d.data.metaError)}</div></div>` : '';
     box.innerHTML = errNotice + (tabs[d.tab] || tabAds)(d.data);
     if (d.tab === 'ads') {
       const el = box.querySelector('[data-count]');
