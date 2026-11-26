@@ -643,6 +643,9 @@ function parseLimit(v, def, min = 1) {
   return Math.max(min, Math.min(n, meta.ALL_LIMIT));
 }
 
+// ดึงโฆษณาใหม่เบื้องหลังเสร็จ → บอกหน้า Dashboard ที่เปิดอยู่ให้โหลดตัวเลขใหม่
+providers.onAdsRefreshed((r) => broadcastRealtime('ads_updated', r));
+
 const assistantUsage = new Map(); // username -> [timestamps]
 
 // คำขอที่ทำเป็นงานเบื้องหลังได้ (เรียกด้วย ?background=1)
@@ -768,8 +771,12 @@ async function api(req, res, url, session) {
   if (route === 'GET /api/dashboard') {
     if (q.refresh) meta.clearCache();
     const range = resolveRange(q);
-    const data = await providers.load(range);
-    return send(res, 200, { mode: providers.currentMode(), metaError: data.metaError || null, ...buildDashboard(data, range, q) });
+    const data = await providers.load(range, { fresh: Boolean(q.refresh) });
+    return send(res, 200, {
+      mode: providers.currentMode(), metaError: data.metaError || null,
+      stored: data.stale || data.metaError ? { at: data.storedAt || null, refreshing: Boolean(data.stale) } : null,
+      ...buildDashboard(data, range, q),
+    });
   }
 
   if (route === 'GET /api/board') {

@@ -1041,6 +1041,8 @@
           if (S.route === 'board') scheduleLiveRefresh(500);
         } catch (_) {}
       });
+      // เซิร์ฟเวอร์ดึงตัวเลขโฆษณาใหม่จาก Meta เสร็จ → หน้า Dashboard โหลดตัวเลขล่าสุด
+      realtimeSource.addEventListener('ads_updated', () => { if (S.route === 'dashboard') scheduleLiveRefresh(300); });
       // คอมเมนต์ใหม่บนโพสต์ FB/IG
       realtimeSource.addEventListener('post_comment', (e) => {
         try {
@@ -3368,6 +3370,13 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
   }
   const cap = (s) => String(s).charAt(0).toUpperCase() + String(s).slice(1);
 
+  // ป้ายบอกว่าตัวเลขโฆษณามาจากฐานข้อมูลที่บันทึกไว้ (ตอน Meta ช้า/ล่ม หรือระหว่างดึงใหม่เบื้องหลัง)
+  function storedBadgeHtml(data) {
+    if (!data || !data.stored) return '';
+    const st = data.stored;
+    return `<span class="badge-demo" title="ตัวเลขจากฐานข้อมูลที่บันทึกไว้ตอนดึงจาก Meta ครั้งล่าสุด" style="background:#fff7ed;color:#9a3412;font-size:12px">📦 ข้อมูลที่บันทึกไว้${st.at ? ' · ' + esc(fmtTs(st.at)) : ''}${st.refreshing ? ' · กำลังดึงใหม่…' : ''}</span>`;
+  }
+
   function dashShell() {
     const d = S.dash; const f = S.filters || { platforms: [], pages: [], campaigns: [], agencies: [], reps: [], statuses: [] };
     const data = d.data;
@@ -3379,7 +3388,8 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
       ? rawPages.filter(p => !p.platform || p.platform.toLowerCase() === d.platform.toLowerCase())
       : rawPages;
     return `<div class="page-head"><div>
-        <h1>Dashboard ${live ? '<span class="badge-demo" style="background:var(--mint);color:var(--brand-deep)">Live · ข้อมูลจริง</span>' : `<span class="badge-demo">${icon('spark')}Demo data</span>`}</h1>
+        <h1>Dashboard ${live ? '<span class="badge-demo" style="background:var(--mint);color:var(--brand-deep)">Live · ข้อมูลจริง</span>' : `<span class="badge-demo">${icon('spark')}Demo data</span>`}
+          <span id="dash-stored-badge">${storedBadgeHtml(d.data)}</span></h1>
         <div class="meta-line" id="dash-meta"></div></div>
       <button class="btn" data-act="refresh">${icon('refresh')}โหลดใหม่</button></div>
 
@@ -3405,6 +3415,7 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
   function renderDashBody() {
     if (S.route !== 'dashboard') return;
     const d = S.dash; const box = document.getElementById('dash-body'); if (!box) return;
+    const sb = document.getElementById('dash-stored-badge'); if (sb) sb.innerHTML = storedBadgeHtml(d.data);
     const meta = document.getElementById('dash-meta');
     if (meta && d.data) {
       meta.innerHTML = `<span>${icon('cal')}${d.data.range.from} → ${d.data.range.to}</span><span>${icon('bars')}โฆษณา ${d.data.scope.ads} ตัว</span><span>ลีด ${d.data.scope.leads} ราย · ข้อมูลรายวัน ${d.data.scope.records} แถว</span>`;
