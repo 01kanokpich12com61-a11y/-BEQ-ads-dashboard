@@ -620,6 +620,17 @@ async function main() {
     }
     ok('น้อง AI ตอบจากข้อมูลจริงผ่านเครื่องมือ (Claude) + ไม่ส่งความลับออกไป + โหมดพื้นฐานเมื่อไม่มี key');
 
+    // บัญชีทีมขาย (staff) ห้ามแก้การตั้งค่าระบบ
+    await call('POST', '/api/users', { users: [{ username: 'sale01', password: 'Sale-Pass-01', role: 'staff' }] });
+    const staffLogin = await fetch(base + '/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: 'sale01', password: 'Sale-Pass-01' }) });
+    const staffCookie = (staffLogin.headers.get('set-cookie') || '').split(';')[0];
+    const asStaff = (method, path, body) => fetch(base + path, { method, headers: { 'Content-Type': 'application/json', cookie: staffCookie }, body: body ? JSON.stringify(body) : undefined });
+    for (const [m, pth] of [['PUT', '/api/settings/meta'], ['POST', '/api/settings/meta/disconnect'], ['POST', '/api/settings/mode'], ['POST', '/api/notifications/schedule']]) {
+      assert.equal((await asStaff(m, pth, { mode: 'demo', accessToken: 'x' })).status, 403, pth);
+    }
+    assert.equal((await asStaff('GET', '/api/inbox?range=7d')).status, 200);
+    ok('บัญชีทีมขายแก้การตั้งค่าระบบไม่ได้ (Token Meta / โหมด / แจ้งเตือน)');
+
     global.fetch = realFetch2;
   }
 

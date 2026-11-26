@@ -648,6 +648,12 @@ providers.onAdsRefreshed((r) => broadcastRealtime('ads_updated', r));
 
 const assistantUsage = new Map(); // username -> [timestamps]
 
+const ADMIN_ONLY_ROUTES = new Set([
+  'PUT /api/settings/meta', 'POST /api/settings/meta/disconnect', 'POST /api/settings/meta/extend', 'POST /api/settings/meta/test',
+  'POST /api/settings/mode', 'POST /api/settings/line-notify', 'POST /api/notifications/schedule',
+  'POST /api/notifications/test-line',
+]);
+
 // คำขอที่ทำเป็นงานเบื้องหลังได้ (เรียกด้วย ?background=1)
 const BACKGROUND_ROUTES = new Set([
   'POST /api/import/facebook-conversations',
@@ -659,6 +665,11 @@ const BACKGROUND_ROUTES = new Set([
 async function api(req, res, url, session) {
   const route = `${req.method} ${url.pathname}`;
   const q = Object.fromEntries(url.searchParams);
+
+  /* ---------- ตั้งค่าระบบ: เฉพาะผู้ดูแล (เดิมบัญชีทีมขายเปลี่ยน Token Meta / ตัดการเชื่อมต่อ / สลับโหมดได้) ---------- */
+  if (ADMIN_ONLY_ROUTES.has(route) && !auth.isAdmin(session.user)) {
+    return send(res, 403, { error: 'เฉพาะผู้ดูแล (admin) เท่านั้น' });
+  }
 
   /* ---------- งานเบื้องหลัง: ดึงข้อมูลจาก Meta ที่ใช้เวลานาน ---------- */
   if (BACKGROUND_ROUTES.has(route) && q.background === '1') {
