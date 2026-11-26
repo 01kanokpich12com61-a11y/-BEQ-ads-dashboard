@@ -24,7 +24,7 @@
     audit: { data: null, err: null, action: '', q: '', from: '', to: '', limit: 100 },
     chat: { id: null, loading: false, data: null, err: null, sending: false, msg: null },
     users: { data: null, err: null, result: null },
-    sla: { data: null, err: null, open: '', kind: '' },
+    sla: { data: null, err: null, open: '', kind: '', page: '' }, // page: '' = ทุกเพจ (แยกกลุ่มตามเพจ)
     upload: { data: null, err: null, loading: false, rows: [], result: null, tab: 'leads', detectedType: 'leads', summary: null, platform: 'Facebook', pageName: '' },
     quality: { data: null, err: null, loading: false, campaign: '', minQuality: '', sort: 'leads', sortDir: 'desc' },
     comments: { data: null, loading: false, err: null, range: '30d', from: '', to: '', filterStatus: 'all' },
@@ -4742,7 +4742,17 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
     const box = $id('sla-body'); const s = S.sla; if (!box) return;
     if (s.err) { box.innerHTML = `<div class="notice err" style="margin-bottom:14px">${esc(s.err)}</div>`; return; }
     if (!s.data) { box.innerHTML = '<div class="loading" style="padding:30px">Loading…</div>'; return; }
-    const d = s.data; const t = d.totals;
+    const d = s.data;
+    // แยกดูตามเพจ: เลือกเพจเดียว → ตัวเลขสรุปด้านบนคิดเฉพาะเพจนั้น
+    const pageOf = (r) => r.pageName || 'ไม่ระบุเพจ';
+    const pageNames = [...new Set(d.reps.map(pageOf))];
+    if (s.page && !pageNames.includes(s.page)) s.page = '';
+    const repsShown = s.page ? d.reps.filter((r) => pageOf(r) === s.page) : d.reps;
+    const sumReps = (list) => list.reduce((a, r) => ({
+      turns: a.turns + (r.turns || 0), onTime: a.onTime + (r.onTime || 0), late: a.late + (r.late || 0),
+      deducted: a.deducted + (r.deducted || 0), commuteLate: a.commuteLate + (r.commuteLate || 0), nightReplies: a.nightReplies + (r.nightReplies || 0),
+    }), { turns: 0, onTime: 0, late: 0, deducted: 0, commuteLate: 0, nightReplies: 0 });
+    const t = s.page ? sumReps(repsShown) : d.totals;
     const open = d.reps.find((r) => r.repId === s.open);
     const evFilter = (e) => {
       if (!s.kind) return true;
@@ -4757,19 +4767,33 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
       `<button type="button" class="sla-kind-pill ${cls} ${s.kind === k ? 'active' : ''}" data-act="sla-kind" data-kind="${k}"><span class="pill-ico">${ico}</span><span>${l}</span></button>`
     ).join('');
 
-    const repRows = d.reps.length
-      ? d.reps.map((r) => {
-          const pageTag = r.pageName
-            ? `<div class="ad-sub" style="font-size:11px;margin-top:2px;color:var(--accent)">${esc(r.pageName)}</div>`
-            : '';
+    const repRow = (r) => {
+          const pageTag = ''; // ชื่อเพจแสดงเป็นหัวกลุ่มแล้ว
           return `<tr class="click-row ${r.repId === s.open ? 'sel-row' : ''}" data-act="sla-rep" data-rep="${esc(r.repId)}">
             <td><b>${esc(r.rep)}</b>${pageTag}</td>
             <td>${num(r.turns)}</td><td>${num(r.onTime)}</td><td>${num(r.late)}</td>
             <td>${r.deducted ? `<span class="q-badge q-poor">−${num(r.deducted)}</span>` : '<span class="q-badge q-excellent">0</span>'}</td>
             <td>${num(r.commuteLate)}</td><td>${num(r.nightReplies)}</td><td>${r.avgMin === null ? '—' : fmtDur(r.avgMin)}</td>
           </tr>`;
-        }).join('')
-      : '<tr><td colspan="8"><div class="empty">ยังไม่มีข้อมูลการตอบแชทในช่วงที่เลือก</div></td></tr>';
+        };
+    // ทุกเพจ: จัดกลุ่มเป็นเพจ ๆ มีแถวสรุปของแต่ละเพจ / เลือกเพจ: แสดงเฉพาะเพจนั้น
+    const groupRows = (name, list) => {
+      const g = sumReps(list);
+      const rate = g.turns ? Math.round((g.onTime / g.turns) * 1000) / 10 : 0;
+      return `<tr class="sla-page-head"><td colspan="8" style="background:#f0fdf4;padding:10px 14px;border-top:2px solid #bbf7d0">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+            <b style="color:#065f46">📄 ${esc(name)}</b>
+            <span style="font-size:12px;color:#475569">ตรวจ ${num(g.turns)} · ทันเวลา <b style="color:#059669">${rate}%</b> · ช้า ${num(g.late)} · หัก ${g.deducted ? '<b style="color:#dc2626">−' + num(g.deducted) + '</b>' : '0'} แต้ม</span>
+          </div></td></tr>${list.map(repRow).join('')}`;
+    };
+    const repRows = !repsShown.length
+      ? '<tr><td colspan="8"><div class="empty">ยังไม่มีข้อมูลการตอบแชทในช่วงที่เลือก</div></td></tr>'
+      : s.page ? repsShown.map(repRow).join('')
+      : pageNames.map((pn) => groupRows(pn, d.reps.filter((r) => pageOf(r) === pn))).join('');
+    const pagePills = pageNames.length > 1 ? `<div class="sla-kind-pills" style="margin:0 0 12px;flex-wrap:wrap;overflow:visible">
+        <button type="button" class="sla-kind-pill all ${!s.page ? 'active' : ''}" data-act="sla-page" data-page=""><span class="pill-ico">📊</span><span>ทุกเพจ (แยกกลุ่ม)</span></button>
+        ${pageNames.map((pn) => `<button type="button" class="sla-kind-pill ${s.page === pn ? 'active' : ''}" data-act="sla-page" data-page="${esc(pn)}"><span class="pill-ico">📄</span><span>${esc(pn)}</span></button>`).join('')}
+      </div>` : '';
 
     const detailRows = evs.length
       ? evs.map((e) => `<tr class="click-row" data-act="sla-open" data-id="${esc(e.leadId)}" data-date="${esc(e.leadDate)}">
@@ -4898,9 +4922,10 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
 
         <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin:20px 0 12px">
           <div class="sla-kind-pills">${kindPills}</div>
-          <div class="ad-sub" style="font-size:12px;color:#64748b">แสดงสถิติความเร็วตามรายชื่อเซลส์และแอดมิน</div>
+          <div class="ad-sub" style="font-size:12px;color:#64748b">${s.page ? `ตัวเลขด้านบนคิดเฉพาะเพจ ${esc(s.page)}` : 'แยกสถิติความเร็วตามเพจ และเซลส์/แอดมินในแต่ละเพจ'}</div>
         </div>
 
+        ${pagePills}
         <div class="tscroll"><table style="min-width:900px"><thead><tr>
           <th class="nosort">เซลส์ / แอดมิน</th>
           <th>ตรวจ</th><th>ทันเวลา</th><th>ช้า</th>
@@ -6079,6 +6104,7 @@ function boardShell() {
       }
       else if (act === 'sla-rep') { const id = el.dataset.rep; S.sla.open = S.sla.open === id ? '' : id; S.sla.kind = ''; renderSlaBody(); }
       else if (act === 'sla-kind') { S.sla.kind = el.dataset.kind; renderSlaBody(); }
+      else if (act === 'sla-page') { S.sla.page = el.dataset.page || ''; S.sla.open = ''; renderSlaBody(); }
       else if (act === 'sla-open') {
         // ไปหน้า Inbox แล้วเปิดแชทนั้น: ใช้ช่วงวันเดียวกับ Board ถ้าลีดเริ่มคุยก่อนช่วงนั้นให้ขยายช่วงให้ครอบคลุม
         const rg = (S.sla.data && S.sla.data.range) || { from: '', to: '' }; const b = S.board;
