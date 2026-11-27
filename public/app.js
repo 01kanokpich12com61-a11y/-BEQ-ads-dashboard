@@ -3985,15 +3985,37 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
   /* --- tab: sales --- */
   function tabSales(data) {
     const s = data.sales;
-    if (!s.reps.length) return '<div class="card empty">ยังไม่มีข้อมูลทีมขายในช่วงที่เลือก</div>';
+    if (!s.reps.length) return '<div class="card empty">ยังไม่มีลีดในช่วงที่เลือก</div>';
+    const spend = data.kpis.spend.value || 0;
+    const closeRate = s.leads ? (s.closed / s.leads) * 100 : null;
+    const open = S.dash.salesOpen || null;
+    const rows = s.reps.map((r) => {
+      const isOpen = open === (r.id || '__none__');
+      const list = isOpen ? `<tr class="sales-detail"><td colspan="8">
+          ${r.closedLeads.length ? `<table class="sales-sub"><thead><tr><th>ลูกค้า</th><th>เพจ</th><th>ทักเข้ามา</th><th>ปิดเมื่อ</th><th>กดปิดโดย</th><th style="text-align:right">ยอดขาย</th></tr></thead><tbody>
+            ${r.closedLeads.map((l) => `<tr><td><a href="#" data-act="open-chat" data-id="${esc(l.id)}">${esc(l.name || l.id)}</a></td><td>${platformBadge ? platformBadge(l.platform) : ''} ${esc(l.page)}</td><td>${l.date ? thShortDate(l.date) : '—'}</td><td>${l.closedAt ? thShortDate(l.closedAt) : '<span class="rv-hint">นำเข้าจากไฟล์</span>'}</td><td>${esc(l.closedBy || '—')}</td><td style="text-align:right">${l.value > 0 ? `<b>${baht(l.value)}</b>` : `<button type="button" class="deal-chip" data-act="deal-value" data-id="${esc(l.id)}">💰 ใส่ยอด</button>`}</td></tr>`).join('')}
+          </tbody></table>` : '<div class="rv-hint" style="padding:8px">ยังไม่มีเคสที่ปิดได้ในช่วงนี้</div>'}
+        </td></tr>` : '';
+      return `<tr class="${isOpen ? 'is-open' : ''}">
+        <td><b>${esc(r.name)}</b>${r.id ? '' : ' <span class="rv-hint">(แชทที่ยังไม่มีเจ้าของ)</span>'}</td>
+        <td class="num">${num(r.leads)}</td>
+        <td class="num">${num(r.qualified)}</td>
+        <td class="num">${r.closed ? `<button type="button" class="sales-closed-btn" data-act="sales-open" data-rep="${esc(r.id || '__none__')}" title="ดูรายชื่อลูกค้าที่ปิดได้">${num(r.closed)} ${isOpen ? '▴' : '▾'}</button>` : '<span class="rv-hint">0</span>'}</td>
+        <td class="num">${r.closeRate === null ? '—' : r.closeRate.toFixed(1) + '%'}</td>
+        <td class="num">${r.revenue ? `<b>${baht(r.revenue)}</b>` : '—'}${r.closedNoValue ? `<div class="rv-hint" style="font-size:11px">${num(r.closedNoValue)} เคสยังไม่ใส่ยอด</div>` : ''}</td>
+        <td class="num">${r.avgDeal ? baht(r.avgDeal) : '—'}</td>
+        <td class="num">${r.avgFirstResponse === null ? '—' : r.avgFirstResponse + ' นาที'}</td>
+      </tr>${list}`;
+    }).join('');
     return `<div class="grid-4" style="margin-bottom:18px">
-      <div class="stat"><div class="k-label">Revenue (closed)</div><div class="k-value">${baht(s.revenue)}</div></div>
-      <div class="stat"><div class="k-label">Closed deals</div><div class="k-value">${num(s.closed)}</div></div>
-      <div class="stat"><div class="k-label">ROAS</div><div class="k-value">${data.kpis.spend.value ? num(s.revenue / data.kpis.spend.value, 2) + '×' : '—'}</div></div>
-      <div class="stat"><div class="k-label">Chat leads</div><div class="k-value">${num(data.chat.leads)}</div></div></div>
-      <section class="card table-card"><div class="table-head"><div><h2>Sales reps</h2><p>ผลงานของทีมขายแต่ละคน</p></div></div>
-      <div class="tscroll"><table style="min-width:760px"><thead><tr><th class="nosort">Rep</th><th class="nosort">Leads</th><th class="nosort">Qualified</th><th class="nosort">Closed</th><th class="nosort">Close rate</th><th class="nosort">Avg response</th><th class="nosort">Revenue</th></tr></thead>
-      <tbody>${s.reps.map((r) => `<tr><td>${esc(r.name)}</td><td>${num(r.leads)}</td><td>${num(r.qualified)}</td><td>${num(r.closed)}</td><td>${r.closeRate === null ? '—' : r.closeRate.toFixed(1) + '%'}</td><td>${r.avgFirstResponse === null ? '—' : r.avgFirstResponse + ' min'}</td><td>${baht(r.revenue)}</td></tr>`).join('')}</tbody></table></div></section>`;
+      <div class="stat"><div class="k-label">ยอดขายรวม (ที่ใส่ยอดแล้ว)</div><div class="k-value">${baht(s.revenue)}</div>${s.closedNoValue ? `<div class="rv-hint" style="font-size:12px">อีก ${num(s.closedNoValue)} เคสยังไม่ใส่ยอด</div>` : ''}</div>
+      <div class="stat"><div class="k-label">ปิดการขายได้</div><div class="k-value">${num(s.closed)} เคส</div><div class="rv-hint" style="font-size:12px">จากลีด ${num(s.leads)} ราย${closeRate !== null ? ` · ${closeRate.toFixed(1)}%` : ''}</div></div>
+      <div class="stat"><div class="k-label">ROAS (ยอดขาย ÷ ค่าโฆษณา)</div><div class="k-value">${spend && s.revenue ? num(s.revenue / spend, 2) + '×' : '—'}</div></div>
+      <div class="stat"><div class="k-label">ต้นทุนต่อการปิด 1 เคส</div><div class="k-value">${spend && s.closed ? baht(spend / s.closed) : '—'}</div></div></div>
+      <section class="card table-card"><div class="table-head"><div><h2>ผลงานเซลล์</h2><p>นับจากลีดที่ทักเข้ามาในช่วงที่เลือก · "ปิดได้" = สถานะ ปิดการขาย หรือมียอดขาย · กดตัวเลขปิดได้เพื่อดูรายชื่อลูกค้า</p></div></div>
+      <div class="tscroll"><table class="sales-table" style="min-width:900px"><thead><tr><th class="nosort">เซลล์</th><th class="nosort num">ลีด</th><th class="nosort num">ผ่านเกณฑ์</th><th class="nosort num">ปิดได้</th><th class="nosort num">% ปิดได้</th><th class="nosort num">ยอดขาย</th><th class="nosort num">เฉลี่ย/เคส</th><th class="nosort num">ตอบครั้งแรก (เฉลี่ย)</th></tr></thead>
+      <tbody>${rows}</tbody></table></div>
+      <p class="rv-hint" style="margin:10px 16px 14px">ℹ️ เซลล์ที่ได้ยอด = เจ้าของแชทตอนกดปิดการขาย (ถ้าแชทยังไม่มีเจ้าของ = คนที่กดปิด) · ผ่านเกณฑ์ = มีคุณสมบัติ + นัดแล้ว + ปิดการขาย</p></section>`;
   }
 
   /* --- tab: trend --- */
@@ -4215,7 +4237,49 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
         ${STATUS_ORDER.map((k) => `<option value="${k}" ${l.status === k ? 'selected' : ''}>${STATUS_TH[k]}</option>`).join('')}
       </select>
       <span style="position:absolute;right:8px;pointer-events:none;color:${c};font-size:10px">▼</span>
-    </label>`;
+    </label>${l.status === 'converted' ? ` <button type="button" class="deal-chip" data-act="deal-value" data-id="${esc(l.id)}" title="ยอดขายของเคสนี้ — กดเพื่อแก้">${Number(l.value) > 0 ? '💰 ' + baht(Number(l.value)) : '💰 ใส่ยอดขาย'}</button>` : ''}`;
+  }
+
+  // ป๊อปอัพถามยอดขายตอนปิดการขาย (ไม่บังคับ) → resolve({ value }) หรือ null ถ้ากดยกเลิก
+  function askDealValue(leadName, current) {
+    return new Promise((resolve) => {
+      const wrap = document.createElement('div');
+      wrap.className = 'deal-modal-backdrop';
+      wrap.innerHTML = `<div class="deal-modal" role="dialog" aria-modal="true" aria-label="บันทึกการปิดการขาย">
+        <div class="deal-modal-ic">🎉</div>
+        <h3>บันทึกการปิดการขาย</h3>
+        <p class="rv-hint" style="margin:0 0 12px">${leadName ? 'ลูกค้า: <b>' + esc(leadName) + '</b><br>' : ''}ยอดเงินจะไปรวมในแท็บ "ผลงานเซลล์" ของเซลล์เจ้าของแชทนี้</p>
+        <label class="deal-label">ยอดขาย (บาท) <span class="rv-hint">— ไม่ทราบตอนนี้เว้นว่างไว้ได้ ใส่ภายหลังได้</span></label>
+        <div class="deal-input"><span>฿</span><input type="text" inputmode="decimal" autocomplete="off" placeholder="เช่น 35,000" value="${current ? esc(Number(current).toLocaleString('en-US')) : ''}"></div>
+        <div class="deal-err" hidden></div>
+        <div class="row-actions" style="justify-content:flex-end;margin-top:14px">
+          <button type="button" class="btn" data-x="cancel">ยกเลิก</button>
+          <button type="button" class="btn primary" data-x="ok">✅ บันทึกปิดการขาย</button>
+        </div>
+      </div>`;
+      document.body.appendChild(wrap);
+      const input = wrap.querySelector('input'); const err = wrap.querySelector('.deal-err');
+      setTimeout(() => input.focus(), 30);
+      input.addEventListener('input', () => {
+        const raw = input.value.replace(/[^\d.]/g, '');
+        const [i, d] = raw.split('.');
+        input.value = (i ? Number(i).toLocaleString('en-US') : '') + (d !== undefined ? '.' + d.slice(0, 2) : '');
+      });
+      const done = (v) => { wrap.remove(); document.removeEventListener('keydown', onKey, true); resolve(v); };
+      const submit = () => {
+        const s = input.value.replace(/,/g, '').trim();
+        if (!s) return done({ value: undefined });
+        const n = Number(s);
+        if (!Number.isFinite(n) || n < 0) { err.hidden = false; err.textContent = 'กรุณาใส่ตัวเลข เช่น 35000'; return; }
+        done({ value: n });
+      };
+      const onKey = (e) => { if (e.key === 'Escape') { e.stopPropagation(); done(null); } else if (e.key === 'Enter') { e.preventDefault(); submit(); } };
+      document.addEventListener('keydown', onKey, true);
+      wrap.addEventListener('click', (e) => {
+        if (e.target === wrap || e.target.dataset.x === 'cancel') done(null);
+        else if (e.target.dataset.x === 'ok') submit();
+      });
+    });
   }
   function statusSelectHtml(l) {
     return `<div class="field"><label>ความคืบหน้า</label><div class="sel"><select data-bind="lead-status" aria-label="ความคืบหน้า">${STATUS_ORDER.map((k) => `<option value="${k}" ${l.status === k ? 'selected' : ''}>${STATUS_TH[k]}</option>`).join('')}</select></div></div>`;
@@ -5110,6 +5174,9 @@ function boardShell() {
         const id = ev.dataTransfer.getData('text/plain') || draggedLeadId;
         const targetStatus = col.dataset.colStatus;
         if (!id || !targetStatus) return;
+        const before = findLeadLocal(id);
+        const fromStatus = before ? before.status : '';
+        if (fromStatus === targetStatus) return;
 
         // อัปเดตหน้าจอทันที (Optimistic UI) ไม่ต้องรอเซิร์ฟเวอร์
         if (S.board.data) {
@@ -5134,7 +5201,7 @@ function boardShell() {
         }
 
         // ส่งบันทึกสถานะไปยังเซิร์ฟเวอร์
-        await changeStatus(targetStatus, id);
+        await changeStatus(targetStatus, id, { fromStatus });
       });
     });
   }
@@ -5336,11 +5403,31 @@ function boardShell() {
     const ta = document.querySelector('.reply-form textarea'); if (ta) ta.focus();
   }
 
-  async function changeStatus(status, leadId) {
+  function findLeadLocal(id) {
+    if (S.chat && S.chat.data && S.chat.data.lead && S.chat.data.lead.id === id) return S.chat.data.lead;
+    const row = S.inbox.data && S.inbox.data.rows.find((x) => x.id === id); if (row) return row;
+    for (const col of (S.board && S.board.data && S.board.data.columns) || []) { const c = col.cards.find((x) => x.id === id); if (c) return c; }
+    return null;
+  }
+
+  async function changeStatus(status, leadId, opts = {}) {
     const id = leadId || (S.chat && S.chat.id);
     if (!id) return;
+    const local = findLeadLocal(id);
+    const prevStatus = opts.fromStatus !== undefined ? opts.fromStatus : (local && local.status);
+    let value;
+    if (status === 'converted' && prevStatus !== 'converted') {
+      const r = await askDealValue(local && local.name, local && local.value);
+      if (!r) { // ยกเลิก → คืนค่าเดิม
+        if (S.route === 'board' && typeof loadBoard === 'function') loadBoard(); else { renderChatViews(); if (S.route === 'inbox') renderInboxList(); }
+        return;
+      }
+      value = r.value;
+    }
     try {
-      await api('/api/lead/status', { method: 'POST', body: { id, status } });
+      await api('/api/lead/status', { method: 'POST', body: value === undefined ? { id, status } : { id, status, value } });
+      if (local && value !== undefined) local.value = value;
+      if (S.chat.data && S.chat.data.lead && S.chat.id === id && value !== undefined) S.chat.data.lead.value = value;
       if (S.chat.data && S.chat.data.lead && S.chat.id === id) S.chat.data.lead.status = status;
       const row = S.inbox.data && S.inbox.data.rows.find((x) => x.id === id); if (row) row.status = status;
       S.chat.msg = { type: 'ok', text: 'เปลี่ยนความคืบหน้าแล้ว' };
@@ -6412,6 +6499,20 @@ function boardShell() {
       }
       else if (act === 'sla-rep') { const id = el.dataset.rep; S.sla.open = S.sla.open === id ? '' : id; S.sla.kind = ''; renderSlaBody(); }
       else if (act === 'sla-kind') { S.sla.kind = el.dataset.kind; renderSlaBody(); }
+      else if (act === 'sales-open') { S.dash.salesOpen = S.dash.salesOpen === el.dataset.rep ? null : el.dataset.rep; render(); }
+      else if (act === 'deal-value') {
+        const id = el.dataset.id; const l = findLeadLocal(id);
+        const r = await askDealValue(l && l.name, l && l.value);
+        if (!r || r.value === undefined) return;
+        try {
+          await api('/api/lead/status', { method: 'POST', body: { id, status: 'converted', value: r.value } });
+          if (l) l.value = r.value;
+          if (S.chat.data && S.chat.data.lead && S.chat.data.lead.id === id) S.chat.data.lead.value = r.value;
+          showToast(`💰 บันทึกยอดขาย ${baht(r.value)} แล้ว`, 'success');
+          if (S.route === 'dashboard') loadDash(); else renderChatViews();
+        } catch (e) { showToast(e.message, 'error'); }
+        return;
+      }
       else if (act === 'line-acc-new') { S.lineNew = true; renderSettingBody(); }
       else if (act === 'ext-new') { S.extNew = S.extNew || {}; S.extNew[el.dataset.kind] = true; renderSettingBody(); }
       else if (act === 'ext-delete') {
@@ -6890,7 +6991,14 @@ function boardShell() {
         try {
           await api('/api/followups', { method: 'POST', body: { id, dueDate, note } });
           if (status) {
-            await api('/api/lead/status', { method: 'POST', body: { id, status } }).catch(() => {});
+            let body = { id, status };
+            const local = findLeadLocal(id);
+            if (status === 'converted' && (!local || local.status !== 'converted')) {
+              const r = await askDealValue(local && local.name, local && local.value);
+              if (r && r.value !== undefined) body.value = r.value;
+              if (!r) body = null;
+            }
+            if (body) await api('/api/lead/status', { method: 'POST', body }).catch(() => {});
           }
           playNotificationSound();
           showToast('💾 บันทึกการแก้ไขนัดตามลูกค้าเรียบร้อยแล้ว', 'success');

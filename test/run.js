@@ -787,6 +787,40 @@ async function main() {
     ok('Dashboard นับลีดครบ (รวมแชทที่ไม่ผูกโฆษณา) + ตารางโฆษณา × สถานะ + แถบข้อมูล 90 วัน');
   }
 
+  // ปิดการขาย: บันทึกยอด/คนปิด/วันที่ และนับในผลงานเซลล์
+  {
+    const data0 = (await call('GET', '/api/inbox?range=all')).json;
+    const row = (data0.rows || [])[0];
+    assert.ok(row, 'ต้องมีแชทให้ทดสอบ');
+    assert.equal((await call('POST', '/api/lead/status', { id: row.id, status: 'converted', value: 'abc' })).status, 400, 'ยอดเงินผิดรูปแบบ');
+    assert.equal((await call('POST', '/api/lead/status', { id: row.id, status: 'converted', value: '35,000' })).status, 200);
+    const ov = store.read('leadmeta.json', {})[row.id];
+    assert.equal(ov.value, 35000); assert.ok(ov.closedAt); assert.equal(ov.closedBy, 'admin'); assert.ok(ov.closedRep);
+    assert.equal((await call('POST', '/api/lead/status', { id: row.id, status: 'converted', value: 42000 })).status, 200, 'แก้ยอดภายหลัง');
+    assert.equal(store.read('leadmeta.json', {})[row.id].value, 42000);
+    assert.equal(store.read('leadmeta.json', {})[row.id].closedAt, ov.closedAt, 'แก้ยอดไม่เปลี่ยนวันที่ปิด');
+    assert.equal((await call('POST', '/api/lead/status', { id: row.id, status: 'talked' })).status, 200);
+    const back = store.read('leadmeta.json', {})[row.id];
+    assert.equal(back.value, 0); assert.ok(!back.closedAt, 'ยกเลิกการปิด ล้างยอดและวันที่ปิด');
+    const mx = require('../lib/metrics');
+    const { today, addDays } = require('../lib/dates');
+    const d = today();
+    const r = mx.buildDashboard({ ads: [], campaigns: [], adsets: [], daily: [], pages: [], reps: [{ id: 'Nack', name: 'Nack' }], leads: [
+      { id: 'a', date: d, status: 'converted', repId: 'Nack', value: 0 },
+      { id: 'b', date: d, status: 'converted', repId: 'Ploy', closedRep: 'Nack', value: 5000, closedAt: d },
+      { id: 'c', date: d, status: 'talked', repId: 'Nack' },
+      { id: 'e', date: d, status: 'talked', repId: '' },
+      { id: 'f', date: addDays(d, -100), status: 'converted', repId: 'Nack', value: 9 },
+    ] }, { from: addDays(d, -6), to: d, prevFrom: addDays(d, -13), prevTo: addDays(d, -7) });
+    const nack = r.sales.reps.find((x) => x.id === 'Nack');
+    assert.equal(nack.closed, 2, 'นับสถานะปิดการขายแม้ไม่มียอดเงิน + นับให้คนปิด');
+    assert.equal(nack.revenue, 5000); assert.equal(nack.closedNoValue, 1); assert.equal(nack.leads, 3);
+    assert.equal(nack.closeRate, 66.7);
+    assert.equal(r.sales.closed, 2); assert.equal(r.sales.revenue, 5000);
+    assert.ok(r.sales.reps.some((x) => x.id === '' && x.leads === 1), 'แชทไม่มีเจ้าของแยกแถว');
+    ok('ปิดการขาย: บันทึกยอด/คนปิด/วันที่ แก้ยอดภายหลังได้ ผลงานเซลล์นับถูกต้อง');
+  }
+
   await call('POST', '/api/logout');
   assert.equal((await call('GET', '/api/me')).status, 401); ok('ล็อกเอาต์');
   server.close();

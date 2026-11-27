@@ -1004,9 +1004,25 @@ async function api(req, res, url, session) {
     const data = await providers.load(resolveRange({ range: 'all' }), { ads: false });
     const lead = data.leads.find((l) => l.id === b.id);
     if (!lead) return send(res, 404, { error: 'ไม่พบแชทนี้' });
+    // ยอดเงิน (บาท) ตอนปิดการขาย — ไม่บังคับ
+    let value;
+    if (b.value !== undefined && b.value !== null && b.value !== '') {
+      value = Math.round(Number(String(b.value).replace(/[,\s฿]/g, '')) * 100) / 100;
+      if (!Number.isFinite(value) || value < 0 || value > 100000000) return send(res, 400, { error: 'ยอดเงินไม่ถูกต้อง' });
+    }
+    // เซลล์ที่ได้ยอด = เจ้าของแชท (ถ้ายังไม่มีเจ้าของ = คนที่กดปิด)
+    const ownerRaw = String(lead.repId || lead.rep || '').trim();
+    const knownReps = new Set((data.reps || []).map((r) => String(r.id || r.name || '').toLowerCase()));
+    const closeRep = ownerRaw && knownReps.has(ownerRaw.toLowerCase()) ? ownerRaw : session.user.username; // เจ้าของเป็นชื่อเพจ/ไม่มี → ให้คนที่กดปิด
+    if (lead.status === b.status && b.status === 'converted' && value !== undefined) {
+      ops.setValue(lead.id, value);
+      audit.log(session.user.username, 'deal_value', `${lead.id} ${lead.name}: ยอด ${value} บาท`, clientIp(req));
+      broadcastRealtime('lead_status', { id: lead.id, status: b.status, from: b.status, by: session.user.username });
+    }
     if (lead.status !== b.status) {
       const oldStatus = lead.status;
-      ops.setStatus(lead.id, b.status);
+      ops.setStatus(lead.id, b.status, { by: session.user.username, rep: closeRep, value, leadValue: oldStatus === 'converted' ? Number(lead.value) || 0 : 0 });
+      if (b.status === 'converted') audit.log(session.user.username, 'deal_closed', `${lead.id} ${lead.name}: ปิดการขาย (เซลล์ ${closeRep})${value !== undefined ? ' ยอด ' + value + ' บาท' : ''}`, clientIp(req));
       broadcastRealtime('lead_status', { id: lead.id, status: b.status, from: oldStatus, by: session.user.username });
       audit.log(session.user.username, 'status_change', `${lead.id} ${lead.name}: ${lead.status} → ${b.status}`, clientIp(req));
       
