@@ -3418,6 +3418,7 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
         <button class="icon-btn" data-act="reset-filters" aria-label="Reset filters">${icon('reset')}</button>
       </section>
 
+      <div id="dash-cov"></div>
       <nav class="card tabs">${[['ads', 'ผลโฆษณา'], ['chat', 'โฆษณา & แชท'], ['sales', 'ผลงานเซลล์'], ['trend', 'แนวโน้ม'], ['dropped', 'ลีดที่หลุด']]
         .map(([k, l]) => `<button data-act="tab" data-tab="${k}" class="${d.tab === k ? 'active' : ''}">${l}</button>`).join('')}</nav>
       <div id="dash-body"></div>`;
@@ -3439,6 +3440,9 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
     d.animKey = `${d.data.range.from}|${d.data.range.to}|${d.page}|${d.campaign}|${d.agency}|${d.rep}|${d.status}|${S.me.mode}`;
     const errNotice = d.data && d.data.metaError ? `<div class="notice err" style="margin-bottom:12px">⚠️ ${esc(metaErrorTh(d.data.metaError))}${d.data.stored ? ' — ตอนนี้แสดง<b>ข้อมูลที่บันทึกไว้</b>แทน ระบบจะลองดึงใหม่เองใน 1 นาที' : ''}<div style="font-size:11.5px;opacity:.7;margin-top:2px">ข้อความจาก Meta: ${esc(d.data.metaError)}</div></div>` : '';
     box.innerHTML = errNotice + (tabs[d.tab] || tabAds)(d.data);
+    // แถบข้อมูล 90 วัน อยู่เหนือแท็บ เห็นได้ทุกแท็บ
+    const covBox = document.getElementById('dash-cov');
+    if (covBox) covBox.innerHTML = coverageStripHtml(d.data);
     if (d.tab === 'ads') {
       const el = box.querySelector('[data-count]');
       if (el && d.animKey !== d.lastAnimKey) countUp(el, Number(el.dataset.count));
@@ -3888,7 +3892,7 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
   function tabChat(data) {
     const c = data.chat;
     const qColor = (i) => ({ good: '#44602f', average: '#e0a100', poor: '#d6204b' }[i.key]);
-    const cov = coverageStripHtml(data);
+    const cov = '';
     if (!c.leads) return `${cov}<div class="card empty">ยังไม่มีลีดในช่วงที่เลือก — กดวันที่มีสีเข้มในแถบด้านบนเพื่อดูวันที่มีข้อมูล</div>`;
     return `${cov}<div class="grid-4">
       <div class="stat"><div class="k-label">Chat leads</div><div class="k-value">${num(c.leads)}</div></div>

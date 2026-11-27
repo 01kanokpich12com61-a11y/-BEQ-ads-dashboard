@@ -82,10 +82,10 @@ html body .header-actions { min-width: 0; }
 @media (max-width: 1440px) { html body [data-act="open-cmd"] .cmd-label, html body [data-act="open-cmd"] kbd { display: none; } }
 
 /* ===== แถบข้อมูลที่มี 90 วัน + ตาราง โฆษณา × สถานะ ===== */
-html body .cov-card { padding: 14px 18px; margin-bottom: 18px; }
+html body .cov-card { padding: 14px 18px; margin: 0 0 14px; }
 html body .cov-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; font-size: 13px; color: #334155; margin-bottom: 10px; }
-html body .cov-strip { display: grid; grid-template-columns: repeat(90, minmax(0, 1fr)); gap: 3px; }
-html body .cov-cell { display: block; aspect-ratio: 1 / 1; min-width: 0; padding: 0; border: 0; border-radius: 3px; background: #eef2f0; cursor: pointer; transition: transform .1s, box-shadow .1s; }
+html body .cov-strip { display: grid; grid-template-columns: repeat(90, minmax(0, 1fr)); gap: 2px; }
+html body .cov-cell { display: block; height: 16px; min-width: 0; padding: 0; border: 0; border-radius: 2px; background: #eef2f0; cursor: pointer; transition: transform .1s, box-shadow .1s; }
 html body i.cov-cell { display: inline-block; width: 11px; height: 11px; vertical-align: -1px; cursor: default; }
 html body .cov-cell.has-ad { box-shadow: inset 0 -3px 0 #f59e0b; }
 html body .cov-cell.lv1 { background: #bbf7d0; }
