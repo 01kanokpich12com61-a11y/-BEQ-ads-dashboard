@@ -778,6 +778,12 @@ async function main() {
     assert.equal(onlyCamp.chat.leads, 1, 'กรองแคมเปญ = เฉพาะลีดที่ผูกโฆษณา');
     const noAdDay = metrics.buildDashboard(data, { from: d0, to: d0, prevFrom: d1, prevTo: d1 });
     assert.equal(noAdDay.chat.leads, 1, 'วันที่ไม่มีข้อมูลโฆษณา ลีดยังนับเฉพาะวันนั้น');
+    const mx = require('../lib/metrics');
+    assert.equal(mx.normalizePlatform('2026-11-13', 'Messenger'), 'Facebook');
+    assert.equal(mx.normalizePlatform('2026-11-13', 'LINE'), 'LINE');
+    assert.equal(mx.normalizePlatform('instagram'), 'Instagram');
+    const fl = mx.listFilters({ pages: [{ id: 'X', name: 'x', platform: '2026-11-13' }], leads: [{ platform: '2026-11-13' }] });
+    assert.deepEqual(fl.platforms, ['Facebook', 'Instagram', 'LINE', 'WhatsApp', 'TikTok', 'WeChat'], 'รายการแพลตฟอร์มไม่มีค่าขยะ');
     ok('Dashboard นับลีดครบ (รวมแชทที่ไม่ผูกโฆษณา) + ตารางโฆษณา × สถานะ + แถบข้อมูล 90 วัน');
   }
 

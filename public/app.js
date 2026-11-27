@@ -1385,8 +1385,10 @@
     </aside>`;
   }
 
+  function platIcon(p) { return { Facebook: '🔵 ', Instagram: '📸 ', LINE: '🟢 ', WhatsApp: '💚 ', TikTok: '🎵 ', WeChat: '💬 ' }[p] || ''; }
+
   function appHeaderHtml() {
-    const platforms = (S.filters && S.filters.platforms) || ['Facebook', 'LINE', 'WhatsApp', 'Instagram'];
+    const platforms = (S.filters && S.filters.platforms) || ['Facebook', 'Instagram', 'LINE', 'WhatsApp', 'TikTok', 'WeChat'];
     const rawAllPages = (S.filters && S.filters.pages) || [];
     const allPages = rawAllPages.filter(isValidPage);
     const curPlatform = S.dash.platform || '';
@@ -1448,11 +1450,11 @@
         <div class="header-selectors">
           <div class="pill-select"><select data-bind="header-platform" aria-label="แพลตฟอร์ม">
             <option value="">🌐 ทุกแพลตฟอร์ม</option>
-            ${platforms.map((p) => `<option value="${esc(p)}" ${curPlatform.toLowerCase() === p.toLowerCase() ? 'selected' : ''}>${p === "Facebook" ? "🔵 " : p === "Instagram" ? "📸 " : p === "LINE" ? "🟢 " : p === "WhatsApp" ? "💚 " : ""}${esc(p)}</option>`).join('')}
+            ${platforms.map((p) => `<option value="${esc(p)}" ${curPlatform.toLowerCase() === p.toLowerCase() ? 'selected' : ''}>${platIcon(p)}${esc(p)}</option>`).join('')}
           </select></div>
           <div class="pill-select"><select data-bind="header-page" aria-label="เลือกเพจ">
             <option value="">${curPlatform ? `📄 ทุกเพจ (${esc(curPlatform)})` : '📄 ทุกเพจ / บัญชี'}</option>
-            ${filteredPages.map((p) => `<option value="${esc(p.id)}" ${S.dash.page === p.id ? "selected" : ""}>${p.platform === "Facebook" ? "🔵 " : p.platform === "Instagram" ? "📸 " : p.platform === "LINE" ? "🟢 " : p.platform === "WhatsApp" ? "💚 " : ""}${esc(p.name)}</option>`).join("")}
+            ${filteredPages.map((p) => `<option value="${esc(p.id)}" ${S.dash.page === p.id ? "selected" : ""}>${platIcon(p.platform)}${esc(p.name)}</option>`).join("")}
           </select></div>
         </div>
 
@@ -2433,6 +2435,8 @@
           <option value="Instagram" ${curPlatform === 'Instagram' ? 'selected' : ''}>📸 Instagram</option>
           <option value="LINE" ${curPlatform === 'LINE' ? 'selected' : ''}>🟢 LINE Official Account</option>
           <option value="WhatsApp" ${curPlatform === 'WhatsApp' ? 'selected' : ''}>💚 WhatsApp Business</option>
+          <option value="TikTok" ${curPlatform === 'TikTok' ? 'selected' : ''}>🎵 TikTok</option>
+          <option value="WeChat" ${curPlatform === 'WeChat' ? 'selected' : ''}>💬 WeChat</option>
           <option value="Direct" ${curPlatform === 'Direct' ? 'selected' : ''}>🌐 Direct / อื่นๆ</option>
         </select></div>
         <small>ระบุแพลตฟอร์ม (หากในไฟล์มีคอลัมน์ แพลตฟอร์ม / ช่องทาง ระบบจะตรวจจับ Facebook หรือ Instagram แยกให้ตามแต่ละแถว)</small>
@@ -3409,7 +3413,7 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
         ${d.range === 'custom' ? `<input class="date-in" type="date" data-bind="from" value="${esc(d.from)}" aria-label="From"><input class="date-in" type="date" data-bind="to" value="${esc(d.to)}" aria-label="To">` : ''}
         <span class="vs">${icon('cal')}ช่วงเวลา: ${days === 'All time' ? 'ข้อมูลทั้งหมด' : `vs ก่อนหน้า ${days} วัน`}</span>
         <span class="label">${icon('filter')}ตัวกรอง</span>
-        ${selectHtml('platform', 'ทุกแพลตฟอร์ม', f.platforms || ['Facebook', 'LINE', 'WhatsApp', 'Instagram'], d.platform)}
+        ${selectHtml('platform', 'ทุกแพลตฟอร์ม', f.platforms || ['Facebook', 'Instagram', 'LINE', 'WhatsApp', 'TikTok', 'WeChat'], d.platform)}
         ${selectHtml('page', 'ทุกเพจ', validPages, d.page)}
         ${selectHtml('campaign', 'ทุกแคมเปญ', f.campaigns, d.campaign)}
         ${selectHtml('agency', 'ทุกบัญชีโฆษณา', f.agencies, d.agency)}
@@ -4104,6 +4108,8 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
           <option value="Instagram" ${curPlatform === 'Instagram' ? 'selected' : ''}>📸 Instagram</option>
           <option value="LINE" ${curPlatform === 'LINE' ? 'selected' : ''}>📱 LINE</option>
           <option value="WhatsApp" ${curPlatform === 'WhatsApp' ? 'selected' : ''}>💚 WhatsApp</option>
+          <option value="TikTok" ${curPlatform === 'TikTok' ? 'selected' : ''}>🎵 TikTok</option>
+          <option value="WeChat" ${curPlatform === 'WeChat' ? 'selected' : ''}>💬 WeChat</option>
         </select></div>
         <div class="pill-select"><select data-bind="header-page" aria-label="เลือกเพจ" style="font-weight:600">
           <option value="">${curPlatform ? `📄 ทุกเพจ (${esc(curPlatform)})` : '📄 ทุกเพจ / ทุกบัญชี'}</option>
@@ -5572,6 +5578,8 @@ function boardShell() {
                   <option value="Instagram">📸 Instagram</option>
                   <option value="WhatsApp">💚 WhatsApp</option>
                   <option value="LINE">📱 LINE</option>
+                  <option value="TikTok">🎵 TikTok</option>
+                  <option value="WeChat">💬 WeChat</option>
                 </select></div>
               </div>
             </div>
