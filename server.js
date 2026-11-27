@@ -70,6 +70,7 @@ const jobs = require('./lib/jobs');
 const reps = require('./lib/reps');
 const assistant = require('./lib/assistant');
 const channels = require('./lib/channels');
+const ext = require('./lib/extchannels');
 const { Readable } = require('node:stream');
 const sla = require('./lib/sla');
 const { resolveRange, isDate, today, eachDay, addDays } = require('./lib/dates');
@@ -394,12 +395,12 @@ function recordPage(pageId, pageName, platform = 'Facebook') {
       pages[idx].platform = platform;
     }
     // บัญชี LINE/WhatsApp: ชื่อที่ตั้งในหน้าตั้งค่าคือชื่อจริง → อัปเดตตามเสมอ
-    const isChannelAcc = platform === 'LINE' || platform === 'WhatsApp';
+    const isChannelAcc = ['LINE', 'WhatsApp', 'WeChat', 'TikTok'].includes(platform);
     if (name && (isChannelAcc || !pages[idx].name || pages[idx].name.startsWith('Facebook Page ') || pages[idx].name === id)) {
       pages[idx].name = name;
     }
   } else {
-    const color = platform === 'LINE' ? '#06c755' : platform === 'WhatsApp' ? '#25d366' : platform === 'Instagram' ? '#e1306c' : '#1877f2';
+    const color = platform === 'LINE' ? '#06c755' : platform === 'WhatsApp' ? '#25d366' : platform === 'WeChat' ? '#07c160' : platform === 'TikTok' ? '#111827' : platform === 'Instagram' ? '#e1306c' : '#1877f2';
     pages.push({ id, name, platform: platform || 'Facebook', color });
   }
   store.write('pages.json', pages);
@@ -584,6 +585,24 @@ async function handleWhatsAppWebhook(body) {
   }
 }
 
+function handleWeChatMessage(acc, xml) {
+  const type = ext.xmlField(xml, 'MsgType');
+  const openId = ext.xmlField(xml, 'FromUserName');
+  if (!openId || type === 'event') return;
+  const text = type === 'text' ? ext.xmlField(xml, 'Content') : `[${type === 'image' ? 'รูปภาพ' : type === 'voice' ? 'ข้อความเสียง' : type === 'video' ? 'วิดีโอ' : type === 'location' ? 'ตำแหน่ง' : type || 'ข้อความ'}]`;
+  const msgId = ext.xmlField(xml, 'MsgId');
+  const ts = Number(ext.xmlField(xml, 'CreateTime')) * 1000 || Date.now();
+  const pageId = acc.id; const pageName = acc.name || 'WeChat Official Account';
+  recordPage(pageId, pageName, 'WeChat');
+  let leads = store.read('leads.json', []);
+  let lead = leads.find((l) => l.psid === openId && l.pageId === pageId);
+  if (!lead) lead = ops.findOrCreateLead({ psid: openId, pageId, name: `WeChat ${openId.slice(-6)}`, adId: 'Direct', channel: 'WeChat', platform: 'WeChat', pageName }).lead;
+  const msg = { from: 'customer', text, mid: msgId ? `wc_${msgId}` : undefined, at: ops.nowStamp(ts), via: 'wechat' };
+  ops.addMessage(lead.id, msg);
+  broadcastRealtime('chat_message', { leadId: lead.id, lead, message: msg });
+  pushToSheets(lead, text).catch(() => {});
+}
+
 function publicSettings() {
   const s = meta.getSettings();
   const m = s.meta || {};
@@ -608,6 +627,7 @@ function publicSettings() {
     webhook: { path: '/webhook', verifyToken: webhookToken(), hasSecret: Boolean(m.appSecret) },
     lineAccounts: channels.publicLine(),
     waAccounts: channels.publicWa(),
+    extAccounts: ext.publicAll(),
     line: {
       channelId: ln.channelId || '',
       hasSecret: Boolean(ln.channelSecret),
@@ -1788,6 +1808,52 @@ async function api(req, res, url, session) {
   }
 
   // LINE OA หลายบัญชี: ส่ง id มาด้วย = แก้บัญชีเดิม, ไม่ส่ง = เพิ่มบัญชีใหม่
+  // TikTok (โฆษณา / แชท) และ WeChat — หลายบัญชี: /api/settings/ext/<kind>[/test|/delete]
+  {
+    const em = /^(PUT|POST) \/api\/settings\/ext\/(tiktokAds|tiktokMsg|wechat)(\/test|\/delete)?$/.exec(route);
+    if (em) {
+      if (!auth.isAdmin(session.user)) return send(res, 403, { error: 'เฉพาะผู้ดูแล (admin) เท่านั้น' });
+      const [, method, kind, action] = em;
+      const b = await readJson(req);
+      const K = ext.KINDS[kind];
+      if (method === 'PUT' && !action) {
+        let acc;
+        try { acc = ext.upsert(kind, { ...b, id: clean(b.id, 60) || null }); } catch (e) { return send(res, e.status || 400, { error: e.message }); }
+        if (kind !== 'tiktokAds') recordPage(acc.id, acc.name, K.platform);
+        audit.log(session.user.username, `${kind}_settings_save`, `ตั้งค่า ${K.platform}: ${acc.name}`, clientIp(req));
+        return send(res, 200, { ...publicSettings(), savedId: acc.id });
+      }
+      if (method === 'POST' && action === '/delete') {
+        ext.remove(kind, clean(b.id, 60));
+        audit.log(session.user.username, `${kind}_settings_delete`, `ลบ ${K.platform}: ${b.id}`, clientIp(req));
+        return send(res, 200, publicSettings());
+      }
+      if (method === 'POST' && action === '/test') {
+        const acc = ext.byId(kind, clean(b.id, 60));
+        if (!acc) return send(res, 200, { ok: false, error: 'ไม่พบบัญชีนี้ — กดบันทึกก่อน' });
+        try {
+          let info = '';
+          if (kind === 'wechat') {
+            await ext.wechatAccessToken(acc, true);
+            info = 'ขอ access_token สำเร็จ';
+          } else if (kind === 'tiktokAds') {
+            const r = await ext.tiktokAdsTest(acc);
+            info = [r.name, r.currency].filter(Boolean).join(' · ');
+            if (r.name && (!acc.name || acc.name === 'TikTok Ads')) ext.update(kind, acc.id, { name: r.name });
+          } else {
+            return send(res, 200, { ok: false, error: 'บันทึกค่าไว้แล้ว — การรับ/ตอบแชท TikTok จะเปิดใช้เมื่อแอปได้อนุมัติ Business Messaging API' });
+          }
+          ext.update(kind, acc.id, { connectedAt: new Date().toISOString(), info });
+          audit.log(session.user.username, `${kind}_test`, `เชื่อมต่อ ${K.platform} สำเร็จ: ${acc.name}`, clientIp(req));
+          return send(res, 200, { ok: true, info, settings: publicSettings() });
+        } catch (e) {
+          return send(res, 200, { ok: false, error: e.message });
+        }
+      }
+      return send(res, 404, { error: 'Not found' });
+    }
+  }
+
   if (route === 'PUT /api/settings/line') {
     if (!auth.isAdmin(session.user)) return send(res, 403, { error: 'เฉพาะผู้ดูแล (admin) เท่านั้น' });
     const b = await readJson(req);
@@ -2762,6 +2828,37 @@ const server = http.createServer(async (req, res) => {
         return send(res, 200, 'EVENT_RECEIVED'); // ตอบ 200 เสมอเมื่อลายเซ็นถูก เพื่อไม่ให้ Meta ส่งซ้ำ
       }
       return send(res, 405, 'Method not allowed');
+    }
+
+    // Webhook จาก WeChat Official Account: /webhook/wechat/<id บัญชี>
+    {
+      const wm = /^\/webhook\/wechat\/([A-Za-z0-9-]{3,40})$/.exec(url.pathname);
+      if (wm) {
+        const acc = ext.byId('wechat', wm[1]);
+        if (!acc || !acc.token) return send(res, 404, 'Not found');
+        const ts = url.searchParams.get('timestamp') || ''; const nonce = url.searchParams.get('nonce') || '';
+        const sigOk = ext.safeEq(url.searchParams.get('signature') || '', ext.wechatSignature(acc.token, ts, nonce));
+        if (req.method === 'GET') {
+          // WeChat ยืนยัน Server URL: ลายเซ็นถูก → ตอบ echostr กลับ
+          if (!sigOk) { audit.log('wechat-webhook', 'webhook_rejected', 'ลายเซ็น WeChat ไม่ถูกต้อง (GET)', ip); return send(res, 403, 'Forbidden'); }
+          res.writeHead(200, { 'Content-Type': 'text/plain' });
+          return res.end(url.searchParams.get('echostr') || '');
+        }
+        if (req.method === 'POST') {
+          if (!sigOk) { audit.log('wechat-webhook', 'webhook_rejected', 'ลายเซ็น WeChat ไม่ถูกต้อง', ip); return send(res, 403, 'Forbidden'); }
+          let xml = (await readRaw(req)).toString('utf8');
+          const enc = ext.xmlField(xml, 'Encrypt');
+          if (enc) {
+            if (!acc.aesKey || !ext.safeEq(url.searchParams.get('msg_signature') || '', ext.wechatSignature(acc.token, ts, nonce, enc))) return send(res, 403, 'Forbidden');
+            try { xml = ext.wechatDecrypt(acc, enc); } catch { return send(res, 400, 'Bad request'); }
+          }
+          // ตอบ success ทันที (WeChat รอไม่เกิน 5 วินาที) แล้วค่อยบันทึก
+          res.writeHead(200, { 'Content-Type': 'text/plain' }); res.end('success');
+          try { handleWeChatMessage(acc, xml); } catch (e) { console.error('wechat-webhook', e); }
+          return;
+        }
+        return send(res, 405, 'Method not allowed');
+      }
     }
 
     // Webhook จาก LINE Official Account (Messaging API)

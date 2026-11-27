@@ -692,6 +692,63 @@ async function main() {
       ok('LINE OA / WhatsApp หลายบัญชี: แยกแชท ตอบจากบัญชีที่ถูก เพิ่ม/ลบได้ เฉพาะ admin');
     }
 
+    // WeChat + TikTok: บันทึก/ทดสอบ/รับแชท/ตอบกลับ
+    {
+      const calls = [];
+      const prev = global.fetch;
+      global.fetch = async (url, opts) => {
+        const u = String(url);
+        if (u.startsWith(base)) return prev(url, opts);
+        calls.push({ u, body: opts && opts.body });
+        if (u.includes('/cgi-bin/token')) return new Response(JSON.stringify({ access_token: 'WCTOKEN', expires_in: 7200 }), { status: 200 });
+        if (u.includes('/message/custom/send')) return new Response(JSON.stringify({ errcode: 0, errmsg: 'ok' }), { status: 200 });
+        if (u.includes('business-api.tiktok.com')) return new Response(JSON.stringify({ code: 0, data: { list: [{ name: 'BEQ TikTok Ads', currency: 'THB' }] } }), { status: 200 });
+        return new Response('{}', { status: 200 });
+      };
+      assert.equal((await call('PUT', '/api/settings/ext/wechat', { name: 'x' })).status, 400, 'ขาดช่องที่ต้องกรอก');
+      const aesKey = crypto.randomBytes(32).toString('base64').slice(0, 43);
+      const w = (await call('PUT', '/api/settings/ext/wechat', { name: 'BEQ WeChat', appId: 'wxAPP', appSecret: 'wsec', token: 'wtok', aesKey })).json;
+      assert.ok(w.savedId && w.extAccounts.wechat.length === 1);
+      assert.ok(!JSON.stringify(w).includes('wsec') && !JSON.stringify(w).includes(aesKey), 'ห้ามส่งความลับกลับ');
+      assert.equal((await call('POST', '/api/settings/ext/wechat/test', { id: w.savedId })).json.ok, true);
+      const sig = (...p) => crypto.createHash('sha1').update(p.map(String).sort().join('')).digest('hex');
+      const qs = (extra = '') => `timestamp=1&nonce=n&signature=${sig('wtok', '1', 'n')}${extra}`;
+      const ver = await fetch(`${base}/webhook/wechat/${w.savedId}?${qs('&echostr=HELLO')}`);
+      assert.equal(await ver.text(), 'HELLO', 'ยืนยัน Server URL');
+      assert.equal((await fetch(`${base}/webhook/wechat/${w.savedId}?timestamp=1&nonce=n&signature=bad&echostr=x`)).status, 403);
+      const xml = '<xml><ToUserName><![CDATA[gh_1]]></ToUserName><FromUserName><![CDATA[oOPEN123456]]></FromUserName><CreateTime>1700000000</CreateTime><MsgType><![CDATA[text]]></MsgType><Content><![CDATA[สวัสดีจาก WeChat]]></Content><MsgId>111</MsgId></xml>';
+      const pr = await fetch(`${base}/webhook/wechat/${w.savedId}?${qs()}`, { method: 'POST', body: xml });
+      assert.equal(await pr.text(), 'success');
+      // โหมด Safe (เข้ารหัส)
+      const key = Buffer.from(aesKey + '=', 'base64');
+      const inner = Buffer.from(xml.replace('สวัสดีจาก WeChat', 'ข้อความเข้ารหัส').replace('111', '112'));
+      const lenBuf = Buffer.alloc(4); lenBuf.writeUInt32BE(inner.length);
+      let plain = Buffer.concat([crypto.randomBytes(16), lenBuf, inner, Buffer.from('wxAPP')]);
+      const pad = 32 - (plain.length % 32); plain = Buffer.concat([plain, Buffer.alloc(pad, pad)]);
+      const ci = crypto.createCipheriv('aes-256-cbc', key, key.subarray(0, 16)); ci.setAutoPadding(false);
+      const enc = Buffer.concat([ci.update(plain), ci.final()]).toString('base64');
+      const er = await fetch(`${base}/webhook/wechat/${w.savedId}?${qs('&msg_signature=' + sig('wtok', '1', 'n', enc))}`, { method: 'POST', body: `<xml><ToUserName><![CDATA[gh_1]]></ToUserName><Encrypt><![CDATA[${enc}]]></Encrypt></xml>` });
+      assert.equal(await er.text(), 'success');
+      await new Promise((r) => setTimeout(r, 100));
+      const wl = store.read('leads.json', []).find((l) => l.psid === 'oOPEN123456' && l.pageId === w.savedId);
+      assert.ok(wl && wl.platform === 'WeChat', 'สร้างแชท WeChat');
+      const ops = require('../lib/ops');
+      const texts = ops.messagesFor(wl).map((m) => m.text);
+      assert.ok(texts.includes('สวัสดีจาก WeChat') && texts.includes('ข้อความเข้ารหัส'), 'รับได้ทั้งแบบธรรมดาและเข้ารหัส');
+      calls.length = 0;
+      await meta.sendMessage(wl, 'ตอบกลับ WeChat');
+      const sent = calls.find((c) => c.u.includes('/message/custom/send?access_token=WCTOKEN'));
+      assert.ok(sent && JSON.parse(sent.body).touser === 'oOPEN123456');
+      const ta = (await call('PUT', '/api/settings/ext/tiktokAds', { accessToken: 'ttk', advertiserId: '701' })).json;
+      const tt = (await call('POST', '/api/settings/ext/tiktokAds/test', { id: ta.savedId })).json;
+      assert.equal(tt.ok, true); assert.ok(tt.settings.extAccounts.tiktokAds[0].name === 'BEQ TikTok Ads');
+      assert.equal((await call('PUT', '/api/settings/ext/tiktokMsg', { clientKey: 'ck', clientSecret: 'cs' })).status, 200);
+      assert.equal((await asStaff('PUT', '/api/settings/ext/wechat', { appId: 'a', appSecret: 'b', token: 'c' })).status, 403);
+      assert.equal((await call('POST', '/api/settings/ext/wechat/delete', { id: w.savedId })).json.extAccounts.wechat.length, 0);
+      global.fetch = prev;
+      ok('WeChat (ยืนยัน URL, รับแชทธรรมดา/เข้ารหัส, ตอบกลับ) + TikTok Ads/แชท บันทึกและทดสอบได้ เฉพาะ admin');
+    }
+
     global.fetch = realFetch2;
   }
 

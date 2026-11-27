@@ -5379,6 +5379,8 @@ function boardShell() {
     Instagram: { icon: '📸', label: 'Instagram', bg: 'linear-gradient(90deg,#fdf2f8,#fff7ed)', fg: '#be185d', bar: '#e1306c' },
     LINE: { icon: '💬', label: 'LINE', bg: '#e8f8ee', fg: '#047857', bar: '#06c755' },
     WhatsApp: { icon: '🟢', label: 'WhatsApp', bg: '#e7f7f1', fg: '#0f766e', bar: '#25d366' },
+    TikTok: { icon: '🎵', label: 'TikTok', bg: '#f1f5f9', fg: '#111827', bar: '#111827' },
+    WeChat: { icon: '💚', label: 'WeChat', bg: '#ecfdf3', fg: '#15803d', bar: '#07c160' },
   };
   function platformBadge(platform, size = 12) {
     const st = PLATFORM_STYLE[platform] || PLATFORM_STYLE.Facebook;
@@ -5664,6 +5666,12 @@ function boardShell() {
 
       ${waAccountsPanelHtml(s)}
 
+      ${extPanelHtml(s, 'wechat')}
+
+      ${extPanelHtml(s, 'tiktokMsg')}
+
+      ${extPanelHtml(s, 'tiktokAds')}
+
       ${pagesPanelHtml()}
 
       ${S.me.role === 'admin' ? usersPanelHtml() : ''}
@@ -5676,6 +5684,90 @@ function boardShell() {
           <div class="field"><label>รหัสผ่านใหม่</label><input type="password" name="next" autocomplete="new-password" minlength="8" required><small>อย่างน้อย 8 ตัวอักษร</small></div>
           <div class="row-actions"><button class="btn primary" type="submit">เปลี่ยนรหัสผ่าน</button></div></form></section></div>`;
     buildSettingQuickNav(box);
+  }
+
+  // ===== TikTok (แชท / โฆษณา) และ WeChat — ช่องที่ต้องกรอก =====
+  const EXT_DEF = {
+    wechat: {
+      title: 'เชื่อมต่อ WeChat Official Account', icon: '💚', color: '#07c160', unit: 'บัญชี', add: '➕ เพิ่ม WeChat',
+      sub: 'รับและตอบแชท WeChat ในหน้า Inbox — ต้องเป็น Service Account ที่ยืนยันตัวตนแล้ว (ตอบได้ภายใน 48 ชม. ไม่เกิน 5 ข้อความ)',
+      fields: [
+        { k: 'name', label: 'ชื่อที่แสดงในระบบ', ph: 'เช่น BEQ WeChat' },
+        { k: 'originalId', label: 'Original ID', ph: 'gh_xxxxxxxxxxxx', help: 'Settings → Account Info' },
+        { k: 'appId', label: 'AppID', ph: 'wx1a2b3c4d5e6f7a8b', help: 'Settings and Development → Basic Configuration', req: true },
+        { k: 'appSecret', label: 'AppSecret', secret: true, help: 'หน้าเดียวกับ AppID (กด Reset เพื่อดู)', req: true },
+        { k: 'token', label: 'Token', secret: true, help: 'ตั้งเองได้ (ตัวอักษร/ตัวเลข 3–32 ตัว) แล้วใส่ค่าเดียวกันใน WeChat', req: true },
+        { k: 'aesKey', label: 'EncodingAESKey', secret: true, help: 'ใช้เมื่อเลือกโหมด Safe — ถ้าเลือก Plaintext เว้นว่างได้' },
+      ],
+      steps: (a) => `<ol class="ext-steps">
+          <li>ที่ WeChat Official Accounts Platform → <b>Basic Configuration</b> ใส่ <b>Server URL</b>: <input type="text" readonly value="${esc(location.origin + '/webhook/wechat/' + (a ? a.id : '<บันทึกก่อนแล้วจะได้ URL>'))}" data-act="select-input" style="width:100%;max-width:520px"></li>
+          <li>ใส่ <b>Token</b> และ <b>EncodingAESKey</b> ให้ตรงกับช่องด้านบน แล้วเลือกโหมด <b>Plaintext</b> หรือ <b>Safe</b></li>
+          <li>ใส่ IP ขาออกของเซิร์ฟเวอร์ (ดูที่ Render → Service → Connect → Outbound) ใน <b>API IP Whitelist</b></li>
+        </ol>`,
+    },
+    tiktokMsg: {
+      title: 'เชื่อมต่อ TikTok (แชท DM)', icon: '🎵', color: '#111827', unit: 'บัญชี', add: '➕ เพิ่ม TikTok',
+      sub: 'ใช้ Business Messaging API — ต้องได้อนุมัติ Advanced Access จาก TikTok ก่อน (ตอบได้ภายใน 48 ชม. ไม่เกิน 10 ข้อความ)',
+      fields: [
+        { k: 'name', label: 'ชื่อที่แสดงในระบบ', ph: 'เช่น TikTok BEQ' },
+        { k: 'clientKey', label: 'Client Key (App ID)', ph: 'aw1234abcd', help: 'developers.tiktok.com → My Apps', req: true },
+        { k: 'clientSecret', label: 'Client Secret', secret: true, help: 'หน้าเดียวกับ Client Key' },
+        { k: 'businessId', label: 'Business Account ID', ph: 'ไอดีบัญชี TikTok Business', help: 'จาก TikTok Business Center' },
+        { k: 'accessToken', label: 'Access Token', secret: true, help: 'ได้หลังกดอนุญาตแอปให้เข้าถึงบัญชี' },
+      ],
+      steps: () => '<p class="rv-hint" style="margin:8px 0 0">ℹ️ บันทึกค่าไว้ได้เลย — ระบบรับ/ตอบแชท TikTok จะเปิดใช้เมื่อแอปได้อนุมัติ Business Messaging API (ตั้งค่า TikTok ให้รับ DM จากทุกคนด้วย)</p>',
+    },
+    tiktokAds: {
+      title: 'เชื่อมต่อ TikTok Ads (ข้อมูลโฆษณา)', icon: '📊', color: '#fe2c55', unit: 'บัญชีโฆษณา', add: '➕ เพิ่มบัญชีโฆษณา TikTok',
+      sub: 'ใช้ TikTok Marketing API — สร้างแอปที่ TikTok for Business Developers ขอสิทธิ์ Ad Account Management + Reporting',
+      fields: [
+        { k: 'name', label: 'ชื่อที่แสดงในระบบ', ph: 'เช่น TikTok Ads BEQ' },
+        { k: 'appId', label: 'App ID', ph: '7123456789012345678', help: 'business-api.tiktok.com → My Apps' },
+        { k: 'secret', label: 'Secret', secret: true, help: 'หน้าเดียวกับ App ID' },
+        { k: 'accessToken', label: 'Access Token', secret: true, help: 'ได้หลังกดอนุญาตแอป (Long-term token)', req: true },
+        { k: 'advertiserId', label: 'Advertiser ID', ph: '7012345678901234567', help: 'ดูใน URL ของ Ads Manager (aadvid=...)', req: true },
+      ],
+      steps: () => '<p class="rv-hint" style="margin:8px 0 0">ℹ️ กด "บันทึก & ทดสอบ" เพื่อเช็กว่าเชื่อมได้ — การดึงตัวเลขโฆษณา TikTok มาแสดงใน Dashboard จะเพิ่มให้หลังเชื่อมต่อสำเร็จ</p>',
+    },
+  };
+  function extPanelHtml(s, kind) {
+    const def = EXT_DEF[kind];
+    const list = (s.extAccounts && s.extAccounts[kind]) || [];
+    S.extNew = S.extNew || {};
+    const form = (a) => {
+      const isNew = !a; a = a || {};
+      const fields = def.fields.map((f) => {
+        if (f.secret) {
+          const has = a[`has_${f.k}`];
+          return `<div class="field"><label>${f.label}${f.req ? ' <span style="color:#dc2626">*</span>' : ''} ${has ? `<span class="chip good" style="margin-left:6px">บันทึกแล้ว ${esc(a[`hint_${f.k}`] || '')}</span>` : ''}</label><input type="password" name="${f.k}" placeholder="${has ? 'เว้นว่างไว้ถ้าไม่เปลี่ยน' : ''}" autocomplete="new-password">${f.help ? `<small>${f.help}</small>` : ''}</div>`;
+        }
+        return `<div class="field"><label>${f.label}${f.req ? ' <span style="color:#dc2626">*</span>' : ''}</label><input type="text" name="${f.k}" value="${esc(a[f.k] || '')}" placeholder="${esc(f.ph || '')}">${f.help ? `<small>${f.help}</small>` : ''}</div>`;
+      }).join('');
+      return `<form class="form" data-form="ext-settings" data-kind="${kind}" autocomplete="off" style="margin-top:10px">
+        ${isNew ? '' : `<input type="hidden" name="id" value="${esc(a.id)}">`}
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:10px">${fields}</div>
+        ${def.steps(isNew ? null : a)}
+        <div class="row-actions">
+          <button class="btn primary" type="submit" data-after="test">${isNew ? '➕ เพิ่ม & ทดสอบ' : 'บันทึก & ทดสอบ'}</button>
+          <button class="btn" type="submit" data-after="save">บันทึก</button>
+          ${isNew ? '' : `<button class="btn danger" type="button" data-act="ext-delete" data-kind="${kind}" data-id="${esc(a.id)}" data-name="${esc(a.name || '')}" style="margin-left:auto">ลบ</button>`}
+        </div>
+      </form>`;
+    };
+    const rows = list.map((a) => `<details class="chan-acc" ${list.length === 1 ? 'open' : ''} style="border:1px solid #e2e8f0;border-left:4px solid ${def.color};border-radius:12px;padding:10px 14px;margin-top:10px;background:#fff">
+        <summary style="cursor:pointer;display:flex;align-items:center;gap:8px;flex-wrap:wrap;list-style:none">
+          <b>${def.icon} ${esc(a.name || '')}</b>${a.info ? `<span class="rv-hint">${esc(a.info)}</span>` : ''}
+          ${a.connectedAt ? '<span class="chip good" style="font-size:11px">🟢 เชื่อมต่อแล้ว</span>' : '<span class="chip" style="font-size:11px;background:#fef3c7;color:#92400e">ยังไม่ได้ทดสอบ</span>'}
+          <span class="rv-hint" style="margin-left:auto;font-size:11.5px">กดเพื่อแก้ไข ▾</span>
+        </summary>${form(a)}</details>`).join('');
+    return `<section class="card panel" id="ext-${kind}">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+        <div><h3 style="margin:0">${def.title} <span class="chip" style="font-size:11.5px;margin-left:6px">${list.length} ${def.unit}</span></h3><p class="sub" style="margin:4px 0 0">${def.sub}</p></div>
+        ${list.length ? `<button class="btn" type="button" data-act="ext-new" data-kind="${kind}">${def.add}</button>` : ''}
+      </div>
+      ${rows}
+      ${S.extNew[kind] || !list.length ? `<div style="border:1px dashed ${def.color};border-radius:12px;padding:10px 14px;margin-top:10px;background:#fafafa"><b>${def.add}</b> <span class="rv-hint">ช่องที่มี <span style="color:#dc2626">*</span> ต้องกรอก</span>${form(null)}</div>` : ''}
+    </section>`;
   }
 
   // ===== LINE OA หลายบัญชี =====
@@ -6267,6 +6359,12 @@ function boardShell() {
       else if (act === 'sla-rep') { const id = el.dataset.rep; S.sla.open = S.sla.open === id ? '' : id; S.sla.kind = ''; renderSlaBody(); }
       else if (act === 'sla-kind') { S.sla.kind = el.dataset.kind; renderSlaBody(); }
       else if (act === 'line-acc-new') { S.lineNew = true; renderSettingBody(); }
+      else if (act === 'ext-new') { S.extNew = S.extNew || {}; S.extNew[el.dataset.kind] = true; renderSettingBody(); }
+      else if (act === 'ext-delete') {
+        if (!confirm(`ลบ "${el.dataset.name || el.dataset.id}" ออกจากระบบ?\n\nแชทเดิมยังอยู่ แต่จะไม่รับแชทใหม่และตอบกลับจากบัญชีนี้ไม่ได้`)) return;
+        try { const r = await api(`/api/settings/ext/${el.dataset.kind}/delete`, { method: 'POST', body: { id: el.dataset.id } }); S.settings = { ...r, lineNotify: (S.settings && S.settings.lineNotify) || {} }; showToast('ลบแล้ว', 'success'); } catch (e) { showToast(e.message, 'error'); }
+        renderSettingBody(); return;
+      }
       else if (act === 'wa-acc-new') { S.waNew = true; renderSettingBody(); }
       else if (act === 'line-acc-delete' || act === 'wa-acc-delete') {
         const isLine = act === 'line-acc-delete';
@@ -6889,6 +6987,25 @@ function boardShell() {
           S.flash = { type: 'ok', text: 'บันทึก LINE OA เรียบร้อยแล้ว' };
         }
         render();
+      } else if (type === 'ext-settings') {
+        const kind = form.dataset.kind; const def = EXT_DEF[kind];
+        const after = (ev.submitter && ev.submitter.dataset.after) || 'save';
+        const saved = await api(`/api/settings/ext/${kind}`, { method: 'PUT', body: fd });
+        S.settings = { ...saved, lineNotify: (S.settings && S.settings.lineNotify) || {} };
+        if (S.extNew) S.extNew[kind] = false;
+        S.filters = await api('/api/filters').catch(() => S.filters);
+        if (after === 'test') {
+          const r = await api(`/api/settings/ext/${kind}/test`, { method: 'POST', body: { id: saved.savedId } });
+          if (r.ok) {
+            S.settings = { ...r.settings, lineNotify: (S.settings && S.settings.lineNotify) || {} };
+            S.flash = { type: 'ok', text: `✅ เชื่อมต่อ ${def.title.replace('เชื่อมต่อ ', '')} สำเร็จ${r.info ? ': ' + r.info : ''}` };
+          } else {
+            S.flash = { type: 'err', text: `❌ บันทึกแล้ว แต่ทดสอบไม่สำเร็จ: ${r.error || ''}` };
+          }
+        } else {
+          S.flash = { type: 'ok', text: 'บันทึกเรียบร้อยแล้ว' };
+        }
+        render();
       } else if (type === 'whatsapp-settings') {
         const after = (ev.submitter && ev.submitter.dataset.after) || 'save';
         const saved = await api('/api/settings/whatsapp', { method: 'PUT', body: fd });
@@ -6944,7 +7061,7 @@ function boardShell() {
     } catch (e) {
       if (type === 'login') { S.loginErr = e.message; renderLogin(); }
       else if (['followup', 'review'].includes(type) && e.message !== 'กรุณาเข้าสู่ระบบ') { S.chat.msg = { type: 'err', text: e.message }; renderChatViews(); }
-      else if (['line-settings', 'whatsapp-settings'].includes(type) && e.message !== 'กรุณาเข้าสู่ระบบ') { showToast('❌ ' + e.message, 'error'); }
+      else if (['line-settings', 'whatsapp-settings', 'ext-settings'].includes(type) && e.message !== 'กรุณาเข้าสู่ระบบ') { showToast('❌ ' + e.message, 'error'); }
       else if (e.message !== 'กรุณาเข้าสู่ระบบ') { S.flash = { type: 'err', text: e.message }; render(); }
     }
   });

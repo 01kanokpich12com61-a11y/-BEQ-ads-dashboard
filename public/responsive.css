@@ -109,3 +109,6 @@ html body .as-n.as-new, html body .as-n.as-intake { background: #e0f2fe; color: 
 @media (max-width: 760px) {
   html body .cov-strip { grid-template-columns: repeat(45, minmax(0, 1fr)); gap: 2px; }
 }
+
+html body .ext-steps { margin: 10px 0 0; padding-left: 20px; font-size: 12.5px; color: #475569; line-height: 1.7; }
+html body .ext-steps input { margin-top: 4px; font-size: 12px; }
