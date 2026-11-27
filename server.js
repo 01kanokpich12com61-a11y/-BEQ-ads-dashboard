@@ -865,6 +865,43 @@ async function api(req, res, url, session) {
     }
   }
 
+  // ตอบคอมเมนต์จากหน้า Posts & Comments (ทีมขายใช้ได้)
+  if (route === 'POST /api/posts-comments/reply') {
+    const b = await readJson(req);
+    const text = String(b.text || '').trim().slice(0, 2000);
+    if (!text) return send(res, 400, { error: 'กรุณาพิมพ์ข้อความตอบกลับ' });
+    const posts = store.read('posts_comments.json', []);
+    const post = posts.find((p) => String(p.id) === String(b.postId));
+    const cm = post && (post.comments || []).find((c) => String(c.id) === String(b.commentId));
+    if (!cm) return send(res, 404, { error: 'ไม่พบคอมเมนต์นี้ — ลองกดดึงโพสต์ & คอมเมนต์ใหม่' });
+    const page = store.read('pages.json', []).find((p) => String(p.id) === String(post.pageId));
+    const isDemo = providers.currentMode() === 'demo';
+    let replyId = `local_${Date.now()}`;
+    if (!isDemo) {
+      try {
+        const r = await meta.replyComment({ platform: post.platform || 'Facebook', pageId: post.pageId, fbPageId: page && page.fbPageId, commentId: cm.id, text });
+        replyId = r.id;
+      } catch (e) {
+        audit.log(session.user.username, 'comment_reply_failed', `${post.platform || 'Facebook'} ${cm.id}: ${e.message}`, clientIp(req));
+        return send(res, 502, { error: e.message || 'ตอบคอมเมนต์ไม่สำเร็จ' });
+      }
+    }
+    // อ่านไฟล์ใหม่อีกรอบก่อนเขียน (ระหว่างรอ Meta อาจมี Webhook เขียนไฟล์เดียวกัน)
+    const fresh = store.read('posts_comments.json', []);
+    const fp = fresh.find((p) => String(p.id) === String(b.postId));
+    const fc = fp && (fp.comments || []).find((c) => String(c.id) === String(b.commentId));
+    const reply = { id: replyId, text, from: (page && page.name) || post.pageName || 'ทีมงาน', by: session.user.username, timestamp: new Date().toISOString(), isStaff: true };
+    if (fc) {
+      fc.replies = fc.replies || [];
+      if (!fc.replies.some((r) => String(r.id) === reply.id)) fc.replies.push(reply);
+      fc.replied = true;
+      store.write('posts_comments.json', fresh);
+    }
+    audit.log(session.user.username, 'comment_reply', `${post.platform || 'Facebook'} ${post.pageName || post.pageId}: ตอบคอมเมนต์ของ ${cm.from || ''} (${text.length} ตัวอักษร)${isDemo ? ' [เดโม ไม่ได้ส่งจริง]' : ''}`, clientIp(req));
+    broadcastRealtime('post_comment', { postId: String(post.id), platform: post.platform, comment: reply, parentId: String(cm.id) });
+    return send(res, 200, { ok: true, reply, delivered: isDemo ? 'demo' : 'meta' });
+  }
+
   if (route === 'POST /api/posts-comments/sync') {
     if (!auth.isAdmin(session.user)) return send(res, 403, { error: 'เฉพาะผู้ดูแล (admin) เท่านั้น' });
     const b = await readJson(req).catch(() => ({}));

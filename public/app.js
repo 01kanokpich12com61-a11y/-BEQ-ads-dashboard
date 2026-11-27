@@ -2677,6 +2677,21 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
     renderCommentsBody();
   }
 
+  // ช่องตอบคอมเมนต์: ยังไม่ตอบ = เปิดช่องพิมพ์ทันที, ตอบแล้ว = ปุ่ม "ตอบเพิ่ม"
+  function commentReplyFormHtml(post, cm) {
+    const key = `${post.id}|${cm.id}`;
+    S.cmReply = S.cmReply || {};
+    const st = S.cmReply[key] || {};
+    const open = !cm.replied || st.open;
+    if (!open) return `<button type="button" class="cm-reply-more" data-act="cm-reply-open" data-key="${esc(key)}">↩ ตอบเพิ่ม</button>`;
+    return `<form class="cm-reply-form" data-form="comment-reply" autocomplete="off">
+        <input type="hidden" name="postId" value="${esc(post.id)}"><input type="hidden" name="commentId" value="${esc(cm.id)}">
+        <textarea name="text" rows="1" maxlength="2000" placeholder="พิมพ์ตอบ ${esc(cm.from || '')} ในนามเพจ… (Ctrl+Enter ส่ง)" ${st.sending ? 'disabled' : ''}>${esc(st.draft || '')}</textarea>
+        <button class="btn primary" type="submit" ${st.sending ? 'disabled' : ''}>${st.sending ? 'กำลังส่ง…' : 'ส่ง'}</button>
+        ${st.err ? `<div class="cm-reply-err">❌ ${esc(st.err)}</div>` : ''}
+      </form>`;
+  }
+
   function renderCommentsBody() {
     const box = document.getElementById('comments-body'); if (!box) return;
     if (!S.comments) S.comments = { data: null, loading: false, err: null, range: '30d', from: '', to: '', filterStatus: 'all' };
@@ -2809,13 +2824,13 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
                                 <div style="font-size:13px;color:var(--ink-2, #334155);line-height:1.45;word-break:break-word">
                                   ${esc(cm.text || '')}
                                 </div>
-                                ${reply ? `
-                                  <div style="margin-top:8px;padding:8px 12px;background:#f8fafc;border-left:3px solid #3b82f6;border-radius:6px;font-size:12.5px">
-                                    <div style="font-weight:600;color:#2563eb;font-size:11.5px;margin-bottom:2px">💬 ทีมงานตอบกลับ: ${esc(reply.from || 'ทีมงาน')}</div>
-                                    <div style="color:var(--ink-1, #1e293b)">${esc(reply.text || '')}</div>
-                                    <div style="font-size:10.5px;color:var(--muted);margin-top:2px">${esc(reply.timestamp ? reply.timestamp.slice(0, 16).replace('T', ' ') : '')}</div>
-                                  </div>
-                                ` : ''}
+                                ${(cm.replies || []).map((rp) => `
+                                  <div style="margin-top:8px;padding:8px 12px;background:${rp.isStaff === false ? '#fff' : '#f8fafc'};border-left:3px solid ${rp.isStaff === false ? '#cbd5e1' : '#3b82f6'};border-radius:6px;font-size:12.5px">
+                                    <div style="font-weight:600;color:${rp.isStaff === false ? '#475569' : '#2563eb'};font-size:11.5px;margin-bottom:2px">${rp.isStaff === false ? '↳ ' + esc(rp.from || 'ผู้ใช้') : '💬 ทีมงานตอบกลับ: ' + esc(rp.from || 'ทีมงาน')}${rp.by ? ` <span style="color:var(--muted);font-weight:500">(โดย ${esc(rp.by)})</span>` : ''}</div>
+                                    <div style="color:var(--ink-1, #1e293b);white-space:pre-wrap">${esc(rp.text || '')}</div>
+                                    <div style="font-size:10.5px;color:var(--muted);margin-top:2px">${esc(rp.timestamp ? rp.timestamp.slice(0, 16).replace('T', ' ') : '')}</div>
+                                  </div>`).join('')}
+                                ${commentReplyFormHtml(p, cm)}
                               </div>
                             </div>
                           `;
@@ -6039,6 +6054,20 @@ function boardShell() {
     } catch (_) {}
   }
 
+  // เก็บร่างคำตอบคอมเมนต์ไว้ (หน้าอัปเดตเรียลไทม์แล้วข้อความที่พิมพ์ไม่หาย) + Ctrl/⌘+Enter = ส่ง
+  document.addEventListener('input', (ev) => {
+    const f = ev.target.closest && ev.target.closest('.cm-reply-form');
+    if (!f || ev.target.name !== 'text') return;
+    const key = `${f.querySelector('[name=postId]').value}|${f.querySelector('[name=commentId]').value}`;
+    S.cmReply = S.cmReply || {};
+    S.cmReply[key] = { ...(S.cmReply[key] || {}), open: true, draft: ev.target.value, err: '' };
+  });
+  document.addEventListener('keydown', (ev) => {
+    if (ev.key !== 'Enter' || !(ev.ctrlKey || ev.metaKey)) return;
+    const f = ev.target.closest && ev.target.closest('.cm-reply-form');
+    if (f) { ev.preventDefault(); f.requestSubmit(); }
+  });
+
   /* ---------------- events ---------------- */
   function resetFilters() { Object.assign(S.dash, { platform: '', page: '', campaign: '', agency: '', rep: '', status: '', search: '' }); }
 
@@ -6499,6 +6528,7 @@ function boardShell() {
       }
       else if (act === 'sla-rep') { const id = el.dataset.rep; S.sla.open = S.sla.open === id ? '' : id; S.sla.kind = ''; renderSlaBody(); }
       else if (act === 'sla-kind') { S.sla.kind = el.dataset.kind; renderSlaBody(); }
+      else if (act === 'cm-reply-open') { S.cmReply = S.cmReply || {}; S.cmReply[el.dataset.key] = { open: true }; renderCommentsBody(); const f = document.querySelector(`.cm-reply-form input[name=commentId][value="${CSS.escape(el.dataset.key.split('|')[1])}"]`); if (f) f.closest('form').querySelector('textarea').focus(); }
       else if (act === 'sales-open') { S.dash.salesOpen = S.dash.salesOpen === el.dataset.rep ? null : el.dataset.rep; render(); }
       else if (act === 'deal-value') {
         const id = el.dataset.id; const l = findLeadLocal(id);
@@ -7149,6 +7179,25 @@ function boardShell() {
           S.flash = { type: 'ok', text: 'บันทึก LINE OA เรียบร้อยแล้ว' };
         }
         render();
+      } else if (type === 'comment-reply') {
+        const key = `${fd.postId}|${fd.commentId}`;
+        S.cmReply = S.cmReply || {};
+        const text = String(fd.text || '').trim();
+        if (!text) return;
+        S.cmReply[key] = { open: true, sending: true, draft: text };
+        renderCommentsBody();
+        try {
+          const r = await api('/api/posts-comments/reply', { method: 'POST', body: { postId: fd.postId, commentId: fd.commentId, text } });
+          const post = S.comments && S.comments.data && S.comments.data.posts.find((p) => String(p.id) === String(fd.postId));
+          const cm = post && (post.comments || []).find((c) => String(c.id) === String(fd.commentId));
+          if (cm) { cm.replies = cm.replies || []; if (!cm.replies.some((x) => x.id === r.reply.id)) cm.replies.push(r.reply); cm.replied = true; }
+          delete S.cmReply[key];
+          showToast(r.delivered === 'demo' ? 'บันทึกคำตอบแล้ว (โหมดเดโม ไม่ได้ส่งจริง)' : '✅ ตอบคอมเมนต์แล้ว', 'success');
+        } catch (e) {
+          S.cmReply[key] = { open: true, sending: false, draft: text, err: e.message };
+        }
+        renderCommentsBody();
+        return;
       } else if (type === 'ext-settings') {
         const kind = form.dataset.kind; const def = EXT_DEF[kind];
         const after = (ev.submitter && ev.submitter.dataset.after) || 'save';

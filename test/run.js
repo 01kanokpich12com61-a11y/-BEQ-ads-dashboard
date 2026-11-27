@@ -821,6 +821,48 @@ async function main() {
     ok('ปิดการขาย: บันทึกยอด/คนปิด/วันที่ แก้ยอดภายหลังได้ ผลงานเซลล์นับถูกต้อง');
   }
 
+  // ตอบคอมเมนต์จากหน้า Posts & Comments
+  {
+    const prevSettings = JSON.parse(JSON.stringify(meta.getSettings()));
+    meta.saveSettings({ mode: 'meta', meta: { ...(prevSettings.meta || {}), accessToken: 'USERTOKEN' } });
+    store.write('posts_comments.json', [
+      { id: 'POST1', platform: 'Facebook', pageId: 'PG1', pageName: 'BEQ', comments: [{ id: 'C1', text: 'ราคาเท่าไหร่', from: 'Ann', replies: [], replied: false }] },
+      { id: 'IGM1', platform: 'Instagram', pageId: 'IG1', pageName: 'beq.ig', comments: [{ id: 'IC1', text: 'สนใจค่ะ', from: 'bee', replies: [], replied: false }] },
+    ]);
+    const calls = [];
+    const prev = global.fetch;
+    let fail = false;
+    global.fetch = async (url, opts) => {
+      const u = String(url);
+      if (u.startsWith(base)) return prev(url, opts);
+      calls.push({ u, body: opts && opts.body, auth: opts && opts.headers && opts.headers.Authorization });
+      if (u.includes('access_token')) return new Response(JSON.stringify({ access_token: 'PAGETOKEN', id: 'PG1' }), { status: 200 });
+      if (fail) return new Response(JSON.stringify({ error: { code: 200, message: '(#200) Permissions error' } }), { status: 403 });
+      if (u.match(/\/(comments|replies)$/)) return new Response(JSON.stringify({ id: 'R_' + calls.length }), { status: 200 });
+      return new Response(JSON.stringify({ access_token: 'PAGETOKEN' }), { status: 200 });
+    };
+    assert.equal((await call('POST', '/api/posts-comments/reply', { postId: 'POST1', commentId: 'C1', text: '  ' })).status, 400);
+    const sl = await fetch(base + '/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: 'sale01', password: 'Sale-Pass-01' }) });
+    const sc = (sl.headers.get('set-cookie') || '').split(';')[0];
+    const r1 = await fetch(base + '/api/posts-comments/reply', { method: 'POST', headers: { 'Content-Type': 'application/json', cookie: sc }, body: JSON.stringify({ postId: 'POST1', commentId: 'C1', text: 'สวัสดีค่ะ ทักแชทได้เลย' }) });
+    assert.equal(r1.status, 200, 'ทีมขายตอบคอมเมนต์ได้');
+    const fbCall = calls.find((c) => /\/C1\/comments$/.test(c.u));
+    assert.ok(fbCall && JSON.parse(fbCall.body).message === 'สวัสดีค่ะ ทักแชทได้เลย' && /PAGETOKEN/.test(fbCall.auth), 'Facebook: POST /{comment}/comments ด้วย Page Token');
+    const igr = await call('POST', '/api/posts-comments/reply', { postId: 'IGM1', commentId: 'IC1', text: 'ขอบคุณค่ะ' });
+    assert.equal(igr.status, 200);
+    assert.ok(calls.some((c) => /\/IC1\/replies$/.test(c.u)), 'Instagram: POST /{comment}/replies');
+    const saved = store.read('posts_comments.json', []);
+    const c1 = saved[0].comments[0];
+    assert.equal(c1.replied, true); assert.equal(c1.replies[0].isStaff, true); assert.ok(c1.replies[0].by);
+    fail = true;
+    const bad = await call('POST', '/api/posts-comments/reply', { postId: 'POST1', commentId: 'C1', text: 'อีกครั้ง' });
+    assert.equal(bad.status, 502); assert.ok(/pages_manage_engagement/.test(bad.json.error), 'บอกสิทธิ์ที่ขาด');
+    assert.equal(store.read('posts_comments.json', [])[0].comments[0].replies.length, 1, 'ส่งไม่สำเร็จ = ไม่บันทึก');
+    global.fetch = prev;
+    meta.saveSettings({ mode: prevSettings.mode, meta: prevSettings.meta || {} });
+    ok('ตอบคอมเมนต์ Facebook/Instagram จากหน้า Posts & Comments (ทีมขายใช้ได้, แจ้งสิทธิ์ที่ขาด)');
+  }
+
   await call('POST', '/api/logout');
   assert.equal((await call('GET', '/api/me')).status, 401); ok('ล็อกเอาต์');
   server.close();
