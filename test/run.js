@@ -14,6 +14,7 @@ const auth = require('../lib/auth');
 const { server } = require('../server');
 const meta = require('../lib/meta');
 const crypto = require('node:crypto');
+const store = require('../lib/store');
 
 async function main() {
   auth.ensureAdmin();
@@ -630,6 +631,66 @@ async function main() {
     }
     assert.equal((await asStaff('GET', '/api/inbox?range=7d')).status, 200);
     ok('บัญชีทีมขายแก้การตั้งค่าระบบไม่ได้ (Token Meta / โหมด / แจ้งเตือน)');
+
+    // LINE OA / WhatsApp หลายบัญชี: แยกแชทตามบัญชี + ตอบจากบัญชีที่ลูกค้าทักมา
+    {
+      const calls = [];
+      const prev = global.fetch;
+      global.fetch = async (url, opts) => {
+        const u = String(url);
+        if (u.startsWith(base)) return prev(url, opts);
+        calls.push({ u, auth: (opts && opts.headers && (opts.headers.Authorization || opts.headers.authorization)) || '' });
+        if (u.includes('/v2/bot/profile/')) return new Response(JSON.stringify({ displayName: 'ลูกค้า LINE' }), { status: 200 });
+        if (u.includes('/v2/bot/info')) return new Response(JSON.stringify({ displayName: u ? 'BEQ OA' : '', basicId: '@beq' + calls.length, userId: 'Ubot' + calls.length }), { status: 200 });
+        if (u.includes('api.line.me')) return new Response(JSON.stringify({ sentMessages: [{ id: 'm1' }] }), { status: 200 });
+        if (u.includes('/messages')) return new Response(JSON.stringify({ messages: [{ id: 'wamid.1' }] }), { status: 200 });
+        return new Response(JSON.stringify({ id: '1', display_phone_number: '+66 80', verified_name: 'BEQ WA' }), { status: 200 });
+      };
+      const a1 = (await call('PUT', '/api/settings/line', { name: 'OA สีลม', channelSecret: 'sec-one', channelAccessToken: 'tok-one' })).json;
+      const a2 = (await call('PUT', '/api/settings/line', { name: 'OA อารีย์', channelSecret: 'sec-two', channelAccessToken: 'tok-two' })).json;
+      assert.ok(a1.savedId && a2.savedId && a1.savedId !== a2.savedId);
+      assert.equal(a2.lineAccounts.length, 2);
+      assert.ok(!JSON.stringify(a2).includes('sec-two') && !JSON.stringify(a2).includes('tok-two'), 'ห้ามส่งความลับกลับหน้าเว็บ');
+      assert.equal((await call('POST', '/api/settings/line/test', { id: a2.savedId })).json.ok, true);
+      const lineHook = (secret, userId, text) => {
+        const raw = JSON.stringify({ destination: 'Ux', events: [{ type: 'message', source: { userId }, timestamp: Date.now(), message: { type: 'text', id: 'x' + Math.random(), text } }] });
+        return fetch(base + '/webhook/line', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Line-Signature': crypto.createHmac('sha256', secret).update(raw).digest('base64') }, body: raw });
+      };
+      assert.equal((await lineHook('sec-one', 'U-same', 'สวัสดี OA1')).status, 200);
+      assert.equal((await lineHook('sec-two', 'U-same', 'สวัสดี OA2')).status, 200);
+      assert.equal((await lineHook('sec-wrong', 'U-same', 'ปลอม')).status, 403);
+      const lineLeads = store.read('leads.json', []).filter((l) => l.psid === 'U-same');
+      assert.deepEqual(lineLeads.map((l) => l.pageId).sort(), [a1.savedId, a2.savedId].sort(), 'ลูกค้าคนเดียวทัก 2 OA = 2 แชทแยกกัน');
+      const pagesNow = store.read('pages.json', []);
+      assert.ok(pagesNow.some((p) => p.id === a2.savedId && p.platform === 'LINE'), 'OA ใหม่ขึ้นในรายการเพจ');
+      calls.length = 0;
+      await meta.sendMessage(lineLeads.find((l) => l.pageId === a2.savedId), 'ตอบจาก OA2');
+      assert.ok(calls.some((c) => c.u.includes('/message/push') && String(c.auth).includes('tok-two')), 'ตอบด้วย Token ของ OA ที่ลูกค้าทักมา');
+
+      const w1 = (await call('PUT', '/api/settings/whatsapp', { name: 'WA 1', phoneId: '111', accessToken: 'wa-tok-1' })).json;
+      const w2 = (await call('PUT', '/api/settings/whatsapp', { name: 'WA 2', phoneId: '222', accessToken: 'wa-tok-2' })).json;
+      assert.equal(w2.waAccounts.length, 2);
+      const sec = (meta.getSettings().meta || {}).appSecret || 'app-sec-test';
+      meta.saveSettings({ meta: { appSecret: sec } });
+      const waHook = (phoneId, from) => {
+        const raw = JSON.stringify({ object: 'whatsapp_business_account', entry: [{ changes: [{ value: { metadata: { phone_number_id: phoneId, display_phone_number: '+66' + phoneId }, contacts: [{ wa_id: from, profile: { name: 'ลูกค้า WA' } }], messages: [{ from, id: 'w' + Math.random(), timestamp: String(Math.floor(Date.now() / 1000)), type: 'text', text: { body: 'hi' } }] } }] }] });
+        return fetch(base + '/webhook/whatsapp', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Hub-Signature-256': 'sha256=' + crypto.createHmac('sha256', sec).update(raw).digest('hex') }, body: raw });
+      };
+      assert.equal((await waHook('222', '66811')).status, 200);
+      assert.equal((await waHook('333', '66811')).status, 200);
+      const waLeads = store.read('leads.json', []).filter((l) => l.platform === 'WhatsApp' && (l.psid === '66811' || l.phone === '66811'));
+      assert.equal(waLeads.length, 2, 'เบอร์ต่างกัน = แชทแยกกัน');
+      assert.ok(waLeads.some((l) => l.pageId === w2.savedId));
+      assert.equal((await call('GET', '/api/settings')).json.waAccounts.length, 3, 'เบอร์ที่ยังไม่ได้เพิ่มถูกเพิ่มอัตโนมัติ');
+      calls.length = 0;
+      await meta.sendMessage(waLeads.find((l) => l.pageId === w2.savedId), 'ตอบ');
+      assert.ok(calls.some((c) => c.u.includes('/222/messages') && String(c.auth).includes('wa-tok-2')), 'ตอบจากเบอร์ที่ลูกค้าทักมา');
+
+      assert.equal((await call('POST', '/api/settings/line/delete', { id: a1.savedId })).json.lineAccounts.length, 1);
+      assert.equal((await asStaff('PUT', '/api/settings/line', { channelSecret: 'x' })).status, 403);
+      global.fetch = prev;
+      ok('LINE OA / WhatsApp หลายบัญชี: แยกแชท ตอบจากบัญชีที่ถูก เพิ่ม/ลบได้ เฉพาะ admin');
+    }
 
     global.fetch = realFetch2;
   }

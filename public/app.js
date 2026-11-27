@@ -5582,44 +5582,9 @@ function boardShell() {
         </form>
       </section>
 
-      <section class="card panel">
-        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
-          <div>
-            <h3 style="margin:0">เชื่อมต่อ LINE Official Account (Messaging API) ${(s.line && s.line.botName) ? `<span class="chip good" style="font-size:11.5px;margin-left:6px">🟢 ${esc(s.line.botName)}${s.line.basicId ? ' (' + esc(s.line.basicId) + ')' : ''}</span>` : ''}</h3>
-            <p class="sub" style="margin:4px 0 0">เชื่อมต่อกับ LINE Developers เพื่อรับและตอบแชทลูกค้า LINE OA จากหน้า Inbox ได้โดยตรง</p>
-          </div>
-        </div>
-        <form class="form" data-form="line-settings" autocomplete="off" style="margin-top:12px">
-          <div class="field"><label>Channel ID</label><input type="text" name="channelId" value="${esc((s.line && s.line.channelId) || '')}" placeholder="เช่น 2001234567"></div>
-          <div class="field"><label>Channel Secret ${(s.line && s.line.hasSecret) ? '<span class="chip good" style="margin-left:6px">บันทึกแล้ว</span>' : ''}</label><input type="password" name="channelSecret" placeholder="${(s.line && s.line.hasSecret) ? 'เว้นว่างไว้ถ้าไม่ต้องการเปลี่ยน' : 'คัดลอกจาก LINE Developers Console'}" autocomplete="new-password"></div>
-          <div class="field"><label>Channel Access Token (long-lived) ${(s.line && s.line.hasToken) ? `<span class="chip good" style="margin-left:6px">บันทึกแล้ว ${esc(s.line.tokenHint)}</span>` : ''}</label><input type="password" name="channelAccessToken" placeholder="${(s.line && s.line.hasToken) ? 'เว้นว่างไว้ถ้าไม่ต้องการเปลี่ยน' : 'Issue token ที่แท็บ Messaging API'}" autocomplete="new-password"></div>
-          <div class="field"><label>Webhook URL สำหรับใส่ใน LINE Console</label><input type="text" readonly value="${esc(location.origin + ((s.line && s.line.webhookPath) || '/webhook/line'))}" data-act="select-input"><small>นำ URL นี้ไปใส่ที่ LINE Developers Console → Messaging API → Webhook settings แล้วกด "Verify" และเปิด "Use webhook"</small></div>
-          <div class="row-actions">
-            <button class="btn primary" type="submit" data-after="test">บันทึก & ทดสอบการเชื่อมต่อ LINE OA</button>
-            <button class="btn" type="submit" data-after="save">บันทึก</button>
-          </div>
-        </form>
-      </section>
+      ${lineAccountsPanelHtml(s)}
 
-      <section class="card panel">
-        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
-          <div>
-            <h3 style="margin:0">เชื่อมต่อ WhatsApp Business (Cloud API) ${(s.whatsapp && s.whatsapp.verifiedName) ? `<span class="chip good" style="font-size:11.5px;margin-left:6px">🟢 ${esc(s.whatsapp.verifiedName)} (${esc(s.whatsapp.displayPhone || '')})</span>` : ''}</h3>
-            <p class="sub" style="margin:4px 0 0">เชื่อมต่อกับ Meta for Developers WhatsApp Cloud API เพื่อรับและตอบแชทลูกค้าผ่าน WhatsApp</p>
-          </div>
-        </div>
-        <form class="form" data-form="whatsapp-settings" autocomplete="off" style="margin-top:12px">
-          <div class="field"><label>WhatsApp Business Account ID (WABA ID)</label><input type="text" name="wabaId" value="${esc((s.whatsapp && s.whatsapp.wabaId) || '')}" placeholder="เช่น 109876543210"></div>
-          <div class="field"><label>Phone Number ID</label><input type="text" name="phoneId" value="${esc((s.whatsapp && s.whatsapp.phoneId) || '')}" placeholder="เช่น 102345678901"><small>ดูได้ที่ Meta Developer Dashboard → WhatsApp → API Setup</small></div>
-          <div class="field"><label>Permanent Access Token ${(s.whatsapp && s.whatsapp.hasToken) ? `<span class="chip good" style="margin-left:6px">บันทึกแล้ว ${esc(s.whatsapp.tokenHint)}</span>` : ''}</label><input type="password" name="accessToken" placeholder="${(s.whatsapp && s.whatsapp.hasToken) ? 'เว้นว่างไว้ถ้าไม่ต้องการเปลี่ยน' : 'System User Token หรือ Cloud API Token'}" autocomplete="new-password"></div>
-          <div class="field"><label>Webhook Callback URL</label><input type="text" readonly value="${esc(location.origin + ((s.whatsapp && s.whatsapp.webhookPath) || '/webhook/whatsapp'))}" data-act="select-input"></div>
-          <div class="field"><label>Verify Token</label><input type="text" readonly value="${esc((s.whatsapp && s.whatsapp.verifyToken) || (s.webhook && s.webhook.verifyToken) || '')}" data-act="select-input"></div>
-          <div class="row-actions">
-            <button class="btn primary" type="submit" data-after="test">บันทึก & ทดสอบการเชื่อมต่อ WhatsApp</button>
-            <button class="btn" type="submit" data-after="save">บันทึก</button>
-          </div>
-        </form>
-      </section>
+      ${waAccountsPanelHtml(s)}
 
       ${pagesPanelHtml()}
 
@@ -5633,6 +5598,100 @@ function boardShell() {
           <div class="field"><label>รหัสผ่านใหม่</label><input type="password" name="next" autocomplete="new-password" minlength="8" required><small>อย่างน้อย 8 ตัวอักษร</small></div>
           <div class="row-actions"><button class="btn primary" type="submit">เปลี่ยนรหัสผ่าน</button></div></form></section></div>`;
     buildSettingQuickNav(box);
+  }
+
+  // ===== LINE OA หลายบัญชี =====
+  function lineAccountsPanelHtml(s) {
+    const list = s.lineAccounts || [];
+    const hook = location.origin + '/webhook/line';
+    const form = (a) => {
+      const isNew = !a;
+      a = a || {};
+      return `<form class="form" data-form="line-settings" autocomplete="off" style="margin-top:10px">
+        ${isNew ? '' : `<input type="hidden" name="id" value="${esc(a.id)}">`}
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px">
+          <div class="field"><label>ชื่อที่แสดงในระบบ</label><input type="text" name="name" value="${esc(a.name || '')}" placeholder="เช่น LINE BEQ สีลม"></div>
+          <div class="field"><label>Channel ID</label><input type="text" name="channelId" value="${esc(a.channelId || '')}" placeholder="เช่น 2001234567"></div>
+          <div class="field"><label>Channel Secret ${a.hasSecret ? '<span class="chip good" style="margin-left:6px">บันทึกแล้ว</span>' : ''}</label><input type="password" name="channelSecret" placeholder="${a.hasSecret ? 'เว้นว่างไว้ถ้าไม่เปลี่ยน' : 'จาก LINE Developers Console'}" autocomplete="new-password" ${isNew ? 'required' : ''}></div>
+          <div class="field"><label>Channel Access Token ${a.hasToken ? `<span class="chip good" style="margin-left:6px">บันทึกแล้ว ${esc(a.tokenHint)}</span>` : ''}</label><input type="password" name="channelAccessToken" placeholder="${a.hasToken ? 'เว้นว่างไว้ถ้าไม่เปลี่ยน' : 'Issue ที่แท็บ Messaging API'}" autocomplete="new-password"></div>
+        </div>
+        <div class="row-actions">
+          <button class="btn primary" type="submit" data-after="test">${isNew ? '➕ เพิ่ม & ทดสอบ' : 'บันทึก & ทดสอบ'}</button>
+          <button class="btn" type="submit" data-after="save">บันทึก</button>
+          ${isNew ? '' : `<button class="btn danger" type="button" data-act="line-acc-delete" data-id="${esc(a.id)}" data-name="${esc(a.name || '')}" style="margin-left:auto">ลบบัญชีนี้</button>`}
+        </div>
+      </form>`;
+    };
+    const rows = list.map((a) => `<details class="chan-acc" ${list.length === 1 ? 'open' : ''} style="border:1px solid #e2e8f0;border-left:4px solid #06c755;border-radius:12px;padding:10px 14px;margin-top:10px;background:#fff">
+        <summary style="cursor:pointer;display:flex;align-items:center;gap:8px;flex-wrap:wrap;list-style:none">
+          <b>💬 ${esc(a.name || 'LINE OA')}</b>
+          ${a.basicId ? `<span class="rv-hint">${esc(a.basicId)}</span>` : ''}
+          ${a.connectedAt && a.hasToken ? '<span class="chip good" style="font-size:11px">🟢 เชื่อมต่อแล้ว</span>' : '<span class="chip" style="font-size:11px;background:#fef3c7;color:#92400e">ยังไม่ได้ทดสอบ</span>'}
+          ${a.fromEnv ? '<span class="chip" style="font-size:11px">ตั้งจาก Environment</span>' : ''}
+          <span class="rv-hint" style="margin-left:auto;font-size:11.5px">กดเพื่อแก้ไข ▾</span>
+        </summary>
+        ${a.fromEnv ? '<p class="rv-hint" style="margin:8px 0 0">บัญชีนี้ตั้งผ่าน Environment บน Render (LINE_CHANNEL_SECRET / LINE_CHANNEL_ACCESS_TOKEN) แก้ไขที่ Render</p>' : form(a)}
+      </details>`).join('');
+    return `<section class="card panel">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+        <div>
+          <h3 style="margin:0">เชื่อมต่อ LINE Official Account <span class="chip" style="font-size:11.5px;margin-left:6px">${list.length} บัญชี</span></h3>
+          <p class="sub" style="margin:4px 0 0">เพิ่มได้หลาย OA เหมือนเพจ Facebook — แต่ละ OA แยกแชท แยกตัวกรอง และตอบกลับจาก OA ที่ลูกค้าทักมา</p>
+        </div>
+        <button class="btn" type="button" data-act="line-acc-new">➕ เพิ่ม LINE OA</button>
+      </div>
+      <div class="field" style="margin-top:10px"><label>Webhook URL (ใช้ URL เดียวกันทุก OA)</label><input type="text" readonly value="${esc(hook)}" data-act="select-input"><small>ใส่ที่ LINE Developers Console → Messaging API → Webhook settings ของแต่ละ OA แล้วเปิด "Use webhook" — ระบบแยกได้เองว่าข้อความมาจาก OA ไหน</small></div>
+      ${rows || '<div class="empty" style="margin-top:10px">ยังไม่มีบัญชี LINE OA — กด "➕ เพิ่ม LINE OA"</div>'}
+      ${S.lineNew || !list.length ? `<div style="border:1px dashed #06c755;border-radius:12px;padding:10px 14px;margin-top:10px;background:#f0fdf4"><b>➕ LINE OA ใหม่</b>${form(null)}</div>` : ''}
+    </section>`;
+  }
+
+  // ===== WhatsApp หลายเบอร์ =====
+  function waAccountsPanelHtml(s) {
+    const list = s.waAccounts || [];
+    const form = (a) => {
+      const isNew = !a;
+      a = a || {};
+      return `<form class="form" data-form="whatsapp-settings" autocomplete="off" style="margin-top:10px">
+        ${isNew ? '' : `<input type="hidden" name="id" value="${esc(a.id)}">`}
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px">
+          <div class="field"><label>ชื่อที่แสดงในระบบ</label><input type="text" name="name" value="${esc(a.name || '')}" placeholder="เช่น WhatsApp Pavicon"></div>
+          <div class="field"><label>Phone Number ID</label><input type="text" name="phoneId" value="${esc(a.phoneId || '')}" placeholder="เช่น 102345678901" ${isNew ? 'required' : ''}><small>Meta Developer → WhatsApp → API Setup</small></div>
+          <div class="field"><label>WABA ID</label><input type="text" name="wabaId" value="${esc(a.wabaId || '')}" placeholder="เช่น 109876543210"></div>
+          <div class="field"><label>Access Token ${a.hasToken ? `<span class="chip good" style="margin-left:6px">บันทึกแล้ว ${esc(a.tokenHint)}</span>` : ''}</label><input type="password" name="accessToken" placeholder="${a.hasToken ? 'เว้นว่างไว้ถ้าไม่เปลี่ยน' : 'เว้นว่าง = ใช้ Token ของ Meta'}" autocomplete="new-password"><small>เบอร์ใน Business เดียวกันใช้ Token เดียวกันได้</small></div>
+        </div>
+        <div class="row-actions">
+          <button class="btn primary" type="submit" data-after="test">${isNew ? '➕ เพิ่ม & ทดสอบ' : 'บันทึก & ทดสอบ'}</button>
+          <button class="btn" type="submit" data-after="save">บันทึก</button>
+          ${isNew ? '' : `<button class="btn danger" type="button" data-act="wa-acc-delete" data-id="${esc(a.id)}" data-name="${esc(a.name || '')}" style="margin-left:auto">ลบเบอร์นี้</button>`}
+        </div>
+      </form>`;
+    };
+    const rows = list.map((a) => `<details class="chan-acc" ${list.length === 1 ? 'open' : ''} style="border:1px solid #e2e8f0;border-left:4px solid #25d366;border-radius:12px;padding:10px 14px;margin-top:10px;background:#fff">
+        <summary style="cursor:pointer;display:flex;align-items:center;gap:8px;flex-wrap:wrap;list-style:none">
+          <b>🟢 ${esc(a.name || 'WhatsApp')}</b>
+          ${a.displayPhone ? `<span class="rv-hint">${esc(a.displayPhone)}</span>` : a.phoneId ? `<span class="rv-hint">ID ${esc(a.phoneId)}</span>` : ''}
+          ${a.connectedAt ? '<span class="chip good" style="font-size:11px">🟢 เชื่อมต่อแล้ว</span>' : '<span class="chip" style="font-size:11px;background:#fef3c7;color:#92400e">ยังไม่ได้ทดสอบ</span>'}
+          <span class="rv-hint" style="margin-left:auto;font-size:11.5px">กดเพื่อแก้ไข ▾</span>
+        </summary>
+        ${form(a)}
+      </details>`).join('');
+    return `<section class="card panel">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+        <div>
+          <h3 style="margin:0">เชื่อมต่อ WhatsApp Business <span class="chip" style="font-size:11.5px;margin-left:6px">${list.length} เบอร์</span></h3>
+          <p class="sub" style="margin:4px 0 0">เพิ่มได้หลายเบอร์ — แต่ละเบอร์แยกแชท แยกตัวกรอง และตอบกลับจากเบอร์ที่ลูกค้าทักมา</p>
+        </div>
+        <button class="btn" type="button" data-act="wa-acc-new">➕ เพิ่มเบอร์ WhatsApp</button>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px;margin-top:10px">
+        <div class="field"><label>Webhook Callback URL (ใช้ร่วมกันทุกเบอร์)</label><input type="text" readonly value="${esc(location.origin + '/webhook/whatsapp')}" data-act="select-input"></div>
+        <div class="field"><label>Verify Token</label><input type="text" readonly value="${esc((s.whatsapp && s.whatsapp.verifyToken) || (s.webhook && s.webhook.verifyToken) || '')}" data-act="select-input"></div>
+      </div>
+      <small class="rv-hint">เบอร์ที่ลูกค้าทักเข้ามาแต่ยังไม่ได้เพิ่ม ระบบจะเพิ่มให้เองอัตโนมัติ (ตอบกลับด้วย Token ของ Meta)</small>
+      ${rows || '<div class="empty" style="margin-top:10px">ยังไม่มีเบอร์ WhatsApp — กด "➕ เพิ่มเบอร์ WhatsApp"</div>'}
+      ${S.waNew || !list.length ? `<div style="border:1px dashed #25d366;border-radius:12px;padding:10px 14px;margin-top:10px;background:#f0fdf4"><b>➕ เบอร์ WhatsApp ใหม่</b>${form(null)}</div>` : ''}
+    </section>`;
   }
 
   // ชื่อสั้นสำหรับปุ่มทางลัด (หัวข้อจริงยาวเกินจนโดนตัด)
@@ -6126,6 +6185,19 @@ function boardShell() {
       }
       else if (act === 'sla-rep') { const id = el.dataset.rep; S.sla.open = S.sla.open === id ? '' : id; S.sla.kind = ''; renderSlaBody(); }
       else if (act === 'sla-kind') { S.sla.kind = el.dataset.kind; renderSlaBody(); }
+      else if (act === 'line-acc-new') { S.lineNew = true; renderSettingBody(); }
+      else if (act === 'wa-acc-new') { S.waNew = true; renderSettingBody(); }
+      else if (act === 'line-acc-delete' || act === 'wa-acc-delete') {
+        const isLine = act === 'line-acc-delete';
+        if (!confirm(`ลบ${isLine ? ' LINE OA' : 'เบอร์ WhatsApp'} "${el.dataset.name || el.dataset.id}" ออกจากระบบ?\n\nแชทเดิมยังอยู่ แต่จะไม่รับแชทใหม่และตอบกลับจากบัญชีนี้ไม่ได้`)) return;
+        try {
+          const r = await api(isLine ? '/api/settings/line/delete' : '/api/settings/whatsapp/delete', { method: 'POST', body: { id: el.dataset.id } });
+          S.settings = { ...r, lineNotify: (S.settings && S.settings.lineNotify) || {} };
+          showToast('ลบบัญชีแล้ว', 'success');
+        } catch (e) { showToast(e.message, 'error'); }
+        renderSettingBody();
+        return;
+      }
       else if (act === 'sla-page') { S.sla.page = el.dataset.page || ''; S.sla.open = ''; renderSlaBody(); }
       else if (act === 'sla-open') {
         // ไปหน้า Inbox แล้วเปิดแชทนั้น: ใช้ช่วงวันเดียวกับ Board ถ้าลีดเริ่มคุยก่อนช่วงนั้นให้ขยายช่วงให้ครอบคลุม
@@ -6721,8 +6793,10 @@ function boardShell() {
         const after = (ev.submitter && ev.submitter.dataset.after) || 'save';
         const saved = await api('/api/settings/line', { method: 'PUT', body: fd });
         S.settings = { ...saved, lineNotify: (S.settings && S.settings.lineNotify) || {} };
+        S.lineNew = false;
+        S.filters = await api('/api/filters').catch(() => S.filters);
         if (after === 'test') {
-          const r = await api('/api/settings/line/test', { method: 'POST' });
+          const r = await api('/api/settings/line/test', { method: 'POST', body: { id: saved.savedId } });
           if (r.ok) {
             S.settings = { ...r.settings, lineNotify: (S.settings && S.settings.lineNotify) || {} };
             S.filters = await api('/api/filters').catch(() => null);
@@ -6731,15 +6805,17 @@ function boardShell() {
             S.flash = { type: 'err', text: '❌ ทดสอบ LINE OA ไม่สำเร็จ: ' + (r.error || 'ตรวจสอบ Channel Access Token') };
           }
         } else {
-          S.flash = { type: 'ok', text: 'บันทึกการตั้งค่า LINE Official Account เรียบร้อยแล้ว' };
+          S.flash = { type: 'ok', text: 'บันทึก LINE OA เรียบร้อยแล้ว' };
         }
         render();
       } else if (type === 'whatsapp-settings') {
         const after = (ev.submitter && ev.submitter.dataset.after) || 'save';
         const saved = await api('/api/settings/whatsapp', { method: 'PUT', body: fd });
         S.settings = { ...saved, lineNotify: (S.settings && S.settings.lineNotify) || {} };
+        S.waNew = false;
+        S.filters = await api('/api/filters').catch(() => S.filters);
         if (after === 'test') {
-          const r = await api('/api/settings/whatsapp/test', { method: 'POST' });
+          const r = await api('/api/settings/whatsapp/test', { method: 'POST', body: { id: saved.savedId } });
           if (r.ok) {
             S.settings = { ...r.settings, lineNotify: (S.settings && S.settings.lineNotify) || {} };
             S.filters = await api('/api/filters').catch(() => null);

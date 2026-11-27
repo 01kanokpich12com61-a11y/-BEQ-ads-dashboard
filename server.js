@@ -69,6 +69,7 @@ const audit = require('./lib/audit');
 const jobs = require('./lib/jobs');
 const reps = require('./lib/reps');
 const assistant = require('./lib/assistant');
+const channels = require('./lib/channels');
 const { Readable } = require('node:stream');
 const sla = require('./lib/sla');
 const { resolveRange, isDate, today, eachDay, addDays } = require('./lib/dates');
@@ -392,11 +393,14 @@ function recordPage(pageId, pageName, platform = 'Facebook') {
     if (platform && (!pages[idx].platform || pages[idx].platform === 'Facebook')) {
       pages[idx].platform = platform;
     }
-    if (name && (!pages[idx].name || pages[idx].name.startsWith('Facebook Page ') || pages[idx].name === id)) {
+    // บัญชี LINE/WhatsApp: ชื่อที่ตั้งในหน้าตั้งค่าคือชื่อจริง → อัปเดตตามเสมอ
+    const isChannelAcc = platform === 'LINE' || platform === 'WhatsApp';
+    if (name && (isChannelAcc || !pages[idx].name || pages[idx].name.startsWith('Facebook Page ') || pages[idx].name === id)) {
       pages[idx].name = name;
     }
   } else {
-    pages.push({ id, name, platform: platform || 'Facebook', color: '#1877f2' });
+    const color = platform === 'LINE' ? '#06c755' : platform === 'WhatsApp' ? '#25d366' : platform === 'Instagram' ? '#e1306c' : '#1877f2';
+    pages.push({ id, name, platform: platform || 'Facebook', color });
   }
   store.write('pages.json', pages);
 }
@@ -486,20 +490,21 @@ async function autoRestoreFromSheets() {
 setTimeout(autoRestoreFromSheets, 1500);
 
 // รับข้อความจาก LINE Official Account Webhook
-async function handleLineWebhook(body) {
-  const s = meta.getSettings();
-  const ln = s.line || {};
-  const lineToken = ln.channelAccessToken || process.env.LINE_CHANNEL_ACCESS_TOKEN || '';
+async function handleLineWebhook(body, acc) {
+  acc = acc || channels.lineAccounts()[0] || { id: 'P-LINE', name: 'LINE Official Account' };
+  const lineToken = acc.channelAccessToken || process.env.LINE_CHANNEL_ACCESS_TOKEN || '';
+  if (body.destination && !acc.botUserId && !acc.fromEnv) channels.updateLine(acc.id, { botUserId: body.destination });
   for (const ev of body.events || []) {
     if (ev.type !== 'message' || !ev.message) continue;
     const userId = ev.source?.userId;
     if (!userId) continue;
     const text = ev.message.text || (ev.message.type === 'image' ? '[รูปภาพ]' : ev.message.type === 'video' ? '[วิดีโอ]' : '[ข้อความ]');
-    const pageId = 'P-LINE';
-    const pageName = ln.botName || 'LINE Official Account';
+    const pageId = acc.id;
+    const pageName = acc.name || acc.botName || 'LINE Official Account';
     recordPage(pageId, pageName, 'LINE');
     let leads = store.read('leads.json', []);
-    let lead = leads.find((l) => l.psid === userId || l.phone === userId);
+    // ลูกค้าคนเดียวกันทักหลาย OA = แยกแชทตาม OA (ลีดเก่าที่ยังไม่มี pageId นับเป็นของ OA แรก)
+    let lead = leads.find((l) => (l.psid === userId || l.phone === userId) && (l.pageId === pageId || (!l.pageId && pageId === 'P-LINE')));
     if (!lead) {
       let name = `LINE ลูกค้า ${userId.slice(-4)}`;
       if (lineToken) {
@@ -535,22 +540,26 @@ async function handleLineWebhook(body) {
 // รับข้อความจาก WhatsApp Business Webhook
 async function handleWhatsAppWebhook(body) {
   if (body.object !== 'whatsapp_business_account') return;
-  const s = meta.getSettings();
-  const wa = s.whatsapp || {};
   for (const entry of body.entry || []) {
     for (const change of entry.changes || []) {
       const val = change.value;
       if (!val || !val.messages) continue;
+      // หลายเบอร์: ข้อความบอก phone_number_id ของเบอร์ที่รับ → หาบัญชีนั้น (ยังไม่มีในระบบ = เพิ่มให้อัตโนมัติ)
+      const md = val.metadata || {};
+      let acc = channels.waAccountForPhone(md.phone_number_id);
+      if (!acc && md.phone_number_id) acc = channels.upsertWa({ phoneId: md.phone_number_id, name: md.display_phone_number ? `WhatsApp ${md.display_phone_number}` : 'WhatsApp Business' });
+      if (acc && md.display_phone_number && !acc.displayPhone) channels.updateWa(acc.id, { displayPhone: md.display_phone_number });
+      acc = acc || { id: 'P-WhatsApp', name: 'WhatsApp Business' };
       const contactMap = new Map((val.contacts || []).map((c) => [c.wa_id, c.profile?.name]));
       for (const msg of val.messages) {
         const waId = msg.from;
         if (!waId) continue;
         const text = msg.text?.body || (msg.type ? `[${msg.type}]` : '[ข้อความ]');
-        const pageId = 'P-WhatsApp';
-        const pageName = wa.verifiedName || 'WhatsApp Business';
+        const pageId = acc.id;
+        const pageName = acc.name || acc.verifiedName || 'WhatsApp Business';
         recordPage(pageId, pageName, 'WhatsApp');
         let leads = store.read('leads.json', []);
-        let lead = leads.find((l) => l.psid === waId || l.phone === waId);
+        let lead = leads.find((l) => (l.psid === waId || l.phone === waId) && l.platform === 'WhatsApp' && (l.pageId === pageId || (!l.pageId && pageId === 'P-WhatsApp')));
         if (!lead) {
           const name = contactMap.get(waId) || `WhatsApp ${waId}`;
           lead = ops.findOrCreateLead({ psid: waId, pageId, name, adId: 'Direct', channel: 'WhatsApp', platform: 'WhatsApp', pageName }).lead;
@@ -597,6 +606,8 @@ function publicSettings() {
       connectedAt: m.connectedAt || null,
     },
     webhook: { path: '/webhook', verifyToken: webhookToken(), hasSecret: Boolean(m.appSecret) },
+    lineAccounts: channels.publicLine(),
+    waAccounts: channels.publicWa(),
     line: {
       channelId: ln.channelId || '',
       hasSecret: Boolean(ln.channelSecret),
@@ -1776,51 +1787,38 @@ async function api(req, res, url, session) {
     }
   }
 
+  // LINE OA หลายบัญชี: ส่ง id มาด้วย = แก้บัญชีเดิม, ไม่ส่ง = เพิ่มบัญชีใหม่
   if (route === 'PUT /api/settings/line') {
     if (!auth.isAdmin(session.user)) return send(res, 403, { error: 'เฉพาะผู้ดูแล (admin) เท่านั้น' });
     const b = await readJson(req);
-    const cur = (meta.getSettings().line) || {};
-    const next = {
-      ...cur,
-      channelId: clean(b.channelId, 50),
-      connectedAt: new Date().toISOString(),
-    };
-    if (clean(b.channelSecret, 100)) next.channelSecret = clean(b.channelSecret, 100);
-    else if (cur.channelSecret) next.channelSecret = cur.channelSecret;
-    if (clean(b.channelAccessToken, 1000)) next.channelAccessToken = clean(b.channelAccessToken, 1000);
-    else if (cur.channelAccessToken) next.channelAccessToken = cur.channelAccessToken;
-
-    meta.saveSettings({ line: next });
-    audit.log(session.user.username, 'line_settings_save', `ตั้งค่า LINE OA Channel: ${next.channelId || '—'}`, clientIp(req));
+    const acc = channels.upsertLine({ id: clean(b.id, 60) || null, name: b.name, channelId: b.channelId, channelSecret: clean(b.channelSecret, 100), channelAccessToken: clean(b.channelAccessToken, 1000) });
+    recordPage(acc.id, acc.name || 'LINE Official Account', 'LINE');
+    audit.log(session.user.username, 'line_settings_save', `ตั้งค่า LINE OA: ${acc.name || acc.id}`, clientIp(req));
+    return send(res, 200, { ...publicSettings(), savedId: acc.id });
+  }
+  if (route === 'POST /api/settings/line/delete') {
+    if (!auth.isAdmin(session.user)) return send(res, 403, { error: 'เฉพาะผู้ดูแล (admin) เท่านั้น' });
+    const b = await readJson(req);
+    channels.removeLine(clean(b.id, 60));
+    audit.log(session.user.username, 'line_settings_delete', `ลบ LINE OA: ${b.id}`, clientIp(req));
     return send(res, 200, publicSettings());
   }
 
   if (route === 'POST /api/settings/line/test') {
     if (!auth.isAdmin(session.user)) return send(res, 403, { error: 'เฉพาะผู้ดูแล (admin) เท่านั้น' });
-    const cur = (meta.getSettings().line) || {};
-    const token = cur.channelAccessToken || process.env.LINE_CHANNEL_ACCESS_TOKEN || '';
-    if (!token) return send(res, 200, { ok: false, error: 'กรุณาบันทึก Channel Access Token (long-lived) ก่อนกดทดสอบ' });
+    const b = await readJson(req);
+    const acc = channels.lineAccountById(clean(b.id, 60));
+    const token = (acc && acc.channelAccessToken) || '';
+    if (!acc || !token) return send(res, 200, { ok: false, error: 'กรุณาบันทึก Channel Access Token (long-lived) ของบัญชีนี้ก่อนกดทดสอบ' });
     try {
-      const res = await fetch('https://api.line.me/v2/bot/info', {
-        headers: { Authorization: `Bearer ${token}` },
-        signal: AbortSignal.timeout(15000),
-      });
-      const info = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        return send(res, 200, { ok: false, error: info.message || `LINE API ตอบกลับสถานะ HTTP ${res.status}` });
-      }
+      const r = await fetch('https://api.line.me/v2/bot/info', { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(15000) });
+      const info = await r.json().catch(() => ({}));
+      if (!r.ok) return send(res, 200, { ok: false, error: info.message || `LINE API ตอบกลับสถานะ HTTP ${r.status}` });
       const botName = info.displayName || 'LINE Official Account';
       const basicId = info.basicId || '';
-      meta.saveSettings({
-        line: {
-          ...cur,
-          botName,
-          basicId,
-          botUserId: info.userId || '',
-          connectedAt: new Date().toISOString(),
-        }
-      });
-      recordPage('P-LINE', `${botName}${basicId ? ' (' + basicId + ')' : ''}`, 'LINE');
+      const name = acc.name && acc.name !== 'LINE Official Account' ? acc.name : `${botName}${basicId ? ' (' + basicId + ')' : ''}`;
+      if (!acc.fromEnv) channels.updateLine(acc.id, { botName, basicId, botUserId: info.userId || acc.botUserId || '', name, connectedAt: new Date().toISOString() });
+      recordPage(acc.id, name, 'LINE');
       audit.log(session.user.username, 'line_test', `เชื่อมต่อ LINE OA สำเร็จ: ${botName} (${basicId})`, clientIp(req));
       return send(res, 200, { ok: true, bot: { displayName: botName, basicId, userId: info.userId }, settings: publicSettings() });
     } catch (e) {
@@ -1828,31 +1826,31 @@ async function api(req, res, url, session) {
     }
   }
 
+  // WhatsApp หลายเบอร์: ส่ง id มาด้วย = แก้เบอร์เดิม, ไม่ส่ง = เพิ่มเบอร์ใหม่ (Token เว้นว่างได้ = ใช้ Token ของ Meta)
   if (route === 'PUT /api/settings/whatsapp') {
     if (!auth.isAdmin(session.user)) return send(res, 403, { error: 'เฉพาะผู้ดูแล (admin) เท่านั้น' });
     const b = await readJson(req);
-    const cur = (meta.getSettings().whatsapp) || {};
-    const next = {
-      ...cur,
-      wabaId: clean(b.wabaId, 50),
-      phoneId: clean(b.phoneId, 50),
-      connectedAt: new Date().toISOString(),
-    };
-    if (clean(b.accessToken, 1000)) next.accessToken = clean(b.accessToken, 1000);
-    else if (cur.accessToken) next.accessToken = cur.accessToken;
-
-    meta.saveSettings({ whatsapp: next });
-    audit.log(session.user.username, 'whatsapp_settings_save', `ตั้งค่า WhatsApp Business Phone ID: ${next.phoneId || '—'}`, clientIp(req));
+    const acc = channels.upsertWa({ id: clean(b.id, 60) || null, name: b.name, wabaId: b.wabaId, phoneId: b.phoneId, accessToken: clean(b.accessToken, 1000) });
+    recordPage(acc.id, acc.name || 'WhatsApp Business', 'WhatsApp');
+    audit.log(session.user.username, 'whatsapp_settings_save', `ตั้งค่า WhatsApp: ${acc.name || acc.phoneId || acc.id}`, clientIp(req));
+    return send(res, 200, { ...publicSettings(), savedId: acc.id });
+  }
+  if (route === 'POST /api/settings/whatsapp/delete') {
+    if (!auth.isAdmin(session.user)) return send(res, 403, { error: 'เฉพาะผู้ดูแล (admin) เท่านั้น' });
+    const b = await readJson(req);
+    channels.removeWa(clean(b.id, 60));
+    audit.log(session.user.username, 'whatsapp_settings_delete', `ลบ WhatsApp: ${b.id}`, clientIp(req));
     return send(res, 200, publicSettings());
   }
 
   if (route === 'POST /api/settings/whatsapp/test') {
     if (!auth.isAdmin(session.user)) return send(res, 403, { error: 'เฉพาะผู้ดูแล (admin) เท่านั้น' });
+    const b = await readJson(req);
     const s = meta.getSettings();
-    const wa = s.whatsapp || {};
     const m = s.meta || {};
-    const token = wa.accessToken || m.accessToken || '';
-    const phoneId = wa.phoneId || '';
+    const acc = channels.waAccountById(clean(b.id, 60));
+    const token = (acc && acc.accessToken) || m.accessToken || '';
+    const phoneId = (acc && acc.phoneId) || '';
     if (!phoneId) return send(res, 200, { ok: false, error: 'กรุณาระบุ Phone Number ID ก่อนกดทดสอบ' });
     if (!token) return send(res, 200, { ok: false, error: 'กรุณาระบุ Permanent Access Token ก่อนกดทดสอบ' });
     try {
@@ -1860,15 +1858,9 @@ async function api(req, res, url, session) {
       const info = await meta.graph(phoneId, { fields: 'id,display_phone_number,verified_name,quality_rating' }, token, version);
       const verifiedName = info.verified_name || 'WhatsApp Business';
       const displayPhone = info.display_phone_number || phoneId;
-      meta.saveSettings({
-        whatsapp: {
-          ...wa,
-          verifiedName,
-          displayPhone,
-          connectedAt: new Date().toISOString(),
-        }
-      });
-      recordPage('P-WhatsApp', `${verifiedName} (${displayPhone})`, 'WhatsApp');
+      const name = acc.name && !/^WhatsApp( Business| \+?\d)/.test(acc.name) ? acc.name : `${verifiedName} (${displayPhone})`;
+      channels.updateWa(acc.id, { verifiedName, displayPhone, name, connectedAt: new Date().toISOString() });
+      recordPage(acc.id, name, 'WhatsApp');
       audit.log(session.user.username, 'whatsapp_test', `เชื่อมต่อ WhatsApp สำเร็จ: ${verifiedName} (${displayPhone})`, clientIp(req));
       return send(res, 200, { ok: true, phone: { verifiedName, displayPhone, qualityRating: info.quality_rating }, settings: publicSettings() });
     } catch (e) {
@@ -2774,19 +2766,19 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === '/webhook/line') {
       if (req.method === 'POST') {
         const raw = await readRaw(req);
-        const secret = (meta.getSettings().line || {}).channelSecret || process.env.LINE_CHANNEL_SECRET || '';
         const sig = String(req.headers['x-line-signature'] || '');
-        if (!secret) {
+        // หลาย OA: หาบัญชีที่ Channel Secret ตรวจลายเซ็นผ่าน = ข้อความนี้เข้ามาที่ OA นั้น
+        if (!channels.lineAccounts().some((a) => a.channelSecret)) {
           audit.log('line-webhook', 'webhook_rejected', 'ยังไม่ได้บันทึก LINE Channel Secret', ip);
           return send(res, 403, 'Forbidden');
         }
-        const expectedSig = crypto.createHmac('sha256', secret).update(raw).digest('base64');
-        if (!safeEq(sig, expectedSig)) {
-          audit.log('line-webhook', 'webhook_rejected', 'ลายเซ็น LINE ไม่ถูกต้อง', ip);
+        const lineAcc = channels.lineAccountForSignature(raw, sig);
+        if (!lineAcc) {
+          audit.log('line-webhook', 'webhook_rejected', 'ลายเซ็น LINE ไม่ตรงกับ OA ใดในระบบ', ip);
           return send(res, 403, 'Forbidden');
         }
         let body; try { body = JSON.parse(raw.toString('utf8')); } catch { return send(res, 400, 'Bad request'); }
-        try { await handleLineWebhook(body); } catch (e) { console.error('line-webhook', e); }
+        try { await handleLineWebhook(body, lineAcc); } catch (e) { console.error('line-webhook', e); }
         return send(res, 200, 'OK');
       }
       return send(res, 405, 'Method not allowed');

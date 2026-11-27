@@ -34,7 +34,8 @@ npm test                 # ชุดทดสอบ
 3. Webhook URL ที่ต้องใส่:
    - Meta (Messenger/Instagram): `https://<โดเมน>/webhook`
    - WhatsApp Cloud API: `https://<โดเมน>/webhook/whatsapp` (ใช้ App Secret เดียวกันตรวจลายเซ็น)
-   - LINE: `https://<โดเมน>/webhook/line`
+   - LINE: `https://<โดเมน>/webhook/line` (ใช้ URL เดียวกันได้ทุก OA — เพิ่มได้หลาย OA ที่ Setting ระบบแยก OA จากลายเซ็นเอง)
+   - WhatsApp หลายเบอร์: ใช้ Callback URL เดียวกัน ระบบแยกเบอร์จาก phone_number_id และตอบกลับจากเบอร์ที่ลูกค้าทักมา
 
 ### ตาราง Supabase
 
