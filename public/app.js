@@ -3888,8 +3888,9 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
   function tabChat(data) {
     const c = data.chat;
     const qColor = (i) => ({ good: '#44602f', average: '#e0a100', poor: '#d6204b' }[i.key]);
-    if (!c.leads) return '<div class="card empty">ยังไม่มีข้อมูลแชทในช่วงที่เลือก (โหมด Meta ต้องต่อระบบแชทเพิ่ม)</div>';
-    return `<div class="grid-4">
+    const cov = coverageStripHtml(data);
+    if (!c.leads) return `${cov}<div class="card empty">ยังไม่มีลีดในช่วงที่เลือก — กดวันที่มีสีเข้มในแถบด้านบนเพื่อดูวันที่มีข้อมูล</div>`;
+    return `${cov}<div class="grid-4">
       <div class="stat"><div class="k-label">Chat leads</div><div class="k-value">${num(c.leads)}</div></div>
       <div class="stat"><div class="k-label">Quality chats</div><div class="k-value">${num(c.qualityChats)}</div></div>
       <div class="stat"><div class="k-label">Cost / lead</div><div class="k-value">${baht(c.costPerLead)}</div></div>
@@ -3897,7 +3898,80 @@ PRP Treatment,PRP-Promo-50,8500,42000,1200,2026-11-02` : `ชื่อ,ช่อ
       <div class="grid-2" style="margin-top:18px">
         <section class="card panel"><h3>Chat quality</h3><p class="sub">คุณภาพแชทที่ทีมขายประเมิน</p>${barRows(c.quality, (i) => cap(i.key), qColor)}</section>
         <section class="card panel"><h3>Lead pipeline</h3><p class="sub">สถานะลีดในช่วงที่เลือก</p>${barRows(c.funnel, (i) => STATUS_TH[i.key])}</section></div>
+      ${adStatusTableHtml(data)}
       <section class="card table-card" id="table-card-chat"></section>`;
+  }
+
+  // วันที่แบบไทยสั้น: 2026-06-11 → 11 มิ.ย. 69
+  const TH_MON = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+  function thShortDate(d, withYear = true) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(d || ''));
+    if (!m) return '—';
+    return `${Number(m[3])} ${TH_MON[Number(m[2]) - 1]}${withYear ? ' ' + String(Number(m[1]) + 543).slice(-2) : ''}`;
+  }
+
+  // แถบ "ข้อมูลที่มีในระบบ" + 90 วันล่าสุด (กดวันเพื่อดูเฉพาะวันนั้น)
+  function coverageStripHtml(data) {
+    const cv = data.coverage;
+    if (!cv || !cv.days) return '';
+    const max = Math.max(1, ...cv.days.map((x) => x.leads));
+    const from = data.range && data.range.from; const to = data.range && data.range.to;
+    const cells = cv.days.map((x) => {
+      const lv = x.leads ? Math.min(4, Math.ceil(Math.sqrt(x.leads / max) * 4)) : 0;
+      const inRange = from && x.date >= from && x.date <= to;
+      const tip = `${thShortDate(x.date)} · ลีด ${num(x.leads)} ราย${x.spend ? ' · ใช้งบ ' + baht(x.spend) : ''}`;
+      return `<button type="button" class="cov-cell lv${lv}${x.spend ? ' has-ad' : ''}${inRange ? ' in-range' : ''}" data-act="cov-day" data-date="${x.date}" title="${esc(tip)}" aria-label="${esc(tip)}"></button>`;
+    }).join('');
+    const L = cv.leads; const A = cv.ads;
+    return `<section class="card cov-card">
+      <div class="cov-head">
+        <div><b>ข้อมูลที่มีในระบบ</b> — ลีด: <b>${L.count ? thShortDate(L.from) + ' – ' + thShortDate(L.to) : 'ยังไม่มี'}</b> <span class="rv-hint">(${num(L.count)} ราย)</span> · โฆษณา: <b>${A.rows ? thShortDate(A.from) + ' – ' + thShortDate(A.to) : 'ยังไม่มี'}</b> <span class="rv-hint">(${num(A.rows)} แถว)</span></div>
+        <div class="rv-hint">90 วันล่าสุด · กดวันเพื่อดูเฉพาะวันนั้น</div>
+      </div>
+      <div class="cov-strip">${cells}</div>
+      <div class="cov-legend rv-hint"><span>${thShortDate(cv.days[0].date, false)}</span><span class="cov-key">น้อย <i class="cov-cell lv1"></i><i class="cov-cell lv2"></i><i class="cov-cell lv3"></i><i class="cov-cell lv4"></i> มาก · <i class="cov-cell lv0 has-ad"></i> มีข้อมูลโฆษณา</span><span>${thShortDate(cv.days[cv.days.length - 1].date, false)}</span></div>
+    </section>`;
+  }
+
+  // ตาราง โฆษณา × สถานะลีด (สถานะเป็นภาษาไทยชุดเดียว ไม่ซ้ำกัน)
+  const ADSTATUS_ORDER = ['new', 'intake', 'talked', 'in_progress', 'qualified', 'appointment', 'converted', 'no_reply', 'very_poor'];
+  const ADSTATUS_SHORT = { new: 'มาใหม่', intake: 'คัดกรอง', talked: 'พอได้คุย', in_progress: 'กำลังดำเนินการ', qualified: 'มีคุณสมบัติ', appointment: 'นัดแล้ว', converted: 'ปิดการขาย', no_reply: 'ไม่ตอบ', very_poor: 'แย่มาก' };
+  function adStatusTableHtml(data) {
+    const rows = data.adStatus || [];
+    if (!rows.length) return '';
+    const adsById = new Map((data.ads || []).map((a) => [a.id, a]));
+    const sortKey = (S.dash.asSort || 'leads'); const dir = S.dash.asDir === 'asc' ? 1 : -1;
+    const val = (r) => sortKey === 'name' ? String(r.name || '') : sortKey === 'last' ? String(r.last || '') : sortKey.startsWith('st:') ? r.byStatus[sortKey.slice(3)] || 0 : (r[sortKey] ?? -1);
+    const sorted = [...rows].sort((a, b) => { const x = val(a); const y = val(b); return (typeof x === 'string' ? x.localeCompare(y) : x - y) * dir; });
+    const total = { leads: 0, qualified: 0, byStatus: Object.fromEntries(ADSTATUS_ORDER.map((k) => [k, 0])) };
+    for (const r of rows) { total.leads += r.leads; total.qualified += r.qualified; for (const k of ADSTATUS_ORDER) total.byStatus[k] += r.byStatus[k] || 0; }
+    const th = (key, label, extra = '') => `<th data-act="as-sort" data-key="${key}" style="cursor:pointer;white-space:nowrap;${extra}">${label}${sortKey === key ? (dir === 1 ? ' ▲' : ' ▼') : ''}</th>`;
+    const cell = (n, k) => `<td class="num" style="text-align:center;${n ? '' : 'color:#cbd5e1'}">${n ? `<span class="as-n as-${k}">${num(n)}</span>` : '·'}</td>`;
+    const body = sorted.map((r) => {
+      const ad = r.id && adsById.get(r.id);
+      const thumb = ad
+        ? `<div class="ad-media-box as-thumb" data-act="open-ad-media" data-ad-media="${esc(JSON.stringify(ad))}" title="คลิกดูครีเอทีฟ">${ad.thumb ? `<img src="${esc(ad.thumb)}" alt="" referrerpolicy="no-referrer" loading="lazy">` : '<div style="width:100%;height:100%;display:grid;place-items:center">🖼️</div>'}</div>`
+        : '<div class="as-thumb as-none">❔</div>';
+      return `<tr>
+        <td><div style="display:flex;gap:8px;align-items:center;min-width:220px">${thumb}<div><div style="font-weight:700;color:#064e3b">${esc(r.name || r.id)}</div><div class="ad-sub">${r.id ? `ID: <code>${esc(r.id)}</code>${r.campaign ? ' · ' + esc(r.campaign) : ''}` : 'แชทที่ Meta ไม่บอกว่ามาจากโฆษณาไหน'}</div></div></div></td>
+        <td>${r.status ? statusBadgeHtml(r.status) : '<span class="rv-hint">—</span>'}</td>
+        <td style="white-space:nowrap">${r.last ? thShortDate(r.last) : '—'}</td>
+        <td class="num" style="text-align:center"><b>${num(r.leads)}</b></td>
+        <td class="num" style="text-align:center">${num(r.qualified)}</td>
+        <td class="num" style="text-align:center">${r.rate === null ? '—' : r.rate.toFixed(1) + '%'}</td>
+        ${ADSTATUS_ORDER.map((k) => cell(r.byStatus[k] || 0, k)).join('')}
+      </tr>`;
+    }).join('');
+    return `<section class="card table-card" style="margin-top:18px">
+      <div class="table-head"><div><h2>โฆษณา × สถานะลีด</h2><p>ลีดในช่วงที่เลือก แยกตามโฆษณาที่ลูกค้าทักมา · กดหัวคอลัมน์เพื่อเรียง · ผ่านเกณฑ์ = มีคุณสมบัติ + นัดแล้ว + ปิดการขาย</p></div></div>
+      <div class="tscroll"><table class="as-table" style="min-width:1250px"><thead><tr>
+        ${th('name', 'โฆษณา (กดรูปดูครีเอทีฟ)')}<th class="nosort">สถานะโฆษณา</th>${th('last', 'อัปเดตล่าสุด')}${th('leads', 'ลีด')}${th('qualified', 'ผ่านเกณฑ์')}${th('rate', '% ผ่านเกณฑ์')}
+        ${ADSTATUS_ORDER.map((k) => th('st:' + k, ADSTATUS_SHORT[k], 'text-align:center')).join('')}
+      </tr></thead><tbody>${body}</tbody>
+      <tfoot><tr style="font-weight:800;background:#f0fdf4"><td>รวม ${num(rows.length)} รายการ</td><td></td><td></td><td class="num" style="text-align:center">${num(total.leads)}</td><td class="num" style="text-align:center">${num(total.qualified)}</td><td class="num" style="text-align:center">${total.leads ? ((total.qualified / total.leads) * 100).toFixed(1) + '%' : '—'}</td>${ADSTATUS_ORDER.map((k) => `<td class="num" style="text-align:center">${num(total.byStatus[k])}</td>`).join('')}</tr></tfoot>
+      </table></div>
+      ${rows.some((r) => !r.linked) ? '<p class="rv-hint" style="margin:10px 16px 14px">ℹ️ แถว "ไม่ทราบโฆษณา" = แชทเก่าที่ดึงจาก Meta (Meta ไม่ส่งข้อมูลว่ามาจากโฆษณาไหน) หรือลูกค้าทักเอง — แชทใหม่ที่ลูกค้ากดจากโฆษณาจะผูกกับโฆษณาให้อัตโนมัติ</p>' : ''}
+    </section>`;
   }
 
   /* --- tab: sales --- */
@@ -5879,6 +5953,8 @@ function boardShell() {
         }
       }
       else if (act === 'refresh') loadDash(true);
+      else if (act === 'cov-day') { d.range = 'custom'; d.from = el.dataset.date; d.to = el.dataset.date; render(); loadDash(); }
+      else if (act === 'as-sort') { const k = el.dataset.key; if (S.dash.asSort === k) S.dash.asDir = S.dash.asDir === 'asc' ? 'desc' : 'asc'; else { S.dash.asSort = k; S.dash.asDir = k === 'name' ? 'asc' : 'desc'; } render(); }
       else if (act === 'range') { d.range = el.dataset.range; if (d.range === 'custom' && !d.from) { const t = new Date(); d.to = ymd(t); t.setDate(t.getDate() - 29); d.from = ymd(t); } render(); loadDash(); }
       else if (act === 'tab') { d.tab = el.dataset.tab; render(); }
       else if (act === 'reset-filters') { resetFilters(); render(); loadDash(); }

@@ -80,3 +80,32 @@ html body .header-left-group { flex-shrink: 0; }
 html body .header-actions { min-width: 0; }
 @media (max-width: 1600px) { html body .header-live-badge { display: none; } }
 @media (max-width: 1440px) { html body [data-act="open-cmd"] .cmd-label, html body [data-act="open-cmd"] kbd { display: none; } }
+
+/* ===== แถบข้อมูลที่มี 90 วัน + ตาราง โฆษณา × สถานะ ===== */
+html body .cov-card { padding: 14px 18px; margin-bottom: 18px; }
+html body .cov-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; font-size: 13px; color: #334155; margin-bottom: 10px; }
+html body .cov-strip { display: grid; grid-template-columns: repeat(90, minmax(0, 1fr)); gap: 3px; }
+html body .cov-cell { display: block; aspect-ratio: 1 / 1; min-width: 0; padding: 0; border: 0; border-radius: 3px; background: #eef2f0; cursor: pointer; transition: transform .1s, box-shadow .1s; }
+html body i.cov-cell { display: inline-block; width: 11px; height: 11px; vertical-align: -1px; cursor: default; }
+html body .cov-cell.has-ad { box-shadow: inset 0 -3px 0 #f59e0b; }
+html body .cov-cell.lv1 { background: #bbf7d0; }
+html body .cov-cell.lv2 { background: #6ee7b7; }
+html body .cov-cell.lv3 { background: #10b981; }
+html body .cov-cell.lv4 { background: #047857; }
+html body .cov-strip { padding-bottom: 6px; }
+html body button.cov-cell.in-range { position: relative; }
+html body button.cov-cell.in-range::after { content: ''; position: absolute; left: -2px; right: -2px; bottom: -6px; height: 3px; background: #0f766e; }
+html body button.cov-cell:hover { transform: scale(1.35); box-shadow: 0 2px 6px rgba(0,0,0,.25); position: relative; z-index: 1; }
+html body .cov-legend { display: flex; justify-content: space-between; gap: 8px; margin-top: 8px; font-size: 11.5px; flex-wrap: wrap; }
+html body .cov-key { display: inline-flex; align-items: center; gap: 3px; }
+html body .as-table th, html body .as-table td { padding: 9px 8px; font-size: 13px; }
+html body .as-table thead th { background: #f8faf9; }
+html body .as-thumb { width: 42px; height: 42px; flex: 0 0 42px; border-radius: 8px; overflow: hidden; }
+html body .as-thumb.as-none { display: grid; place-items: center; background: #f1f5f9; color: #94a3b8; }
+html body .as-n { display: inline-block; min-width: 26px; padding: 2px 7px; border-radius: 999px; font-weight: 700; background: #f1f5f9; color: #334155; }
+html body .as-n.as-qualified, html body .as-n.as-appointment, html body .as-n.as-converted { background: #dcfce7; color: #166534; }
+html body .as-n.as-no_reply, html body .as-n.as-very_poor { background: #fee2e2; color: #991b1b; }
+html body .as-n.as-new, html body .as-n.as-intake { background: #e0f2fe; color: #075985; }
+@media (max-width: 760px) {
+  html body .cov-strip { grid-template-columns: repeat(45, minmax(0, 1fr)); gap: 2px; }
+}

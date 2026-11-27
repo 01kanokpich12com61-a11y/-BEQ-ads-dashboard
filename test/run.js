@@ -695,6 +695,35 @@ async function main() {
     global.fetch = realFetch2;
   }
 
+  // Dashboard: นับลีดที่ไม่ผูกโฆษณาด้วย + ตาราง โฆษณา × สถานะ + แถบข้อมูล 90 วัน
+  {
+    const metrics = require('../lib/metrics');
+    const { today, addDays } = require('../lib/dates');
+    const d0 = today(); const d1 = addDays(d0, -1);
+    const data = {
+      ads: [{ id: 'A1', name: 'แอดปลูกผม', campaignId: 'C1', pageId: 'P1' }], campaigns: [{ id: 'C1', name: 'แคมเปญ 1' }], adsets: [], reps: [], pages: [{ id: 'P1', name: 'เพจ', platform: 'Facebook' }],
+      daily: [{ adId: 'A1', date: d1, spend: 100, messages: 1, purchases: 0, clicks: 1, impressions: 10, reach: 5 }],
+      leads: [
+        { id: 'L1', adId: 'A1', date: d1, status: 'qualified', platform: 'Facebook', pageId: 'P1' },
+        { id: 'L2', adId: 'Paid', date: d1, status: 'no_reply', platform: 'Facebook', pageId: 'P1' },
+        { id: 'L3', adId: 'Direct', date: d0, status: 'talked', platform: 'Facebook', pageId: 'P1' },
+        { id: 'L4', adId: 'Direct', date: addDays(d0, -200), status: 'talked', platform: 'Facebook', pageId: 'P1' },
+      ],
+    };
+    const r = metrics.buildDashboard(data, { from: d1, to: d0, prevFrom: addDays(d1, -2), prevTo: addDays(d1, -1) });
+    assert.equal(r.chat.leads, 3, 'ลีดที่ไม่ผูกโฆษณาต้องนับด้วย และนับตามวันที่');
+    const a1 = r.adStatus.find((x) => x.id === 'A1');
+    assert.equal(a1.leads, 1); assert.equal(a1.qualified, 1); assert.equal(a1.byStatus.qualified, 1);
+    assert.equal(r.adStatus.filter((x) => !x.linked).length, 2);
+    assert.equal(r.coverage.days.length, 90); assert.equal(r.coverage.leads.count, 4);
+    assert.equal(r.coverage.days[89].leads, 1);
+    const onlyCamp = metrics.buildDashboard(data, { from: d1, to: d0, prevFrom: addDays(d1, -2), prevTo: addDays(d1, -1) }, { campaign: 'C1' });
+    assert.equal(onlyCamp.chat.leads, 1, 'กรองแคมเปญ = เฉพาะลีดที่ผูกโฆษณา');
+    const noAdDay = metrics.buildDashboard(data, { from: d0, to: d0, prevFrom: d1, prevTo: d1 });
+    assert.equal(noAdDay.chat.leads, 1, 'วันที่ไม่มีข้อมูลโฆษณา ลีดยังนับเฉพาะวันนั้น');
+    ok('Dashboard นับลีดครบ (รวมแชทที่ไม่ผูกโฆษณา) + ตารางโฆษณา × สถานะ + แถบข้อมูล 90 วัน');
+  }
+
   await call('POST', '/api/logout');
   assert.equal((await call('GET', '/api/me')).status, 401); ok('ล็อกเอาต์');
   server.close();
