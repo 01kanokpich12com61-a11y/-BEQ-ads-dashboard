@@ -5612,7 +5612,7 @@ function boardShell() {
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px">
           <div class="field"><label>ชื่อที่แสดงในระบบ</label><input type="text" name="name" value="${esc(a.name || '')}" placeholder="เช่น LINE BEQ สีลม"></div>
           <div class="field"><label>Channel ID</label><input type="text" name="channelId" value="${esc(a.channelId || '')}" placeholder="เช่น 2001234567"></div>
-          <div class="field"><label>Channel Secret ${a.hasSecret ? '<span class="chip good" style="margin-left:6px">บันทึกแล้ว</span>' : ''}</label><input type="password" name="channelSecret" placeholder="${a.hasSecret ? 'เว้นว่างไว้ถ้าไม่เปลี่ยน' : 'จาก LINE Developers Console'}" autocomplete="new-password" ${isNew ? 'required' : ''}></div>
+          <div class="field"><label>Channel Secret ${a.hasSecret ? '<span class="chip good" style="margin-left:6px">บันทึกแล้ว</span>' : ''}</label><input type="password" name="channelSecret" placeholder="${a.hasSecret ? 'เว้นว่างไว้ถ้าไม่เปลี่ยน' : 'จาก LINE Developers Console'}" autocomplete="new-password"></div>
           <div class="field"><label>Channel Access Token ${a.hasToken ? `<span class="chip good" style="margin-left:6px">บันทึกแล้ว ${esc(a.tokenHint)}</span>` : ''}</label><input type="password" name="channelAccessToken" placeholder="${a.hasToken ? 'เว้นว่างไว้ถ้าไม่เปลี่ยน' : 'Issue ที่แท็บ Messaging API'}" autocomplete="new-password"></div>
         </div>
         <div class="row-actions">
@@ -5628,6 +5628,7 @@ function boardShell() {
           ${a.basicId ? `<span class="rv-hint">${esc(a.basicId)}</span>` : ''}
           ${a.connectedAt && a.hasToken ? '<span class="chip good" style="font-size:11px">🟢 เชื่อมต่อแล้ว</span>' : '<span class="chip" style="font-size:11px;background:#fef3c7;color:#92400e">ยังไม่ได้ทดสอบ</span>'}
           ${a.fromEnv ? '<span class="chip" style="font-size:11px">ตั้งจาก Environment</span>' : ''}
+          ${!a.hasSecret ? '<span class="chip" style="font-size:11px;background:#fee2e2;color:#991b1b">⚠️ ยังไม่มี Channel Secret — ยังรับแชทไม่ได้</span>' : ''}
           <span class="rv-hint" style="margin-left:auto;font-size:11.5px">กดเพื่อแก้ไข ▾</span>
         </summary>
         ${a.fromEnv ? '<p class="rv-hint" style="margin:8px 0 0">บัญชีนี้ตั้งผ่าน Environment บน Render (LINE_CHANNEL_SECRET / LINE_CHANNEL_ACCESS_TOKEN) แก้ไขที่ Render</p>' : form(a)}
@@ -5656,7 +5657,7 @@ function boardShell() {
         ${isNew ? '' : `<input type="hidden" name="id" value="${esc(a.id)}">`}
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px">
           <div class="field"><label>ชื่อที่แสดงในระบบ</label><input type="text" name="name" value="${esc(a.name || '')}" placeholder="เช่น WhatsApp Pavicon"></div>
-          <div class="field"><label>Phone Number ID</label><input type="text" name="phoneId" value="${esc(a.phoneId || '')}" placeholder="เช่น 102345678901" ${isNew ? 'required' : ''}><small>Meta Developer → WhatsApp → API Setup</small></div>
+          <div class="field"><label>Phone Number ID</label><input type="text" name="phoneId" value="${esc(a.phoneId || '')}" placeholder="เช่น 102345678901"><small>Meta Developer → WhatsApp → API Setup</small></div>
           <div class="field"><label>WABA ID</label><input type="text" name="wabaId" value="${esc(a.wabaId || '')}" placeholder="เช่น 109876543210"></div>
           <div class="field"><label>Access Token ${a.hasToken ? `<span class="chip good" style="margin-left:6px">บันทึกแล้ว ${esc(a.tokenHint)}</span>` : ''}</label><input type="password" name="accessToken" placeholder="${a.hasToken ? 'เว้นว่างไว้ถ้าไม่เปลี่ยน' : 'เว้นว่าง = ใช้ Token ของ Meta'}" autocomplete="new-password"><small>เบอร์ใน Business เดียวกันใช้ Token เดียวกันได้</small></div>
         </div>
@@ -6802,7 +6803,7 @@ function boardShell() {
             S.filters = await api('/api/filters').catch(() => null);
             S.flash = { type: 'ok', text: `✅ เชื่อมต่อ LINE OA สำเร็จ: ${r.bot.displayName}${r.bot.basicId ? ' (' + r.bot.basicId + ')' : ''}` };
           } else {
-            S.flash = { type: 'err', text: '❌ ทดสอบ LINE OA ไม่สำเร็จ: ' + (r.error || 'ตรวจสอบ Channel Access Token') };
+            S.flash = { type: 'err', text: '❌ บันทึกบัญชีแล้ว แต่ทดสอบ LINE OA ไม่สำเร็จ: ' + (r.error || 'ตรวจสอบ Channel Access Token') };
           }
         } else {
           S.flash = { type: 'ok', text: 'บันทึก LINE OA เรียบร้อยแล้ว' };
@@ -6821,10 +6822,10 @@ function boardShell() {
             S.filters = await api('/api/filters').catch(() => null);
             S.flash = { type: 'ok', text: `✅ เชื่อมต่อ WhatsApp Business สำเร็จ: ${r.phone.verifiedName} (${r.phone.displayPhone})` };
           } else {
-            S.flash = { type: 'err', text: '❌ ทดสอบ WhatsApp ไม่สำเร็จ: ' + (r.error || 'ตรวจสอบ Phone Number ID และ Permanent Access Token') };
+            S.flash = { type: 'err', text: '❌ บันทึกเบอร์แล้ว แต่ทดสอบ WhatsApp ไม่สำเร็จ: ' + (r.error || 'ตรวจสอบ Phone Number ID และ Access Token') };
           }
         } else {
-          S.flash = { type: 'ok', text: 'บันทึกการตั้งค่า WhatsApp Business เรียบร้อยแล้ว' };
+          S.flash = { type: 'ok', text: 'บันทึก WhatsApp เรียบร้อยแล้ว' };
         }
         render();
       } else if (type === 'reply') {
@@ -6863,6 +6864,7 @@ function boardShell() {
     } catch (e) {
       if (type === 'login') { S.loginErr = e.message; renderLogin(); }
       else if (['followup', 'review'].includes(type) && e.message !== 'กรุณาเข้าสู่ระบบ') { S.chat.msg = { type: 'err', text: e.message }; renderChatViews(); }
+      else if (['line-settings', 'whatsapp-settings'].includes(type) && e.message !== 'กรุณาเข้าสู่ระบบ') { showToast('❌ ' + e.message, 'error'); }
       else if (e.message !== 'กรุณาเข้าสู่ระบบ') { S.flash = { type: 'err', text: e.message }; render(); }
     }
   });

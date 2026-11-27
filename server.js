@@ -1791,6 +1791,7 @@ async function api(req, res, url, session) {
   if (route === 'PUT /api/settings/line') {
     if (!auth.isAdmin(session.user)) return send(res, 403, { error: 'เฉพาะผู้ดูแล (admin) เท่านั้น' });
     const b = await readJson(req);
+    if (!clean(b.id, 60) && !clean(b.channelSecret, 100) && !clean(b.channelAccessToken, 1000)) return send(res, 400, { error: 'กรุณาใส่ Channel Secret และ Channel Access Token ของ LINE OA ที่จะเพิ่ม' });
     const acc = channels.upsertLine({ id: clean(b.id, 60) || null, name: b.name, channelId: b.channelId, channelSecret: clean(b.channelSecret, 100), channelAccessToken: clean(b.channelAccessToken, 1000) });
     recordPage(acc.id, acc.name || 'LINE Official Account', 'LINE');
     audit.log(session.user.username, 'line_settings_save', `ตั้งค่า LINE OA: ${acc.name || acc.id}`, clientIp(req));
@@ -1830,6 +1831,7 @@ async function api(req, res, url, session) {
   if (route === 'PUT /api/settings/whatsapp') {
     if (!auth.isAdmin(session.user)) return send(res, 403, { error: 'เฉพาะผู้ดูแล (admin) เท่านั้น' });
     const b = await readJson(req);
+    if (!clean(b.id, 60) && !clean(b.phoneId, 50)) return send(res, 400, { error: 'กรุณาใส่ Phone Number ID ของเบอร์ WhatsApp ที่จะเพิ่ม' });
     const acc = channels.upsertWa({ id: clean(b.id, 60) || null, name: b.name, wabaId: b.wabaId, phoneId: b.phoneId, accessToken: clean(b.accessToken, 1000) });
     recordPage(acc.id, acc.name || 'WhatsApp Business', 'WhatsApp');
     audit.log(session.user.username, 'whatsapp_settings_save', `ตั้งค่า WhatsApp: ${acc.name || acc.phoneId || acc.id}`, clientIp(req));
