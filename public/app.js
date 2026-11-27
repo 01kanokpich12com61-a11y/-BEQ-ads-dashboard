@@ -5874,35 +5874,81 @@ function boardShell() {
   }
 
   // ชื่อสั้นสำหรับปุ่มทางลัด (หัวข้อจริงยาวเกินจนโดนตัด)
-  function shortSettingLabel(text) {
+  // หมวด + ชื่อสั้น + ไอคอน ของแต่ละหัวข้อในหน้า Setting (ลำดับกฎสำคัญ: เจาะจงก่อน)
+  const QN_GROUPS = [
+    { key: 'chan', label: 'ช่องทางแชท & โฆษณา' },
+    { key: 'sys', label: 'ข้อมูล & ระบบ' },
+    { key: 'acct', label: 'เพจ & ผู้ใช้' },
+  ];
+  const QN_RULES = [
+    [/แจ้งเตือน/, 'แจ้งเตือน', '🔔', '#eab308', 'sys'],
+    [/wechat/i, 'WeChat', '💬', '#07c160', 'chan'],
+    [/tiktok ads|tiktok.*โฆษณา/i, 'TikTok Ads', '📊', '#fe2c55', 'chan'],
+    [/tiktok/i, 'TikTok แชท', '🎵', '#111827', 'chan'],
+    [/meta api/i, 'Meta', '🔗', '#1877f2', 'chan'],
+    [/whatsapp/i, 'WhatsApp', '🟢', '#25d366', 'chan'],
+    [/line official|line oa|\bline\b/i, 'LINE OA', '💚', '#06c755', 'chan'],
+    [/supabase/i, 'ฐานข้อมูล', '⚡', '#3ecf8e', 'sys'],
+    [/แหล่งข้อมูล/, 'แหล่งข้อมูล', '🗂️', '#f59e0b', 'sys'],
+    [/webhook/i, 'Webhook', '📨', '#6366f1', 'sys'],
+    [/google sheets/i, 'Google Sheets', '📗', '#0f9d58', 'sys'],
+    [/เพิ่มหรือแก้ไข/, 'แก้ไขเพจ', '✏️', '#0ea5e9', 'acct'],
+    [/ตารางเพจ/, 'ตารางเพจ', '🏢', '#64748b', 'acct'],
+    [/ผู้ใช้/, 'ผู้ใช้งาน', '👥', '#8b5cf6', 'acct'],
+    [/รหัสผ่าน/, 'รหัสผ่าน', '🔑', '#f97316', 'acct'],
+  ];
+  function settingNavInfo(text) {
     const s = String(text || '').replace(/\s+/g, ' ').trim();
-    const rules = [
-      [/supabase/i, '⚡ ฐานข้อมูล'], [/แหล่งข้อมูล/, '🗂️ แหล่งข้อมูล'], [/meta api/i, '🔗 Meta'],
-      [/เพิ่มหรือแก้ไข/, '✏️ แก้ไขเพจ'], [/แจ้งเตือน/, '🔔 แจ้งเตือน'], [/google sheets/i, '📊 Google Sheets'],
-      [/webhook/i, '📨 Webhook'], [/line/i, '💬 LINE OA'], [/whatsapp/i, '🟢 WhatsApp'],
-      [/ตารางเพจ/, '🏢 ตารางเพจ'], [/ผู้ใช้/, '👥 ผู้ใช้งาน'], [/รหัสผ่าน/, '🔑 รหัสผ่าน'],
-    ];
-    for (const [re, label] of rules) if (re.test(s)) return label;
-    return s.replace(/\(.*?\)/g, '').trim().slice(0, 18);
+    for (const [re, label, icon, color, group] of QN_RULES) if (re.test(s)) return { label, icon, color, group };
+    return { label: s.replace(/\(.*?\)/g, '').replace(/^เชื่อมต่อ\s*/, '').trim().slice(0, 16), icon: '⚙️', color: '#64748b', group: 'sys' };
   }
+  function shortSettingLabel(text) { const x = settingNavInfo(text); return `${x.icon} ${x.label}`; }
 
-  // หน้า Setting ยาวมาก → แถบทางลัดด้านบน กดแล้วเลื่อนไปหัวข้อนั้น (สร้างจากหัวข้อจริงในหน้า)
+  // หน้า Setting ยาวมาก → แถบทางลัดด้านบน แบ่งหมวด กดแล้วเลื่อนไปหัวข้อนั้น + ไฮไลต์หัวข้อที่กำลังดู
   function buildSettingQuickNav(box) {
     try {
-      const heads = [...box.querySelectorAll('section.card h3')].filter((h) => h.offsetParent !== null || true);
+      const heads = [...box.querySelectorAll('section.card h3')];
       if (heads.length < 3) return;
-      const nav = document.createElement('div');
+      const nav = document.createElement('nav');
       nav.className = 'setting-quicknav';
+      nav.setAttribute('aria-label', 'ทางลัดหัวข้อตั้งค่า');
+      const byGroup = Object.fromEntries(QN_GROUPS.map((g) => [g.key, []]));
+      const seen = new Set();
       heads.forEach((h, i) => {
-        const sec = h.closest('section'); if (!sec) return;
+        const sec = h.closest('section'); if (!sec || seen.has(sec)) return;
+        seen.add(sec);
         sec.id = sec.id || `setting-sec-${i}`;
-        const label = shortSettingLabel(h.textContent);
+        const info = settingNavInfo(h.textContent);
         const b = document.createElement('button');
-        b.type = 'button'; b.textContent = label;
+        b.type = 'button'; b.className = 'qn-chip'; b.dataset.target = sec.id;
+        b.style.setProperty('--qn', info.color);
+        b.innerHTML = `<span class="qn-ic">${info.icon}</span><span>${esc(info.label)}</span>`;
         b.addEventListener('click', () => sec.scrollIntoView({ behavior: 'smooth', block: 'start' }));
-        nav.appendChild(b);
+        (byGroup[info.group] || byGroup.sys).push(b);
       });
+      for (const g of QN_GROUPS) {
+        if (!byGroup[g.key].length) continue;
+        const grp = document.createElement('div');
+        grp.className = 'qn-group';
+        grp.innerHTML = `<span class="qn-glabel">${g.label}</span>`;
+        const row = document.createElement('div'); row.className = 'qn-row';
+        byGroup[g.key].forEach((b) => row.appendChild(b));
+        grp.appendChild(row);
+        nav.appendChild(grp);
+      }
       box.insertBefore(nav, box.firstChild);
+      // ไฮไลต์ปุ่มของหัวข้อที่อยู่บนจอ
+      if ('IntersectionObserver' in window) {
+        const btns = [...nav.querySelectorAll('.qn-chip')];
+        const vis = new Map();
+        const io = new IntersectionObserver((entries) => {
+          for (const e of entries) vis.set(e.target.id, e.isIntersecting ? e.boundingClientRect.top : null);
+          let best = null; let bestTop = Infinity;
+          for (const [id, top] of vis) if (top !== null && Math.abs(top) < bestTop) { bestTop = Math.abs(top); best = id; }
+          btns.forEach((b) => b.classList.toggle('active', b.dataset.target === best));
+        }, { rootMargin: '-120px 0px -55% 0px' });
+        seen.forEach((sec) => io.observe(sec));
+      }
     } catch (_) {}
   }
 

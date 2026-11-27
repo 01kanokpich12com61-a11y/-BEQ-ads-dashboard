@@ -69,11 +69,6 @@
 }
 
 /* แถบทางลัดหน้า Setting */
-.setting-quicknav { position: sticky; top: -24px; z-index: 30; display: flex; flex-wrap: wrap; gap: 6px; overflow-x: visible; padding: 10px 2px; margin: -6px 0 12px; background: linear-gradient(180deg, rgba(240,253,244,.97), rgba(240,253,244,.88)); backdrop-filter: blur(6px); scrollbar-width: none; }
-.setting-quicknav::-webkit-scrollbar { display: none; }
-.setting-quicknav button { white-space: nowrap; border: 1px solid #d1fae5; background: #fff; color: #065f46; font-weight: 600; font-size: 12.5px; border-radius: 999px; padding: 5px 12px; cursor: pointer; font-family: inherit; }
-.setting-quicknav button:hover { background: #ecfdf5; }
-@media (max-width: 860px) { .setting-quicknav { top: -14px; flex-wrap: nowrap; overflow-x: auto; } }
 
 /* หัวเว็บบนจอโน้ตบุ๊ก: ไม่ให้ปุ่มด้านขวาทับชื่อหน้า */
 html body .header-left-group { flex-shrink: 0; }
@@ -112,3 +107,18 @@ html body .as-n.as-new, html body .as-n.as-intake { background: #e0f2fe; color: 
 
 html body .ext-steps { margin: 10px 0 0; padding-left: 20px; font-size: 12.5px; color: #475569; line-height: 1.7; }
 html body .ext-steps input { margin-top: 4px; font-size: 12px; }
+
+/* ===== แถบทางลัดหน้า Setting (แบ่งหมวด) ===== */
+html body .setting-quicknav { position: sticky; top: -24px; z-index: 30; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; margin: -4px 0 16px; padding: 10px 14px; border: 1px solid #d1fae5; border-radius: 16px; background: rgba(255,255,255,.93); backdrop-filter: blur(8px); box-shadow: 0 6px 18px -10px rgba(6,95,70,.35); }
+html body .qn-group { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; }
+html body .qn-glabel { flex: 0 0 auto; font-size: 11px; font-weight: 700; color: #047857; background: #ecfdf5; border-radius: 6px; padding: 4px 8px; margin-right: 2px; white-space: nowrap; }
+html body .qn-row { display: contents; }
+html body .qn-chip { --qn: #10b981; flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; border: 1px solid #e2e8f0; background: #fff; color: #0f172a; font-weight: 600; font-size: 12.5px; line-height: 1; font-family: inherit; border-radius: 999px; padding: 5px 12px 5px 6px; cursor: pointer; transition: background .15s, border-color .15s, box-shadow .15s; }
+html body .qn-chip .qn-ic { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; font-size: 11.5px; background: color-mix(in srgb, var(--qn) 14%, #fff); }
+html body .qn-chip:hover { border-color: color-mix(in srgb, var(--qn) 45%, #fff); background: color-mix(in srgb, var(--qn) 6%, #fff); }
+html body .qn-chip.active { border-color: var(--qn); background: color-mix(in srgb, var(--qn) 10%, #fff); box-shadow: 0 0 0 2px color-mix(in srgb, var(--qn) 18%, transparent); }
+@media (max-width: 860px) {
+  html body .setting-quicknav { top: -14px; flex-wrap: nowrap; overflow-x: auto; gap: 14px; padding: 9px 10px; scrollbar-width: none; }
+  html body .setting-quicknav::-webkit-scrollbar { display: none; }
+  html body .qn-group { flex-wrap: nowrap; flex: 0 0 auto; }
+}
